@@ -472,6 +472,8 @@ Goal: turn reviewed planning artifacts into code that passes quality checks.
 
 #### 2.1 Implement `[required · repeatable]`
 
+**Verified checkpoint commits:** after a coherent implementation slice is independently useful and its relevant tests, contract checks, and `git diff --check` pass, commit it before starting the next slice when all dirty paths are recognized and in scope. Ordinary code commits do not require user confirmation. Spec/readme updates that merely describe the implemented behavior may travel with the code. Do not checkpoint-commit direction-changing product/workflow documentation, unrecognized files, failing or untested code, migrations without their compatible implementation, generated drift, or partial secrets/authentication flows. Those return to planning/review or the Phase 3.4 confirmation path. Never amend or push automatically.
+
 [Claude Code, Cursor, OpenCode, CodeBuddy, Droid, Pi, Oh My Pi]
 
 Spawn the implement sub-agent:
@@ -611,7 +613,11 @@ The AI drives a batched commit of this task's code changes so `/finish-work` can
 
 4. **Draft a commit plan**. Group AI-edited files into logical commits (1 commit per coherent change unit, not 1 commit per file). Each entry: `<commit message>` + file list. List unrecognized files separately at the bottom.
 
-5. **Present the plan once, ask for one-shot confirmation**. Format:
+5. **Choose the commit path**:
+   - **Automatic ordinary-code path**: commit directly when every dirty path is recognized and in scope; relevant tests, contract checks, and `git diff --check` pass; the batch is an independently coherent implementation; and no product/workflow direction is being changed. Implementation-aligned specs/readme and generated artifacts may be included. State the resulting commit hash in the progress update.
+   - **Confirmation path**: present the plan below and ask once when the batch changes product/workflow direction, contains documentation decisions not implied by implemented behavior, includes unrecognized/overlapping files, lacks the required verification, or the user requested manual review.
+
+   Confirmation format:
    ```
    Proposed commits (in order):
      1. <message>
@@ -627,15 +633,16 @@ The AI drives a batched commit of this task's code changes so `/finish-work` can
    Reply 'ok' / '行' to execute. Reply with edits, or '我自己来' / 'manual' to abort.
    ```
 
-6. **On confirmation**: run `git add <files>` + `git commit -m "<msg>"` for each batch in order. Do not amend. Do not push.
+6. **Execute the selected path**: for automatic batches, stage only the recognized files and commit. For confirmation batches, wait for approval, then run `git add <files>` + `git commit -m "<msg>"` for each approved batch. Do not amend. Do not push.
 
 7. **On rejection** (user replies "不行" / "我自己来" / "manual" / any pushback on the plan): stop. Do not attempt a second plan. The user will commit by hand; you skip ahead to 3.5 once they confirm.
 
 **Rules**:
 - No `git commit --amend` anywhere — three-stage three-commit flow (work commits → archive commit → journal commit).
 - Never push to remote in this step.
-- If the user wants different message wording but accepts the file grouping, edit the message and re-confirm once — but if they reject the grouping, exit to manual mode.
-- The batched plan is one prompt; do not prompt per commit.
+- Never use the automatic path to bypass a product decision, workflow change, unclear ownership, failed check, or high-risk Git operation.
+- If confirmation is required and the user wants different message wording but accepts the file grouping, edit the message and re-confirm once — but if they reject the grouping, exit to manual mode.
+- A confirmation-required batched plan is one prompt; do not prompt per commit.
 
 #### 3.5 Wrap-up reminder
 

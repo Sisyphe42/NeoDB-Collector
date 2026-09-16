@@ -56,4 +56,5 @@ Spec entrypoints:
 - Prefer `rg` / `rg --files` for search and `apply_patch` for authored edits. Preserve unrelated user changes.
 - Before handoff, run the relevant tests and contract checks plus `git diff --check`. Do not claim completion when a required check is failing or was not run.
 - Commits should be scoped and accurately typed. Creating or merging pull requests and other high-risk Git operations require explicit user approval.
+- Commit each coherent ordinary-code checkpoint after its relevant tests, contract checks, and `git diff --check` pass. No additional user confirmation is needed when all files are recognized and in scope and product/workflow direction is unchanged; direction-changing documentation, unclear ownership, missing verification, and high-risk Git operations still require review or explicit approval.
 - GitHub release draft content defaults to `Full Changelog: <tag compare>`.

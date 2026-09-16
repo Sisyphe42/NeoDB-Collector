@@ -21,5 +21,5 @@ Two test issues fixed: the cancellation mock now observes the incoming Request's
 1. Implement restrictive NeoDB OAuth transport plus orchestrator with mock upstream/credential ports; no `/api/catalog/fetch`, no media writes, no real account authorization.
 2. Add OAuth HTTP routes and UI status/cancel flow; generated contracts and cancellation/state/replay tests.
 3. Add CLI pair/status via the same API and OS credential store; API token exchange exists but no CLI command yet.
-4. Verify remaining PRD acceptance, final full-scope check, then present scoped commit plan for user confirmation.
+4. Commit each verified coherent code slice automatically under the project workflow; request confirmation only if direction, ownership or verification is unclear.
 5. Only after this child finishes, review/activate mapping and preview-jobs children. Parent is not complete.

@@ -483,6 +483,7 @@ name = "collector-core"
 version = "0.1.0"
 dependencies = [
  "collector-domain",
+ "tokio",
 ]
 
 [[package]]

@@ -1,6 +1,6 @@
 # Implementation checkpoint — 2026-09-16
 
-Task remains in progress and is not ready to archive. The completed local-access slice is ready for its implementation commit; OAuth and CLI work remain pending.
+Task remains in progress and is not ready to archive. Local access and OAuth transport are committed; Core OAuth lifecycle is the current checkpoint. OAuth HTTP/UI composition and CLI work remain pending.
 
 ## Completed local-access slice
 
@@ -18,8 +18,20 @@ Two test issues fixed: the cancellation mock now observes the incoming Request's
 
 ## Continue next
 
-1. Restrictive typed NeoDB OAuth transport is implemented and locally tested; compose the pure Core orchestrator with mock upstream/credential ports next. No `/api/catalog/fetch`, media writes or real account authorization.
+1. Restrictive typed NeoDB OAuth transport and pure Core orchestrator are implemented. Ten Core tests cover lifecycle, failures, concurrent reservations and recovery using mock ports; see backend/oauth-lifecycle.md. No `/api/catalog/fetch`, media writes or real account authorization.
 2. Add OAuth HTTP routes and UI status/cancel flow; generated contracts and cancellation/state/replay tests.
 3. Add CLI pair/status via the same API and OS credential store; API token exchange exists but no CLI command yet.
 4. Commit each verified coherent code slice automatically under the project workflow; request confirmation only if direction, ownership or verification is unclear.
 5. Only after this child finishes, review/activate mapping and preview-jobs children. Parent is not complete.
+
+## Core OAuth checkpoint validation
+
+Full `pnpm verify` passed on Windows (Rust workspace, 17 TS/UI tests, Clippy,
+formatting, contracts, dependency boundaries, lint/typecheck, builds and real
+CLI/Chromium smoke). The final additional rollback-cleanup test and partial-write
+credential mock also passed scoped Core tests and Clippy. Core now has 10 tests.
+No native credential store or real NeoDB account was accessed.
+
+The first full run hit the existing TS client cancellation test's 5-second
+timeout. An isolated TS rerun and the subsequent full verify both passed without
+code changes to that test; its intermittent cause remains unconfirmed.

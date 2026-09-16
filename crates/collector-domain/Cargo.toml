@@ -1,0 +1,13 @@
+[package]
+name = "collector-domain"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+schemars.workspace = true
+utoipa.workspace = true
+
+[lints]
+workspace = true

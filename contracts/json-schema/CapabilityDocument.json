@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "connectorIds": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "mediaTypes": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "routes": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "schemaVersion": {
+      "format": "uint32",
+      "maximum": 4294967295,
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "connectorIds",
+    "mediaTypes",
+    "routes"
+  ],
+  "title": "CapabilityDocument",
+  "type": "object"
+}

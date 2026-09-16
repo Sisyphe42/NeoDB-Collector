@@ -192,9 +192,21 @@ service:
   protocol: http_and_websocket
   default_bind: 127.0.0.1
   default_port: 19423
-  default_port_status: proposed_before_implementation
+  default_port_status: implemented_in_runnable_foundation
   configurable_port: true
   single_port: true
+  implementation_status:
+    milestone: runnable_foundation
+    implemented_hosts: [cli_with_webui]
+    implemented_commands: [serve, doctor]
+    implemented_routes: [webui, health, capabilities, schema]
+    connector_ids: []
+    writes_enabled: false
+    database: migration_ledger_only
+    config: yaml_v1_cli_over_env_over_file_over_defaults
+    exposure: loopback_only
+    authentication: deferred_until_private_data_or_mutation_endpoints
+    code_contract: .trellis/spec/backend/foundation-runtime.md
   routes:
     webui: /
     api: /api/v1

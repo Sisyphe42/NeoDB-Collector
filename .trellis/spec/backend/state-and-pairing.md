@@ -6,9 +6,9 @@ This contract applies whenever Core persists state across restarts or authorizes
 
 ## 2. Signatures and Data Shapes
 
-The default database is `{data_dir}/collector.db`, where `data_dir` resolves in this order: CLI `--data-dir`, `NEODB_COLLECTOR_DATA_DIR`, then the operating-system application-data directory.
+The default database is `{data_dir}/collector.db`, where `data_dir` resolves in this order: CLI `--data-dir`, `NEODB_COLLECTOR_DATA_DIR`, YAML `storage.data_dir`, then the operating-system application-data directory. See [Runnable Foundation](./foundation-runtime.md) for path bases and implemented migration/startup behavior.
 
-Minimum schema ownership:
+Future minimum schema ownership (not implemented by the migration-only foundation):
 
 ```sql
 pairing_challenges(id, key_hash, client_kind, expires_at, consumed_at)

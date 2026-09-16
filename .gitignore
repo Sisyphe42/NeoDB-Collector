@@ -8,14 +8,18 @@
 
 # Rust and web build output
 /target/
-/node_modules/
-/dist/
-/coverage/
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+/test-results/
+/playwright-report/
 
 # Runtime SQLite files
 *.db
 *.db-shm
 *.db-wal
+*.db-journal
 
 # Generated caches
 **/__pycache__/

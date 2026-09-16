@@ -1,0 +1,48 @@
+{
+  "$defs": {
+    "HealthStatus": {
+      "enum": [
+        "ok",
+        "degraded"
+      ],
+      "type": "string"
+    },
+    "StorageStatus": {
+      "enum": [
+        "ready",
+        "unavailable"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "apiVersion": {
+      "type": "string"
+    },
+    "coreVersion": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "format": "uint32",
+      "maximum": 4294967295,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "status": {
+      "$ref": "#/$defs/HealthStatus"
+    },
+    "storage": {
+      "$ref": "#/$defs/StorageStatus"
+    }
+  },
+  "required": [
+    "status",
+    "coreVersion",
+    "apiVersion",
+    "schemaVersion",
+    "storage"
+  ],
+  "title": "HealthDocument",
+  "type": "object"
+}

@@ -1,0 +1,27 @@
+[workspace]
+members = ["crates/*"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace.dependencies]
+collector-domain = { path = "crates/collector-domain" }
+collector-core = { path = "crates/collector-core" }
+collector-storage = { path = "crates/collector-storage" }
+collector-server = { path = "crates/collector-server" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+schemars = "1"
+utoipa = { version = "5", features = ["axum_extras"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "fs", "time"] }
+axum = "0.8"
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "migrate", "macros"] }
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["fs"] }
+tempfile = "3"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"

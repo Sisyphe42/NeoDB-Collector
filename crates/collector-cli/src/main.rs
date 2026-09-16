@@ -1,0 +1,263 @@
+mod config;
+
+use clap::{Parser, Subcommand, ValueEnum};
+use collector_domain::ApiError;
+use collector_storage::Storage;
+use serde::Serialize;
+use std::{net::SocketAddr, process::ExitCode, sync::Arc};
+
+#[derive(Parser)]
+#[command(name = "collector", version, about = "Local NeoDB Collector Core")]
+struct Cli {
+    #[command(flatten)]
+    overrides: config::Overrides,
+    #[command(subcommand)]
+    command: Command,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    /// Serve read-only Core API and built WebUI on the same loopback port.
+    Serve,
+    /// Diagnose local setup. Creates the data directory and migrates collector.db.
+    Doctor {
+        #[arg(long, value_enum, default_value = "human")]
+        format: Format,
+    },
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum Format {
+    Human,
+    Json,
+}
+
+#[derive(Serialize)]
+struct Check {
+    name: &'static str,
+    status: &'static str,
+    code: String,
+    message: String,
+}
+
+impl Check {
+    fn result(name: &'static str, result: Result<(), ApiError>, success: &str) -> Self {
+        match result {
+            Ok(()) => Self {
+                name,
+                status: "ok",
+                code: "ok".into(),
+                message: success.into(),
+            },
+            Err(e) => Self {
+                name,
+                status: "error",
+                code: e.code,
+                message: e.message,
+            },
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct Report {
+    ok: bool,
+    checks: Vec<Check>,
+}
+
+fn resolve(overrides: &config::Overrides) -> Result<config::Config, ApiError> {
+    let cwd = std::env::current_dir()
+        .map_err(|_| ApiError::new("config_invalid", "Cannot resolve current directory."))?;
+    config::resolve(
+        overrides,
+        &config::environment(),
+        &cwd,
+        config::default_data_dir().as_deref(),
+    )
+}
+
+async fn doctor(config: Result<config::Config, ApiError>) -> Report {
+    let config = match config {
+        Ok(config) => config,
+        Err(error) => {
+            return Report {
+                ok: false,
+                checks: vec![Check::result("config", Err(error), "")],
+            };
+        }
+    };
+    let mut checks = vec![Check::result("config", Ok(()), "Configuration is valid.")];
+    let directory = tokio::fs::create_dir_all(&config.data_dir)
+        .await
+        .map_err(|_| {
+            ApiError::new(
+                "data_directory_unavailable",
+                "Cannot create or access the data directory.",
+            )
+        });
+    checks.push(Check::result(
+        "data_directory",
+        directory,
+        "Data directory is accessible; database check verifies write access.",
+    ));
+    let database = match Storage::open(&config.data_dir).await {
+        Ok(storage) => {
+            storage.close().await;
+            Ok(())
+        }
+        Err(error) => Err(error),
+    };
+    checks.push(Check::result(
+        "database",
+        database,
+        "Database is writable and migrations are current.",
+    ));
+    let port = tokio::net::TcpListener::bind(SocketAddr::new(config.bind, config.port))
+        .await
+        .map(drop)
+        .map_err(|_| {
+            ApiError::new(
+                "port_unavailable",
+                "Cannot bind the configured port; stop the running Core or choose another port.",
+            )
+        });
+    checks.push(Check::result(
+        "port",
+        port,
+        "Configured address can be bound.",
+    ));
+    let assets = tokio::fs::read(config.assets_dir.join("index.html"))
+        .await
+        .map(|_| ())
+        .map_err(|_| {
+            ApiError::new(
+                "webui_assets_missing",
+                "Build the WebUI with pnpm build, or configure webui.assets_dir.",
+            )
+        });
+    checks.push(Check::result("assets", assets, "WebUI index is readable."));
+    Report {
+        ok: checks.iter().all(|c| c.status == "ok"),
+        checks,
+    }
+}
+
+async fn shutdown() {
+    #[cfg(unix)]
+    {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut terminate) => {
+                tokio::select! { _ = tokio::signal::ctrl_c() => {}, _ = terminate.recv() => {} }
+            }
+            Err(_) => {
+                let _ = tokio::signal::ctrl_c().await;
+            }
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = tokio::signal::ctrl_c().await;
+    }
+}
+
+async fn serve(config: config::Config) -> Result<(), ApiError> {
+    // Bind before migrations: a second Core must fail without changing local state.
+    let listener = tokio::net::TcpListener::bind(SocketAddr::new(config.bind, config.port))
+        .await
+        .map_err(|_| {
+            ApiError::new(
+                "port_unavailable",
+                "Cannot bind the configured loopback port.",
+            )
+        })?;
+    let address = listener
+        .local_addr()
+        .map_err(|_| ApiError::new("port_unavailable", "Cannot inspect listener address."))?;
+    let storage = Storage::open(&config.data_dir).await?;
+    eprintln!("Core listening on http://{address}");
+    let result = collector_server::serve(
+        listener,
+        Arc::new(storage.clone()),
+        config.assets_dir,
+        shutdown(),
+    )
+    .await;
+    storage.close().await;
+    result.map_err(|_| ApiError::new("server_failed", "Core HTTP server stopped unexpectedly."))
+}
+
+#[tokio::main]
+async fn main() -> ExitCode {
+    let cli = Cli::parse();
+    let config = resolve(&cli.overrides);
+    match cli.command {
+        Command::Serve => {
+            let result = match config {
+                Ok(config) => serve(config).await,
+                Err(error) => Err(error),
+            };
+            match result {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(error) => {
+                    eprintln!("{}: {}", error.code, error.message);
+                    ExitCode::FAILURE
+                }
+            }
+        }
+        Command::Doctor { format } => {
+            let report = doctor(config).await;
+            match format {
+                Format::Json => println!(
+                    "{}",
+                    serde_json::to_string_pretty(&report).expect("serializable report")
+                ),
+                Format::Human => {
+                    for check in &report.checks {
+                        println!(
+                            "[{}] {}: {} ({})",
+                            check.status, check.name, check.message, check.code
+                        );
+                    }
+                }
+            }
+            if report.ok {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::FAILURE
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[tokio::test]
+    async fn doctor_reports_assets_port_and_database() {
+        let dir = tempfile::tempdir().unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let config = config::Config {
+            bind: listener.local_addr().unwrap().ip(),
+            port: listener.local_addr().unwrap().port(),
+            data_dir: dir.path().join("data"),
+            assets_dir: dir.path().join("missing"),
+        };
+        let report = doctor(Ok(config)).await;
+        assert!(!report.ok);
+        assert_eq!(report.checks.len(), 5);
+        assert!(report.checks.iter().any(|c| c.code == "port_unavailable"));
+        assert!(
+            report
+                .checks
+                .iter()
+                .any(|c| c.code == "webui_assets_missing")
+        );
+        assert!(
+            report
+                .checks
+                .iter()
+                .any(|c| c.name == "database" && c.status == "ok")
+        );
+        assert!(dir.path().join("data/collector.db").exists());
+    }
+}

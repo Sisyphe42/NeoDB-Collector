@@ -1,0 +1,17 @@
+[package]
+name = "collector-storage"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+collector-core.workspace = true
+collector-domain.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

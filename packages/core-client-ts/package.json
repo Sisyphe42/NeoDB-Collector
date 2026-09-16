@@ -1,0 +1,5 @@
+{
+  "name": "@neodb-collector/core-client", "version": "0.1.0", "private": true, "type": "module",
+  "collectorCoreApi": "v1", "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@neodb-collector/contracts": "workspace:*", "openapi-fetch": "0.17.0" }
+}

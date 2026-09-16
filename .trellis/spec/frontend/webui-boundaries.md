@@ -4,6 +4,8 @@
 
 This contract applies to the WebUI embedded in desktop, served by `collector serve`, and bundled in Docker. All hosts serve the same built assets from Core and use the same `/api/v1` contract. Browser-extension UI remains a separate surface but shares generated API and domain types.
 
+Implementation status: only the CLI-hosted read-only status WebUI exists. See [Runnable Foundation](../backend/foundation-runtime.md). Sessions, CSRF, mapping, SSE and other host bundles below are required for their future features, not claims of current support. Current status endpoints contain no private data and require no session; private data or mutations must not be added before authentication protections.
+
 ## 2. Signatures and Data Shapes
 
 ```ts

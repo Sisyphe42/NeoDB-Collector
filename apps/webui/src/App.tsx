@@ -6,7 +6,7 @@ type State = { kind: 'loading' } | { kind: 'connected' | 'degraded'; snapshot: S
 const client = createCoreClient();
 const labels = {
   loading: ['正在连接本地服务', '读取服务状态与可用能力…'],
-  connected: ['本地服务已连接', '基础服务运行正常。此版本尚未接入平台，不会读取或写入任何平台账户。'],
+  connected: ['本地服务已连接', '基础服务运行正常。可授权 NeoDB 只读连接；同步与导入尚未开放。'],
   degraded: ['本地数据库不可用', '服务仍可访问，但数据库检查失败。请在终端运行 collector doctor 查看诊断。'],
   unavailable: ['无法连接本地服务', '请确认 collector serve 正在运行，然后重新检查。'],
   incompatible: ['客户端与服务版本不兼容', '请使用同一版本的 WebUI 与 Core，再重新启动服务。'],

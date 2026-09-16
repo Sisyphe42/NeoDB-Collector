@@ -45,6 +45,10 @@ try {
   browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const errors = [];
+  // OAuth UI fixture only: never invoke the user's native keychain in smoke.
+  await page.route('**/api/v1/settings/neodb', route => route.fulfill({
+    contentType: 'application/json', body: JSON.stringify({ connected: false, baseUrl: null, account: null, pending: false }),
+  }));
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(bootstrapUrl);
   await page.getByRole('heading', { name: '本地服务已连接' }).waitFor();

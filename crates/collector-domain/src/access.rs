@@ -65,3 +65,25 @@ pub struct ClientList {
 pub struct ActionResult {
     pub ok: bool,
 }
+
+#[derive(Serialize, Deserialize, JsonSchema, ToSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct NeoDbStartRequest {
+    pub base_url: String,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct NeoDbAuthorization {
+    pub authorization_url: String,
+    pub expires_at: i64,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct NeoDbStatus {
+    pub connected: bool,
+    pub base_url: Option<String>,
+    pub account: Option<String>,
+    pub pending: bool,
+}

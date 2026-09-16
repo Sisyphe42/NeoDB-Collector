@@ -1,10 +1,11 @@
 import createClient from 'openapi-fetch';
-import { validateSessionView, validatePairingLink, validateClientList, validateActionResult, validateApiError, type paths, type components } from '@neodb-collector/contracts';
+import { validateSessionView, validatePairingLink, validateClientList, validateActionResult, validateApiError, validateNeoDbStatus, validateNeoDbAuthorization, type paths, type components } from '@neodb-collector/contracts';
 
 export type SessionView = components['schemas']['SessionView'];
 export type PairedClient = components['schemas']['PairedClient'];
 export type PairingRequest = components['schemas']['PairingRequest'];
 export type PairingLink = components['schemas']['PairingLink'];
+export type NeoDbStatus = components['schemas']['NeoDbStatus'];
 export class AccessClientError extends Error {
   constructor(public readonly code: string) { super('Local access request failed.'); }
 }
@@ -29,6 +30,15 @@ export function createAccessClient(options: { baseUrl?: string; fetch?: typeof f
     }
   }
   return {
+    async neodbStatus() {
+      return checked(client.GET('/api/v1/settings/neodb', requestOptions()), validateNeoDbStatus);
+    },
+    async startNeoDb(baseUrl: string) {
+      return checked(client.POST('/api/v1/oauth/neodb', { ...mutationOptions(), signal: AbortSignal.timeout(options.timeoutMs ?? 30000), body: { baseUrl } }), validateNeoDbAuthorization);
+    },
+    async cancelNeoDb() {
+      await checked(client.DELETE('/api/v1/oauth/neodb', mutationOptions()), validateActionResult);
+    },
     async session(key?: string): Promise<SessionView> {
       const view = await checked(key === undefined
         ? client.GET('/api/v1/session', requestOptions())

@@ -2,7 +2,7 @@
 
 ## 1. Scope / Trigger Conditions
 
-This contract applies whenever Core persists state across restarts or authorizes a local client. The local-access slice is implemented: WebUI bootstrap/session/CSRF, pairing, client listing/revocation and the OS credential adapter. The [OAuth lifecycle](./oauth-lifecycle.md) and restrictive transport are implemented but not exposed through HTTP/UI/CLI. CLI pairing commands, imports and preview jobs remain unfinished. No media-platform writes are enabled. SQLite exists only for operational metadata, not a media-history warehouse.
+This contract applies whenever Core persists state across restarts or authorizes a local client. The local-access slice is implemented: WebUI bootstrap/session/CSRF, pairing, client listing/revocation and the OS credential adapter. The [OAuth lifecycle](./oauth-lifecycle.md) and restrictive transport are composed through the [OAuth HTTP/WebUI](./oauth-http.md) boundary by CLI startup. CLI pairing commands, imports and preview jobs remain unfinished. No media-platform writes are enabled. SQLite exists only for operational metadata, not a media-history warehouse.
 
 Owners: `crates/collector-core/src/access.rs` (ports/policy), `collector-domain/src/access.rs` (DTOs), `collector-storage/src/access.rs` and `credentials.rs` (adapters), `collector-server/src/access.rs` (HTTP boundary).
 
@@ -17,7 +17,7 @@ access_credentials(id, token_hash, kind, audience, name, client_kind, expires_at
 neodb_endpoint(singleton, base_url, account, credential_ref)
 ```
 
-Kinds are bootstrap/session/pairing/client; hashes are unique. `singleton=1` constrains reserved endpoint metadata, not yet exposed by any settings API. Later schema ownership (not implemented):
+Kinds are bootstrap/session/pairing/client; hashes are unique. `singleton=1` constrains endpoint metadata exposed through authenticated GET /api/v1/settings/neodb. Later schema ownership (not implemented):
 
 ```sql
 sync_checkpoints(connector_instance_id, stream, cursor_json, updated_at)
@@ -69,7 +69,7 @@ Content-Type: application/json
 - Pairing names are nonempty after trimming, at most 80 UTF-8 bytes, no control characters; kinds are cli/browser_extension/local_plugin. Challenges bind both values and the actual Core origin including port. Changing port requires new pairing; restart preserves live credentials and revocations on the same origin.
 - `AccessRepository::exchange(ChallengeMatch, AccessRecord)` consumes a live matching challenge and inserts its replacement in one transaction; insertion failure rolls back consumption. Revocation is idempotent and only targets client-kind records; logout revokes only the current session.
 - Bootstrap, pairing creation and exchange share a process-wide 60-attempt/minute fixed window and 4096-byte JSON body cap. Every response, including denials, has no-store/nosniff/no-referrer and restrictive CSP. Expiry is checked on every lookup; expired non-client records are cleaned at startup.
-- `OsSecretStore` uses keyring 3.6.3: Windows Credential Store, macOS Keychain, Linux Secret Service with encrypted DBus transport. Blocking workers serialize native calls within the process; failures are sanitized and have no plaintext fallback. Linux builds need libdbus headers/pkg-config. The adapter is compiled but not yet used by OAuth; tests never access real keychains.
+- `OsSecretStore` uses keyring 3.6.3: Windows Credential Store, macOS Keychain, Linux Secret Service with encrypted DBus transport. Blocking workers serialize native calls within the process; failures are sanitized and have no plaintext fallback. Linux builds need libdbus headers/pkg-config. CLI OAuth composition uses this adapter; tests inject fake credentials and never access real keychains.
 - A pairing URI has the shape `http://127.0.0.1:{port}/pair#key={one_time_key}`. The client reads the fragment locally and sends the key only in the exchange request body.
 - One-time keys are cryptographically random, expire after 10 minutes, are consumed once, and are stored only as hashes.
 - Client tokens are shown once, stored only as hashes in SQLite, independently scoped, and independently revocable.

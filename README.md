@@ -55,7 +55,7 @@ YAML 使用 `schema_version: 1`，其中相对路径相对 YAML 文件目录；C
 | `POST /api/v1/pairings/exchange` | 客户端兑换绑定名称及类型的 Bearer 令牌 |
 | `GET /api/v1/clients` / `DELETE /api/v1/clients/{id}` | WebUI 查看 / 撤销客户端 |
 
-健康、能力和契约端点公开；本地管理接口要求 8 小时有效的 HttpOnly / SameSite=Strict 会话，修改操作还要求同源 Origin 与 CSRF 令牌。浏览器请求须同源，Host 仅允许实际监听地址或相同端口的 localhost。不开放 CORS。配对 API 已可用，但 CLI 配对命令、NeoDB OAuth 和平台读写接口尚未接入；配对客户端不能管理 OAuth 或其他客户端。
+健康、能力和契约端点公开；本地管理接口要求 8 小时有效的 HttpOnly / SameSite=Strict 会话，修改操作还要求同源 Origin 与 CSRF 令牌。浏览器请求须同源，Host 仅允许实际监听地址或相同端口的 localhost。不开放 CORS。配对 API 与 NeoDB 只读 OAuth 已可用；WebUI 支持授权、账户状态及取消。令牌仅保存在系统凭据库中。CLI 配对命令与媒体导入/同步尚未接入；配对客户端不能管理 OAuth 或其他客户端。
 
 ## 开发与验证
 

@@ -1,6 +1,6 @@
 # Backend Contracts
 
-The runnable foundation, local session/pairing, restrictive NeoDB transport and Core OAuth lifecycle are implemented. OAuth HTTP/UI composition, CLI pairing, sync, source connectors and distribution clients remain planned. Product authority is `../product/collector-spec.yaml`; individual contracts distinguish implemented behavior from later requirements.
+The runnable foundation, local session/pairing, restrictive NeoDB transport and Core OAuth lifecycle are implemented. OAuth HTTP/UI composition is implemented; CLI pairing, sync, source connectors and distribution clients remain planned. Product authority is `../product/collector-spec.yaml`; individual contracts distinguish implemented behavior from later requirements.
 
 | Contract | Owns |
 |---|---|
@@ -10,6 +10,7 @@ The runnable foundation, local session/pairing, restrictive NeoDB transport and 
 | [Runtime Distribution and Connectors](./runtime-distribution-and-connectors.md) | Desktop targets, singleton NeoDB endpoint, built-in registry |
 | [Operational State and Pairing](./state-and-pairing.md) | SQLite boundary, migrations, secret references, and client authentication |
 | [NeoDB OAuth Lifecycle](./oauth-lifecycle.md) | Runtime-independent authorization, state consumption, replacement and cleanup |
+| [OAuth HTTP and WebUI](./oauth-http.md) | Session/CSRF routes, cookie-free callback and generated client |
 | [Repository Layout and Dependency Boundaries](./repository-layout.md) | Monorepo directories, workspace ownership, dependency direction, and release isolation |
 
 ## Pre-Development / Quality Check

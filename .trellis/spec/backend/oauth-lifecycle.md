@@ -4,7 +4,7 @@
 
 Implemented in `crates/collector-core/src/oauth.rs`; transport lives in
 `collector-connectors/src/neodb.rs`. This is a runtime-independent service,
-not an HTTP/UI/CLI integration. Compose exactly one shared service per Core
+composed by CLI startup and the [OAuth HTTP contract](./oauth-http.md). Compose exactly one shared service per Core
 audience. Pending authorization is memory-only and never restored.
 
 ## 2. Signatures

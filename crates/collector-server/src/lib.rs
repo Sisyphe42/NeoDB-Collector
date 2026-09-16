@@ -18,6 +18,9 @@ use utoipa::OpenApi;
 pub mod access;
 #[cfg(test)]
 mod access_tests;
+mod oauth;
+#[cfg(test)]
+mod oauth_tests;
 
 pub const HEALTH_ROUTE: &str = "/api/v1/health";
 pub const CAPABILITIES_ROUTE: &str = "/api/v1/capabilities";
@@ -64,6 +67,8 @@ async fn capabilities() -> Json<CapabilityDocument> {
             ("pairings".into(), "/api/v1/pairings".into()),
             ("pairingExchange".into(), "/api/v1/pairings/exchange".into()),
             ("clients".into(), "/api/v1/clients".into()),
+            ("neodbSettings".into(), "/api/v1/settings/neodb".into()),
+            ("neodbOAuth".into(), "/api/v1/oauth/neodb".into()),
         ]),
     })
 }
@@ -85,7 +90,11 @@ async fn schema() -> Json<utoipa::openapi::OpenApi> {
         access::create_pairing,
         access::exchange_pairing,
         access::clients,
-        access::revoke
+        access::revoke,
+        oauth::status,
+        oauth::start,
+        oauth::cancel,
+        oauth::callback
     ),
     components(schemas(
         ApiError,
@@ -99,7 +108,10 @@ async fn schema() -> Json<utoipa::openapi::OpenApi> {
         PairingToken,
         ClientList,
         PairedClient,
-        ActionResult
+        ActionResult,
+        NeoDbStartRequest,
+        NeoDbAuthorization,
+        NeoDbStatus
     ))
 )]
 struct ApiDoc;
@@ -129,7 +141,10 @@ pub fn contract_documents() -> serde_json::Value {
             "PairingToken": schemars::schema_for!(PairingToken),
             "ClientList": schemars::schema_for!(ClientList),
             "PairedClient": schemars::schema_for!(PairedClient),
-            "ActionResult": schemars::schema_for!(ActionResult)
+            "ActionResult": schemars::schema_for!(ActionResult),
+            "NeoDbStartRequest": schemars::schema_for!(NeoDbStartRequest),
+            "NeoDbAuthorization": schemars::schema_for!(NeoDbAuthorization),
+            "NeoDbStatus": schemars::schema_for!(NeoDbStatus)
         }
     })
 }

@@ -452,6 +452,7 @@ name = "collector-cli"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "collector-connectors",
  "collector-core",
  "collector-domain",
  "collector-server",
@@ -504,6 +505,7 @@ dependencies = [
  "collector-domain",
  "collector-storage",
  "schemars",
+ "serde",
  "serde_json",
  "tempfile",
  "tokio",

@@ -1,6 +1,6 @@
 # Implementation checkpoint — 2026-09-16
 
-Task remains in progress and is not ready to archive. Local access and OAuth transport are committed; Core OAuth lifecycle is the current checkpoint. OAuth HTTP/UI composition and CLI work remain pending.
+Task remains in progress and is not ready to archive. Local access, OAuth transport and Core lifecycle are committed. OAuth HTTP/UI composition is implemented; CLI pairing/status remains pending.
 
 ## Completed local-access slice
 
@@ -19,7 +19,7 @@ Two test issues fixed: the cancellation mock now observes the incoming Request's
 ## Continue next
 
 1. Restrictive typed NeoDB OAuth transport and pure Core orchestrator are implemented. Ten Core tests cover lifecycle, failures, concurrent reservations and recovery using mock ports; see backend/oauth-lifecycle.md. No `/api/catalog/fetch`, media writes or real account authorization.
-2. Add OAuth HTTP routes and UI status/cancel flow; generated contracts and cancellation/state/replay tests.
+2. OAuth HTTP routes, generated contracts, CLI production composition and WebUI status/authorize/cancel are implemented. Tests use fake upstream and credentials; no real-account evidence is claimed.
 3. Add CLI pair/status via the same API and OS credential store; API token exchange exists but no CLI command yet.
 4. Commit each verified coherent code slice automatically under the project workflow; request confirmation only if direction, ownership or verification is unclear.
 5. Only after this child finishes, review/activate mapping and preview-jobs children. Parent is not complete.
@@ -35,3 +35,13 @@ No native credential store or real NeoDB account was accessed.
 The first full run hit the existing TS client cancellation test's 5-second
 timeout. An isolated TS rerun and the subsequent full verify both passed without
 code changes to that test; its intermittent cause remains unconfirmed.
+
+## OAuth HTTP/UI checkpoint
+
+Full Windows verify passed: 28 Rust tests, 19 TS/UI tests, Clippy, format,
+contracts, boundaries, lint/typecheck, build and local CLI/Chromium smoke.
+OAuth status in browser smoke is an explicit fixture to avoid native keychain access;
+real router tests inject mock transport/credentials and exercise SQLite metadata.
+Mobile capture inspected: controls fit 390px with no horizontal overflow.
+Rust emitted incremental-cache access-denied notes but all compile/check commands
+completed successfully; no cache deletion or system changes were needed.

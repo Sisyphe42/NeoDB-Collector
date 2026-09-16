@@ -8,6 +8,8 @@ import { startSession } from './session.js';
 afterEach(cleanup);
 function client(): AccessClient {
   return { session: vi.fn().mockResolvedValue({ csrfToken: 'csrf', expiresAt: 10000 }),
+    neodbStatus: vi.fn().mockResolvedValue({ connected: false, baseUrl: null, account: null, pending: false }),
+    startNeoDb: vi.fn(), cancelNeoDb: vi.fn(),
     logout: vi.fn().mockResolvedValue(undefined), clients: vi.fn().mockResolvedValue([]),
     createPairing: vi.fn().mockResolvedValue({ uri: 'http://127.0.0.1:19423/pair#key=example', expiresAt: Date.now() / 1000 + 600 }),
     revoke: vi.fn().mockResolvedValue(undefined) };

@@ -15,16 +15,18 @@ const COOKIE: &str = "collector_session";
 #[derive(Clone)]
 pub struct AccessState {
     pub service: Arc<AccessService>,
+    pub oauth: Option<Arc<collector_core::oauth::OAuthService>>,
     limiter: Arc<Mutex<(i64, u32)>>,
 }
 impl AccessState {
     pub fn new(service: Arc<AccessService>) -> Self {
         Self {
             service,
+            oauth: None,
             limiter: Arc::new(Mutex::new((0, 0))),
         }
     }
-    fn rate_limit(&self) -> Result<(), HttpError> {
+    pub(crate) fn rate_limit(&self) -> Result<(), HttpError> {
         let now = self.service.clock.now();
         let mut window = self.limiter.lock().map_err(|_| HttpError::internal())?;
         if now < window.0 || now.saturating_sub(window.0) >= 60 {
@@ -44,7 +46,7 @@ impl AccessState {
 
 pub(crate) struct HttpError(StatusCode, ApiError);
 impl HttpError {
-    fn new(status: StatusCode, code: &str, message: &str) -> Self {
+    pub(crate) fn new(status: StatusCode, code: &str, message: &str) -> Self {
         Self(status, ApiError::new(code, message))
     }
     fn internal() -> Self {
@@ -60,6 +62,9 @@ impl From<ApiError> for HttpError {
         let status = match error.code.as_str() {
             "authentication_required" | "challenge_invalid" => StatusCode::UNAUTHORIZED,
             "pairing_scope_invalid" => StatusCode::BAD_REQUEST,
+            "session_required" | "oauth_cancel_forbidden" => StatusCode::FORBIDDEN,
+            "neodb_base_url_invalid" | "oauth_callback_invalid" => StatusCode::BAD_REQUEST,
+            "oauth_in_progress" => StatusCode::CONFLICT,
             _ => StatusCode::SERVICE_UNAVAILABLE,
         };
         Self(status, error)
@@ -70,7 +75,7 @@ impl IntoResponse for HttpError {
         (self.0, Json(self.1)).into_response()
     }
 }
-fn json<T>(body: Result<Json<T>, JsonRejection>) -> Result<T, HttpError> {
+pub(crate) fn json<T>(body: Result<Json<T>, JsonRejection>) -> Result<T, HttpError> {
     body.map(|Json(value)| value).map_err(|error| {
         HttpError::new(
             if error.status() == StatusCode::PAYLOAD_TOO_LARGE {
@@ -266,6 +271,12 @@ pub(crate) fn routes(state: AccessState) -> Router {
         .route("/api/v1/pairings/exchange", post(exchange_pairing))
         .route("/api/v1/clients", get(clients))
         .route("/api/v1/clients/{id}", delete(revoke))
+        .route("/api/v1/settings/neodb", get(crate::oauth::status))
+        .route(
+            "/api/v1/oauth/neodb",
+            post(crate::oauth::start).delete(crate::oauth::cancel),
+        )
+        .route("/api/v1/oauth/neodb/callback", get(crate::oauth::callback))
         .layer(DefaultBodyLimit::max(4096))
         .with_state(state)
 }

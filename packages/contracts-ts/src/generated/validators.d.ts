@@ -6,6 +6,9 @@ export declare function validateApiError(value: unknown): value is components['s
 export declare function validateActionResult(value: unknown): value is components['schemas']['ActionResult'];
 export declare function validateBootstrapExchange(value: unknown): value is components['schemas']['BootstrapExchange'];
 export declare function validateClientList(value: unknown): value is components['schemas']['ClientList'];
+export declare function validateNeoDbAuthorization(value: unknown): value is components['schemas']['NeoDbAuthorization'];
+export declare function validateNeoDbStartRequest(value: unknown): value is components['schemas']['NeoDbStartRequest'];
+export declare function validateNeoDbStatus(value: unknown): value is components['schemas']['NeoDbStatus'];
 export declare function validatePairedClient(value: unknown): value is components['schemas']['PairedClient'];
 export declare function validatePairingExchange(value: unknown): value is components['schemas']['PairingExchange'];
 export declare function validatePairingLink(value: unknown): value is components['schemas']['PairingLink'];

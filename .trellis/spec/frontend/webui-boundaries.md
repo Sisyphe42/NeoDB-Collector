@@ -4,7 +4,7 @@
 
 This contract applies to the WebUI embedded in desktop, served by `collector serve`, and bundled in Docker. All hosts serve the same built assets from Core and use the same `/api/v1` contract. Browser-extension UI remains a separate surface but shares generated API and domain types.
 
-Implementation status: CLI-hosted status plus local session/client management exists. See [Runnable Foundation](../backend/foundation-runtime.md) and [Local Access](../backend/state-and-pairing.md). Mapping, OAuth, SSE and other host bundles below remain future requirements. Public status endpoints require no session; client metadata and management require a session and mutation CSRF checks.
+Implementation status: CLI-hosted status plus local session/client management exists. See [Runnable Foundation](../backend/foundation-runtime.md) and [Local Access](../backend/state-and-pairing.md). OAuth follows the implemented backend/oauth-http.md contract. Mapping, SSE and other host bundles below remain future requirements. Public status endpoints require no session; client metadata and management require a session and mutation CSRF checks.
 
 ## 2. Signatures and Data Shapes
 
@@ -44,7 +44,7 @@ The WebUI discovers features from `GET /api/v1/capabilities`, uses same-origin `
 - Secrets, NeoDB tokens, client tokens, and pairing keys never enter `localStorage`, query strings, analytics, or error reports.
 - WebUI sessions use HttpOnly SameSite=Strict cookies plus CSRF protection. A desktop bootstrap token may arrive in a URL fragment, is exchanged once, and is then removed.
 - `apps/webui/src/session.ts` removes the fragment synchronously before any request, waits for Core compatibility, then starts one shared bootstrap promise outside React. StrictMode must not replay the key. Failed/expired auth directs the user to a fresh startup link; keys are not cached for retries.
-- `AccessPanel` retains only in-memory CSRF and temporary pairing links. Hide links on expiry/logout; list/revoke through the generated client. Do not manually duplicate wire DTOs in components. OAuth/account state is not yet shown.
+- `AccessPanel` retains only in-memory CSRF and temporary pairing links. Hide links on expiry/logout; list/revoke through the generated client. Do not manually duplicate wire DTOs in components. `NeoDbPanel` shows authenticated account/pending status and supports instance entry, authorize/replace, refresh and cancellation; see [OAuth HTTP](../backend/oauth-http.md).
 - UI styling extends the existing blue-grey status console with an inline access form; desktop/mobile layouts retain visible focus and no horizontal overflow. Tests capture screenshots only after hiding pairing keys.
 - Mapping forms and YAML import/export round-trip through the same canonical profile schema and validator.
 - Dry-run views show field-level source value, current NeoDB value, outcome, and reason before activation.

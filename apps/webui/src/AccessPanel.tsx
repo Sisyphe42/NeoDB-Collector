@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { NeoDbPanel } from './NeoDbPanel.js';
 import { AccessClientError, type AccessClient, type PairedClient, type SessionView, type PairingLink } from '@neodb-collector/core-client';
 
 function message(error: unknown) {
@@ -43,7 +44,8 @@ export function AccessPanel({ client, initialSession }: { client: AccessClient; 
     {error && <p role="alert" className="access-error">{error}</p>}
     {!loading && !session && !error && <p>已退出。重新授权需打开 Core 启动时给出的一次性链接。</p>}
     {session && <>
-      <p className="access-hint">当前浏览器已获准管理本地客户端。此授权不会连接或修改任何平台账户。</p>
+      <NeoDbPanel client={client} />
+      <p className="access-hint">以下配对授权用于连接本地客户端，独立于 NeoDB 账户授权。</p>
       <form onSubmit={event => { event.preventDefault(); setLink(undefined); void act(async () => setLink(await client.createPairing({ clientName: name, clientKind: kind }))); }}>
         <label>客户端名称<input value={name} maxLength={80} required onChange={event => setName(event.target.value)} /></label>
         <label>客户端类型<select value={kind} onChange={event => setKind(event.target.value)}><option value="cli">命令行</option><option value="browser_extension">浏览器扩展（预留）</option><option value="local_plugin">本地插件（预留）</option></select></label>

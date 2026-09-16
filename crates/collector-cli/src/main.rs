@@ -184,6 +184,16 @@ async fn serve(config: config::Config) -> Result<(), ApiError> {
         audience: format!("http://{address}"),
     });
     let bootstrap = access.bootstrap().await?;
+    let oauth = Arc::new(collector_core::oauth::OAuthService::new(
+        Arc::new(storage.clone()),
+        Arc::new(collector_storage::credentials::OsSecretStore),
+        Arc::new(SecureTokens),
+        Arc::new(SystemClock),
+        Arc::new(collector_connectors::neodb::NeoDbClient::new()?),
+        access.audience.clone(),
+    ));
+    let mut access_state = collector_server::access::AccessState::new(access);
+    access_state.oauth = Some(oauth);
     eprintln!("Core listening on http://{address}");
     // Intentional local delivery of a single-use key; never an HTTP request log.
     eprintln!("Open WebUI (one use, 10 minutes): http://{address}/#key={bootstrap}");
@@ -191,7 +201,7 @@ async fn serve(config: config::Config) -> Result<(), ApiError> {
         listener,
         Arc::new(storage.clone()),
         config.assets_dir,
-        collector_server::access::AccessState::new(access),
+        access_state,
         shutdown(),
     )
     .await;

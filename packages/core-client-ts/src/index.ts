@@ -1,5 +1,5 @@
 import createClient from 'openapi-fetch';
-export { createAccessClient, AccessClientError, type AccessClient, type SessionView, type PairedClient, type PairingLink } from './access.js';
+export { createAccessClient, AccessClientError, type AccessClient, type SessionView, type PairedClient, type PairingLink, type NeoDbStatus } from './access.js';
 import { API_VERSION, SCHEMA_VERSION, validateCapabilities, validateHealth, type paths, type components } from '@neodb-collector/contracts';
 
 export type Health = components['schemas']['HealthDocument'];

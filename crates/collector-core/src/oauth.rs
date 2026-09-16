@@ -323,6 +323,12 @@ impl OAuthService {
                     "OAuth state expired; start again.",
                 ));
             }
+            if code.is_empty() {
+                return Err(ApiError::new(
+                    "oauth_denied",
+                    "Authorization was denied or incomplete.",
+                ));
+            }
             let client_secret = self.secrets.get(pending.app_secret_ref.clone()).await;
             let exchanged = match client_secret {
                 Ok(client_secret) => {

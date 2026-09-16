@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "account": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "baseUrl": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "connected": {
+      "type": "boolean"
+    },
+    "pending": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "connected",
+    "pending"
+  ],
+  "title": "NeoDbStatus",
+  "type": "object"
+}

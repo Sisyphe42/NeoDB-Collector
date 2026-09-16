@@ -5,6 +5,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+pub mod access;
+
 pub const API_VERSION: &str = "v1";
 pub const SCHEMA_VERSION: u32 = 1;
 pub const MEDIA_TYPES: &[&str] = &[

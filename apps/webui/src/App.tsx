@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { CoreClientError, createCoreClient, type Snapshot } from '@neodb-collector/core-client';
 import './style.css';
 
@@ -13,7 +13,7 @@ const labels = {
   invalid_response: ['服务响应格式异常', '请确认当前端口运行的是兼容的 Collector Core，再重新检查。'],
 } as const;
 
-export function App({ loadStatus = client.status }: { loadStatus?: (signal?: AbortSignal) => Promise<Snapshot> }) {
+export function App({ loadStatus = client.status, access }: { loadStatus?: (signal?: AbortSignal) => Promise<Snapshot>; access?: ReactNode }) {
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [revision, setRevision] = useState(0);
   useEffect(() => {
@@ -45,6 +45,7 @@ export function App({ loadStatus = client.status }: { loadStatus?: (signal?: Abo
         {snapshot ? (snapshot.capabilities.connectorIds.length ? <ul>{snapshot.capabilities.connectorIds.map(id => <li key={id}>{id}</li>)}</ul> : <div className="empty"><p>尚无可用的平台连接</p><span>当前是基础服务版本；同步与导入功能将在后续版本接入。</span></div>) : <p className="empty">连接服务后显示可用平台。</p>}
       </section>
     </div>
-    <footer><span>仅展示本地状态 · 不执行同步</span><code>collector doctor --format json</code></footer>
+    {(state.kind === 'connected' || state.kind === 'degraded') && access}
+    <footer><span>管理本地访问 · 不执行同步</span><code>collector doctor --format json</code></footer>
   </main>;
 }

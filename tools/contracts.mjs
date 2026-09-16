@@ -13,7 +13,11 @@ outputs.set('contracts/openapi/core-v1.json', json(source.openapi));
 const ajv = new Ajv2020({ code: { source: true, esm: true }, strict: true });
 // Rust emits this annotation; integer/minimum/maximum carry the actual constraint.
 ajv.addFormat('uint32', true);
+ajv.addFormat('int64', true);
 const validators = { validateHealth: 'HealthDocument', validateCapabilities: 'CapabilityDocument', validateApiError: 'ApiError' };
+for (const name of Object.keys(source.schemas)) {
+  if (!Object.values(validators).includes(name)) validators[`validate${name}`] = name;
+}
 for (const [name, schema] of Object.entries(source.schemas)) {
   outputs.set(`contracts/json-schema/${name}.json`, json(schema));
   ajv.addSchema(schema, name);

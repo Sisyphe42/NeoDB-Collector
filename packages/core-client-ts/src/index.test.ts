@@ -32,7 +32,7 @@ describe('versioned Core client', () => {
   });
   it('bounds requests with a timeout and accepts caller cancellation', async () => {
     const timedClient = createCoreClient({ baseUrl: 'http://localhost', timeoutMs: 10, fetch: async input => {
-      const { signal } = new Request(input);
+      const { signal } = input instanceof Request ? input : new Request(input);
       return new Promise<Response>((_, reject) => {
         if (signal.aborted) reject(signal.reason);
         else signal.addEventListener('abort', () => reject(signal.reason), { once: true });

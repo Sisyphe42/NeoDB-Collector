@@ -196,16 +196,17 @@ service:
   configurable_port: true
   single_port: true
   implementation_status:
-    milestone: runnable_foundation
+    milestone: local_access_slice_of_preview_auth
     implemented_hosts: [cli_with_webui]
     implemented_commands: [serve, doctor]
-    implemented_routes: [webui, health, capabilities, schema]
+    implemented_routes: [webui, health, capabilities, schema, session_bootstrap, session, pairings, pairing_exchange, clients]
     connector_ids: []
     writes_enabled: false
-    database: migration_ledger_only
+    database: migration_ledger_hashed_access_credentials_singleton_endpoint_metadata
     config: yaml_v1_cli_over_env_over_file_over_defaults
     exposure: loopback_only
-    authentication: deferred_until_private_data_or_mutation_endpoints
+    authentication: webui_session_csrf_and_transactional_client_pairing
+    pending: [neodb_oauth, cli_pair_and_status, platform_reads, imports, preview_jobs]
     code_contract: .trellis/spec/backend/foundation-runtime.md
   routes:
     webui: /
@@ -219,6 +220,10 @@ service:
     mapping_dry_run: /api/v1/mapping-profiles/{profile_id}/dry-run
     neodb_settings: /api/v1/settings/neodb
     pairings: /api/v1/pairings
+    pairing_exchange: /api/v1/pairings/exchange
+    session_bootstrap: /api/v1/session/bootstrap
+    session: /api/v1/session
+    clients: /api/v1/clients
     events_sse: /api/v1/events
     events_websocket: /api/v1/ws
   rationale:
@@ -239,6 +244,8 @@ service:
       cookie: http_only_same_site_strict
       csrf_protection: true
       bootstrap: one_time_token_url_fragment_exchange
+      absolute_lifetime_hours: 8
+      bootstrap_ttl_minutes: 10
     clients:
       auth: bearer_pairing_token
       token_per_client: true
@@ -253,8 +260,20 @@ service:
         long_lived_key_in_path_or_query: forbidden
         token_transport: authorization_bearer_header
         token_storage: hash_only
+        audience: exact_core_origin_including_port
+        initial_scope_policy: fixed_non_admin_import_and_mapping_client
+        initial_scopes: [settings.read, imports.read, imports.submit, mapping.read, mapping.write]
+        authority_note: reserved_scopes_do_not_enable_unimplemented_routes
 
 storage:
+  preview_retention:
+    status: approved_for_imdb_preview_milestone
+    default_days: 30
+    configurable: true
+    manual_delete: true
+    raw_files_and_api_payloads: never
+    retained: normalized_review_fields_identity_evidence_snapshot_time_account_profile_version
+    restart: interrupted_jobs_require_explicit_resume_and_fresh_comparison
   engine: sqlite
   deployment: embedded_single_file
   external_service_required: false

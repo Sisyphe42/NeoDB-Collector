@@ -9,6 +9,7 @@ name = "collector"
 path = "src/main.rs"
 
 [dependencies]
+collector-core.workspace = true
 collector-domain.workspace = true
 collector-storage.workspace = true
 collector-server.workspace = true

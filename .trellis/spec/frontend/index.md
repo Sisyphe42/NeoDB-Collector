@@ -1,6 +1,6 @@
 # Frontend Contracts
 
-The React status WebUI is implemented in `apps/webui`; it consumes `packages/core-client-ts` and generated `packages/contracts-ts`. Extension, mapping, pairing and sync UI remain planned. Current executable behavior is documented in [Runnable Foundation](../backend/foundation-runtime.md).
+The React status and local-session/client-pairing WebUI is implemented in `apps/webui`; it consumes `packages/core-client-ts` and generated `packages/contracts-ts`. NeoDB OAuth, extension, mapping and sync UI remain planned. Current executable behavior is documented in [Runnable Foundation](../backend/foundation-runtime.md) and [Local Access](../backend/state-and-pairing.md).
 
 | Contract | Owns |
 |---|---|

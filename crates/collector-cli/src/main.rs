@@ -1,8 +1,10 @@
 mod config;
 
 use clap::{Parser, Subcommand, ValueEnum};
+use collector_core::access::{AccessService, Clock};
 use collector_domain::ApiError;
 use collector_storage::Storage;
+use collector_storage::credentials::{SecureTokens, SystemClock};
 use serde::Serialize;
 use std::{net::SocketAddr, process::ExitCode, sync::Arc};
 
@@ -17,7 +19,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Serve read-only Core API and built WebUI on the same loopback port.
+    /// Serve Core API and built WebUI on the same loopback port; no media writes.
     Serve,
     /// Diagnose local setup. Creates the data directory and migrates collector.db.
     Doctor {
@@ -174,11 +176,22 @@ async fn serve(config: config::Config) -> Result<(), ApiError> {
         .local_addr()
         .map_err(|_| ApiError::new("port_unavailable", "Cannot inspect listener address."))?;
     let storage = Storage::open(&config.data_dir).await?;
+    storage.clean_expired_access(SystemClock.now()).await?;
+    let access = Arc::new(AccessService {
+        repository: Arc::new(storage.clone()),
+        tokens: Arc::new(SecureTokens),
+        clock: Arc::new(SystemClock),
+        audience: format!("http://{address}"),
+    });
+    let bootstrap = access.bootstrap().await?;
     eprintln!("Core listening on http://{address}");
+    // Intentional local delivery of a single-use key; never an HTTP request log.
+    eprintln!("Open WebUI (one use, 10 minutes): http://{address}/#key={bootstrap}");
     let result = collector_server::serve(
         listener,
         Arc::new(storage.clone()),
         config.assets_dir,
+        collector_server::access::AccessState::new(access),
         shutdown(),
     )
     .await;

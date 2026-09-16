@@ -20,17 +20,19 @@ try {
   assert.equal(invalid.status, 1);
   assert.equal(JSON.parse(invalid.stdout).checks[0].code, 'config_invalid');
   child = spawn(binary, ['serve', ...args], { env, stdio: ['ignore', 'ignore', 'pipe'] });
-  const address = await new Promise((accept, reject) => {
+  const bootstrapUrl = await new Promise((accept, reject) => {
     let output = '';
-    const timer = setTimeout(() => reject(new Error(`Core startup timed out: ${output}`)), 15_000);
+    const timer = setTimeout(() => reject(new Error('Core startup timed out.')), 15_000);
     child.once('error', error => { clearTimeout(timer); reject(error); });
-    child.once('exit', code => { clearTimeout(timer); reject(new Error(`Core exited: ${code}; ${output}`)); });
+    child.once('exit', code => { clearTimeout(timer); reject(new Error(`Core exited: ${code}`)); });
     child.stderr.on('data', chunk => {
       output += chunk;
-      const match = output.match(/Core listening on (http:\/\/[^\s]+)/);
+      // stderr can split a single formatted line into multiple chunks.
+      const match = output.match(/Open WebUI \(one use, 10 minutes\): (http:\/\/[^\s]+)\r?\n/);
       if (match) { clearTimeout(timer); accept(match[1]); }
     });
   });
+  const address = new URL(bootstrapUrl).origin;
   const health = await fetch(`${address}/api/v1/health`).then(r => r.json());
   assert.equal(health.status, 'ok');
   const capabilities = await fetch(`${address}/api/v1/capabilities`).then(r => r.json());
@@ -44,9 +46,27 @@ try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto(address);
+  await page.goto(bootstrapUrl);
   await page.getByRole('heading', { name: '本地服务已连接' }).waitFor();
   assert.equal(await page.getByText('尚无可用的平台连接').count(), 1);
+  await page.getByText('已授权', { exact: true }).waitFor();
+  assert.equal(new URL(page.url()).hash, '');
+  assert.equal(await page.evaluate(() => document.cookie), '');
+  const cookies = await page.context().cookies();
+  assert(cookies.some(cookie => cookie.name === 'collector_session' && cookie.httpOnly && cookie.sameSite === 'Strict'));
+  await page.getByRole('button', { name: '生成配对链接' }).click();
+  const linkField = page.getByLabel('一次性链接 · 10 分钟内有效');
+  await linkField.waitFor();
+  const pairingUrl = await linkField.inputValue();
+  const oneTimeKey = new URLSearchParams(new URL(pairingUrl).hash.slice(1)).get('key');
+  const paired = await fetch(`${address}/api/v1/pairings/exchange`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ one_time_key: oneTimeKey, client_name: 'Collector CLI', client_kind: 'cli' }) });
+  assert.equal(paired.status, 200);
+  const pairedToken = await paired.json();
+  assert.equal((await fetch(`${address}/api/v1/clients`, { headers: { Authorization: `Bearer ${pairedToken.token}` } })).status, 403);
+  await page.getByRole('button', { name: '隐藏链接' }).click();
+  await page.getByRole('button', { name: '刷新列表' }).click();
+  await page.getByRole('button', { name: '撤销 Collector CLI' }).click();
+  await page.getByText('cli · 已撤销', { exact: true }).waitFor();
   await page.getByRole('button', { name: '重新检查' }).click();
   await page.getByRole('heading', { name: '本地服务已连接' }).waitFor();
   await mkdir('test-results', { recursive: true });
@@ -55,8 +75,14 @@ try {
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await page.screenshot({ path: 'test-results/status-mobile.png', fullPage: true });
   assert.equal(await page.evaluate(() => localStorage.length), 0);
+  assert.equal(await page.evaluate(() => sessionStorage.length), 0);
+  await page.reload();
+  await page.getByText('已授权', { exact: true }).waitFor();
+  await page.getByRole('button', { name: '退出本地授权' }).click();
+  await page.getByText('未授权', { exact: true }).waitFor();
+  assert.equal((await page.request.get(`${address}/api/v1/session`)).status(), 401);
   assert.deepEqual(errors, []);
-  console.log('Actual CLI, HTTP, desktop/mobile browser smoke passed.');
+  console.log('Actual CLI, HTTP, session/pairing/revocation and desktop/mobile browser smoke passed.');
 } finally {
   await browser?.close();
   if (child && child.exitCode === null) {

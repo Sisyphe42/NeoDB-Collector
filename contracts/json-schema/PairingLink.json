@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "expiresAt": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "uri": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "uri",
+    "expiresAt"
+  ],
+  "title": "PairingLink",
+  "type": "object"
+}

@@ -9,6 +9,16 @@ collector-core.workspace = true
 collector-domain.workspace = true
 sqlx.workspace = true
 tokio.workspace = true
+sha2.workspace = true
+base64.workspace = true
+getrandom.workspace = true
+
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "3.6.3", features = ["windows-native"] }
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3.6.3", features = ["apple-native"] }
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3.6.3", features = ["sync-secret-service", "crypto-rust"] }
 
 [dev-dependencies]
 tempfile.workspace = true

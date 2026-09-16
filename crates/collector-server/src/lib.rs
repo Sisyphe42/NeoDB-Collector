@@ -9,10 +9,15 @@ use axum::{
 use collector_core::StorageHealth;
 use collector_domain::{
     ApiError, CapabilityDocument, HealthDocument, HealthStatus, MEDIA_TYPES, SCHEMA_VERSION,
+    access::*,
 };
 use std::{collections::BTreeMap, future::Future, net::SocketAddr, path::PathBuf, sync::Arc};
 use tower_http::services::ServeDir;
 use utoipa::OpenApi;
+
+pub mod access;
+#[cfg(test)]
+mod access_tests;
 
 pub const HEALTH_ROUTE: &str = "/api/v1/health";
 pub const CAPABILITIES_ROUTE: &str = "/api/v1/capabilities";
@@ -51,6 +56,14 @@ async fn capabilities() -> Json<CapabilityDocument> {
             ("health".into(), HEALTH_ROUTE.into()),
             ("capabilities".into(), CAPABILITIES_ROUTE.into()),
             ("schema".into(), SCHEMA_ROUTE.into()),
+            ("session".into(), "/api/v1/session".into()),
+            (
+                "sessionBootstrap".into(),
+                "/api/v1/session/bootstrap".into(),
+            ),
+            ("pairings".into(), "/api/v1/pairings".into()),
+            ("pairingExchange".into(), "/api/v1/pairings/exchange".into()),
+            ("clients".into(), "/api/v1/clients".into()),
         ]),
     })
 }
@@ -62,8 +75,32 @@ async fn schema() -> Json<utoipa::openapi::OpenApi> {
 
 #[derive(OpenApi)]
 #[openapi(
-    paths(health, capabilities, schema),
-    components(schemas(ApiError, HealthDocument, CapabilityDocument))
+    paths(
+        health,
+        capabilities,
+        schema,
+        access::bootstrap,
+        access::session,
+        access::logout,
+        access::create_pairing,
+        access::exchange_pairing,
+        access::clients,
+        access::revoke
+    ),
+    components(schemas(
+        ApiError,
+        HealthDocument,
+        CapabilityDocument,
+        BootstrapExchange,
+        SessionView,
+        PairingRequest,
+        PairingLink,
+        PairingExchange,
+        PairingToken,
+        ClientList,
+        PairedClient,
+        ActionResult
+    ))
 )]
 struct ApiDoc;
 
@@ -83,7 +120,16 @@ pub fn contract_documents() -> serde_json::Value {
         "schemas": {
             "HealthDocument": schemars::schema_for!(HealthDocument),
             "CapabilityDocument": schemars::schema_for!(CapabilityDocument),
-            "ApiError": schemars::schema_for!(ApiError)
+            "ApiError": schemars::schema_for!(ApiError),
+            "BootstrapExchange": schemars::schema_for!(BootstrapExchange),
+            "SessionView": schemars::schema_for!(SessionView),
+            "PairingRequest": schemars::schema_for!(PairingRequest),
+            "PairingLink": schemars::schema_for!(PairingLink),
+            "PairingExchange": schemars::schema_for!(PairingExchange),
+            "PairingToken": schemars::schema_for!(PairingToken),
+            "ClientList": schemars::schema_for!(ClientList),
+            "PairedClient": schemars::schema_for!(PairedClient),
+            "ActionResult": schemars::schema_for!(ActionResult)
         }
     })
 }
@@ -110,7 +156,7 @@ async fn method_not_allowed() -> Response {
     error(
         StatusCode::METHOD_NOT_ALLOWED,
         "method_not_allowed",
-        "This service currently exposes read-only GET endpoints.",
+        "This method is not available for this route.",
     )
 }
 
@@ -141,6 +187,10 @@ async fn local_boundary(
             );
         }
     }
+    next.run(request).await
+}
+
+async fn security_headers(request: Request, next: Next) -> Response {
     let mut response = next.run(request).await;
     response
         .headers_mut()
@@ -149,9 +199,23 @@ async fn local_boundary(
         .headers_mut()
         .insert(header::CACHE_CONTROL, "no-store".parse().unwrap());
     response
+        .headers_mut()
+        .insert(header::REFERRER_POLICY, "no-referrer".parse().unwrap());
+    response.headers_mut().insert(header::CONTENT_SECURITY_POLICY,
+        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'".parse().unwrap());
+    response
 }
 
 pub fn router(storage: Arc<dyn StorageHealth>, assets: PathBuf, address: SocketAddr) -> Router {
+    protected_router(storage, assets, address, None)
+}
+
+pub fn protected_router(
+    storage: Arc<dyn StorageHealth>,
+    assets: PathBuf,
+    address: SocketAddr,
+    access: Option<access::AccessState>,
+) -> Router {
     Router::new()
         .route(HEALTH_ROUTE, get(health))
         .route(CAPABILITIES_ROUTE, get(capabilities))
@@ -161,16 +225,19 @@ pub fn router(storage: Arc<dyn StorageHealth>, assets: PathBuf, address: SocketA
         .fallback(not_found)
         .method_not_allowed_fallback(method_not_allowed)
         .with_state(AppState { storage, assets })
+        .merge(access.map(access::routes).unwrap_or_default())
         .layer(middleware::from_fn_with_state(address, local_boundary))
+        .layer(middleware::from_fn(security_headers))
 }
 
 pub async fn serve(
     listener: tokio::net::TcpListener,
     storage: Arc<dyn StorageHealth>,
     assets: PathBuf,
+    access: access::AccessState,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> std::io::Result<()> {
-    let app = router(storage, assets, listener.local_addr()?);
+    let app = protected_router(storage, assets, listener.local_addr()?, Some(access));
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown)
         .await
@@ -264,10 +331,17 @@ mod tests {
         let storage = collector_storage::Storage::open(dir.path()).await.unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
+        let access = access::AccessState::new(Arc::new(collector_core::access::AccessService {
+            repository: Arc::new(storage.clone()),
+            tokens: Arc::new(collector_storage::credentials::SecureTokens),
+            clock: Arc::new(collector_storage::credentials::SystemClock),
+            audience: format!("http://{address}"),
+        }));
         serve(
             listener,
             Arc::new(storage.clone()),
             dir.path().into(),
+            access,
             async {},
         )
         .await

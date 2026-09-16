@@ -2,17 +2,24 @@
 
 ## 1. Scope / Trigger Conditions
 
-This contract applies whenever Core persists state across restarts or authorizes a browser extension or local plugin. Core still transforms observations and writes supported fields directly to NeoDB. SQLite exists only for durable operational metadata; it must not become a source-media history warehouse.
+This contract applies whenever Core persists state across restarts or authorizes a local client. The local-access slice is implemented: WebUI bootstrap/session/CSRF, pairing, client listing/revocation and the OS credential adapter. NeoDB OAuth, CLI pairing commands, imports and preview jobs remain unfinished. No media-platform network requests or writes are enabled. SQLite exists only for operational metadata, not a media-history warehouse.
+
+Owners: `crates/collector-core/src/access.rs` (ports/policy), `collector-domain/src/access.rs` (DTOs), `collector-storage/src/access.rs` and `credentials.rs` (adapters), `collector-server/src/access.rs` (HTTP boundary).
 
 ## 2. Signatures and Data Shapes
 
 The default database is `{data_dir}/collector.db`, where `data_dir` resolves in this order: CLI `--data-dir`, `NEODB_COLLECTOR_DATA_DIR`, YAML `storage.data_dir`, then the operating-system application-data directory. See [Runnable Foundation](./foundation-runtime.md) for path bases and implemented migration/startup behavior.
 
-Future minimum schema ownership (not implemented by the migration-only foundation):
+Migration `0002_access.sql` implements:
 
 ```sql
-pairing_challenges(id, key_hash, client_kind, expires_at, consumed_at)
-paired_clients(id, name, kind, token_hash, scopes_json, created_at, revoked_at)
+access_credentials(id, token_hash, kind, audience, name, client_kind, expires_at, revoked)
+neodb_endpoint(singleton, base_url, account, credential_ref)
+```
+
+Kinds are bootstrap/session/pairing/client; hashes are unique. `singleton=1` constrains reserved endpoint metadata, not yet exposed by any settings API. Later schema ownership (not implemented):
+
+```sql
 sync_checkpoints(connector_instance_id, stream, cursor_json, updated_at)
 item_mappings(connector_id, external_item_id, canonical_url, neodb_item_uuid, method, resolved_at)
 mapping_profiles(id, source_connector_id, version, rules_yaml, enabled, updated_at)
@@ -20,7 +27,19 @@ planned_operations(id, canonical_item_id, field, operation, value_json, status, 
 operation_results(id, planned_operation_id, idempotency_key, status, error_code, executed_at)
 ```
 
-Pairing exchange:
+Implemented routes:
+
+```text
+POST   /api/v1/session/bootstrap -> SessionView + Set-Cookie
+GET    /api/v1/session           -> SessionView
+DELETE /api/v1/session           -> ActionResult + expired cookie
+POST   /api/v1/pairings          -> PairingLink
+POST   /api/v1/pairings/exchange -> PairingToken
+GET    /api/v1/clients           -> ClientList
+DELETE /api/v1/clients/{id}      -> ActionResult
+```
+
+Domain DTOs generate OpenAPI, JSON Schema and TS validators. Fields are camelCase except the established snake_case exchange/token bodies. Pairing exchange:
 
 ```http
 POST /api/v1/pairings/exchange
@@ -38,12 +57,19 @@ Content-Type: application/json
   "client_id": "client_...",
   "token": "base64url-256-bit-value",
   "token_type": "Bearer",
-  "scopes": ["observations.submit", "imports.read"]
+  "scopes": ["settings.read", "imports.read", "imports.submit", "mapping.read", "mapping.write"]
 }
 ```
 
 ## 3. Behavioral Contracts
 
+- Initial scopes are fixed non-admin privileges, not client-requested authority; reserved scopes do not enable absent routes. Future heterogeneous scopes require per-client persistence/enforcement, not expanding this constant to grant existing tokens new privileges.
+- Startup delivers one 256-bit bootstrap key in the local terminal's `/#key=...` URI. It expires in 600 seconds and is consumed transactionally once. This explicit delivery is not a request log. Exchange requires exact Origin.
+- Sessions are opaque random credentials, hash-only at rest, HttpOnly, SameSite=Strict, Path=/, absolute lifetime 8 hours. Secure is deliberately omitted on loopback HTTP. Stateful cookie requests require exact Origin and session-bound `X-CSRF-Token`; Authorization never falls back to cookies on admin routes.
+- Pairing names are nonempty after trimming, at most 80 UTF-8 bytes, no control characters; kinds are cli/browser_extension/local_plugin. Challenges bind both values and the actual Core origin including port. Changing port requires new pairing; restart preserves live credentials and revocations on the same origin.
+- `AccessRepository::exchange(ChallengeMatch, AccessRecord)` consumes a live matching challenge and inserts its replacement in one transaction; insertion failure rolls back consumption. Revocation is idempotent and only targets client-kind records; logout revokes only the current session.
+- Bootstrap, pairing creation and exchange share a process-wide 60-attempt/minute fixed window and 4096-byte JSON body cap. Every response, including denials, has no-store/nosniff/no-referrer and restrictive CSP. Expiry is checked on every lookup; expired non-client records are cleaned at startup.
+- `OsSecretStore` uses keyring 3.6.3: Windows Credential Store, macOS Keychain, Linux Secret Service with encrypted DBus transport. Blocking workers serialize native calls within the process; failures are sanitized and have no plaintext fallback. Linux builds need libdbus headers/pkg-config. The adapter is compiled but not yet used by OAuth; tests never access real keychains.
 - A pairing URI has the shape `http://127.0.0.1:{port}/pair#key={one_time_key}`. The client reads the fragment locally and sends the key only in the exchange request body.
 - One-time keys are cryptographically random, expire after 10 minutes, are consumed once, and are stored only as hashes.
 - Client tokens are shown once, stored only as hashes in SQLite, independently scoped, and independently revocable.
@@ -58,13 +84,18 @@ Content-Type: application/json
 
 | Condition | Result | Code |
 |---|---|---|
-| Pairing fragment is absent | Do not call exchange | `pairing_key_missing` |
-| One-time key hash is unknown | Reject | `pairing_key_invalid` |
-| One-time key is expired | Reject and delete/expire it | `pairing_key_expired` |
-| One-time key was already consumed | Reject | `pairing_key_consumed` |
+| Unknown, expired, reused or wrong-client key | 401, no distinguishing secret oracle | `challenge_invalid` |
+| Missing/invalid/expired/revoked session | 401 | `authentication_required` |
+| Authorization header on session-admin route | 403, never fall back to cookie | `session_required` |
+| Missing/foreign Origin on cookie mutation | 403 | `origin_not_allowed` |
+| Missing/incorrect CSRF | 403 | `csrf_invalid` |
+| Malformed JSON/unknown fields/wrong content type | 400, body not echoed | `request_invalid` |
+| JSON body exceeds limit | 413 | `request_invalid` |
+| Access attempt limit exceeded | 429 | `auth_rate_limited` |
+| Invalid revoke ID | 400 | `client_id_invalid` |
 | Client kind or requested scopes are unsupported | Reject before token creation | `pairing_scope_invalid` |
-| SQLite transaction fails | Create neither client nor token | `pairing_persistence_failed` |
-| Bearer token hash is unknown or revoked | Return 401 | `client_token_invalid` |
+| SQLite transaction fails | Create neither client nor consumed challenge, sanitized 503 | `database_unavailable` |
+| Bearer token hash is unknown or revoked | Reject in Core; no client-only route yet | `authentication_required` |
 | Raw payload persistence is attempted | Reject the write path | `raw_payload_storage_forbidden` |
 | Migration version is newer than Core | Refuse startup without changing data | `database_version_unsupported` |
 
@@ -72,12 +103,16 @@ Content-Type: application/json
 
 **Good case:** The desktop WebUI creates a pairing URI. The extension extracts its fragment, exchanges the key once, receives a scoped token, and sends observations with a Bearer header. SQLite contains only hashes and operational metadata.
 
-**Base case:** A manual one-shot import writes directly to NeoDB and records only its idempotency result; the raw input is not retained.
+**Base case:** Open the bare local URL without a session; health remains available but client metadata is denied.
 
 **Bad case:** Every API request uses `?key=...`, or the Core stores source HTML/API responses for later convenience. Both violate the security and storage boundary.
 
 ## 6. Tests Required
 
+- Implemented tests: `crates/collector-storage/src/access.rs` covers hash-only rows, expiry, replay, client/origin binding, concurrent exchange, rollback and revoked-token restart. `src/lib.rs` covers empty/v1 upgrade/reopen and byte-preserving newer-schema rejection.
+- `crates/collector-server/src/access_tests.rs` covers real router lifecycle, Origin/CSRF, Bearer non-escalation, caps/redaction/rate limit and revoke. `packages/core-client-ts/src/access.test.ts` covers validators, mutation-only CSRF and sanitized failures.
+- `apps/webui/src/AccessPanel.test.tsx` proves pre-request fragment removal, StrictMode single exchange, incompatible-Core refusal and logout. `tests/smoke.mjs` exercises real CLI/Core/Chromium, HttpOnly cookie, clean address bar, pairing/revoke/reload/logout, empty browser storage and screenshots without keys. No remote-account/keychain evidence is implied.
+- Smoke startup parsers wait for the terminating newline: stderr lines can arrive in multiple chunks. Never include buffered bootstrap output in failure diagnostics. Cancellation mocks should observe the incoming Request's signal rather than cloning it unnecessarily.
 - Migration test from an empty database and every committed prior schema version.
 - Transaction test proving a failed exchange creates neither a consumed challenge nor a paired client.
 - Time-bound tests for valid, expired, replayed, and revoked credentials.

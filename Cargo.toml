@@ -12,6 +12,9 @@ collector-domain = { path = "crates/collector-domain" }
 collector-core = { path = "crates/collector-core" }
 collector-storage = { path = "crates/collector-storage" }
 collector-server = { path = "crates/collector-server" }
+sha2 = "0.10"
+getrandom = "0.3"
+base64 = "0.22"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 schemars = "1"

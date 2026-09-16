@@ -8,6 +8,9 @@ use std::{future::Future, path::Path, pin::Pin, time::Duration};
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 
+mod access;
+pub mod credentials;
+
 #[derive(Clone)]
 pub struct Storage {
     pool: SqlitePool,
@@ -96,27 +99,49 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn baseline_reopens_without_business_tables() {
+    async fn migrations_reopen_with_operational_tables_only() {
         let dir = tempfile::tempdir().unwrap();
         for _ in 0..2 {
             let storage = Storage::open(dir.path()).await.unwrap();
             assert!(storage.is_ready().await);
-            let names: Vec<String> =
-                sqlx::query_scalar("SELECT name FROM sqlite_master WHERE type='table'")
-                    .fetch_all(&storage.pool)
-                    .await
-                    .unwrap();
-            assert_eq!(names, vec!["_sqlx_migrations"]);
+            let names: Vec<String> = sqlx::query_scalar(
+                "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name",
+            )
+            .fetch_all(&storage.pool)
+            .await
+            .unwrap();
+            assert_eq!(
+                names,
+                vec!["_sqlx_migrations", "access_credentials", "neodb_endpoint"]
+            );
             storage.close().await;
             assert!(!storage.is_ready().await);
         }
     }
 
     #[tokio::test]
+    async fn foundation_database_upgrades_to_access_schema() {
+        let dir = tempfile::tempdir().unwrap();
+        let storage = Storage::open(dir.path()).await.unwrap();
+        // Recreate the exact committed v1 shape and ledger in an isolated fixture.
+        sqlx::raw_sql("DROP TABLE access_credentials; DROP TABLE neodb_endpoint; DELETE FROM _sqlx_migrations WHERE version=2;")
+            .execute(&storage.pool).await.unwrap();
+        storage.close().await;
+        let upgraded = Storage::open(dir.path()).await.unwrap();
+        let latest: i64 = sqlx::query_scalar("SELECT max(version) FROM _sqlx_migrations")
+            .fetch_one(&upgraded.pool)
+            .await
+            .unwrap();
+        assert_eq!(latest, 2);
+        assert!(upgraded.is_ready().await);
+        upgraded.close().await;
+    }
+
+    #[tokio::test]
     async fn newer_database_is_rejected_without_modifying_file() {
         let dir = tempfile::tempdir().unwrap();
         let storage = Storage::open(dir.path()).await.unwrap();
-        sqlx::query("UPDATE _sqlx_migrations SET version = 999")
+        sqlx::query("UPDATE _sqlx_migrations SET version = 999 WHERE version = 2")
             .execute(&storage.pool)
             .await
             .unwrap();

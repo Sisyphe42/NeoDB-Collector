@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "client_kind": {
+      "type": "string"
+    },
+    "client_name": {
+      "type": "string"
+    },
+    "one_time_key": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "one_time_key",
+    "client_name",
+    "client_kind"
+  ],
+  "title": "PairingExchange",
+  "type": "object"
+}

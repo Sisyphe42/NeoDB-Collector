@@ -2,7 +2,7 @@
 
 ## 1. Scope / Trigger
 
-Applies to the implemented read-only foundation: configuration, startup/doctor, SQLite baseline, health/capabilities/schema, generated contracts and status WebUI. This is not the full sync product. Pairing, sessions/CSRF, secrets, connectors, scheduling, mutations, desktop and external integrations remain deferred and must satisfy their existing contracts before exposure.
+Applies to the implemented foundation: configuration, startup/doctor, SQLite baseline, health/capabilities/schema, generated contracts and status WebUI. The subsequent local session/pairing slice is specified in [Operational State and Pairing](./state-and-pairing.md). This is not the full sync product: NeoDB OAuth, import/sync, connectors, scheduling, desktop and external integrations remain deferred.
 
 Source owners: `crates/collector-domain`, `collector-core`, `collector-storage`, `collector-server`, `collector-cli`; `packages/contracts-ts`, `core-client-ts`; `apps/webui`.
 
@@ -20,7 +20,7 @@ GET /assets/*            -> static bundle assets
 
 `collector_core::StorageHealth::is_ready` returns a boxed Send future without requiring a concrete async runtime in Core. SQLx implements it with a real `SELECT 1`; the server uses that result, not a constant success flag.
 
-SQLite uses `{data_dir}/collector.db`; `crates/collector-storage/migrations/0001_baseline.sql` establishes only SQLx's migration ledger. No business tables, payloads or secrets exist yet. Existing databases are checked read-only for newer migration versions before writable migration startup.
+SQLite uses `{data_dir}/collector.db`; `0001_baseline.sql` establishes SQLx's migration ledger, and `0002_access.sql` adds hashed local-access credentials and singleton endpoint metadata. No raw payloads or plaintext secrets are stored. Existing databases are checked read-only for newer migration versions before writable migration startup.
 
 ## 3. Contracts
 
@@ -62,7 +62,7 @@ SQLite uses `{data_dir}/collector.db`; `crates/collector-storage/migrations/0001
 
 - `crates/collector-cli/src/config.rs`: precedence, YAML-relative paths, explicit overrides, invalid keys/schema/IP/port.
 - `crates/collector-cli/src/main.rs`: doctor checks report missing assets and an occupied port while testing real temporary storage.
-- `crates/collector-storage/src/lib.rs`: empty migration, repeat startup, only migration table, real readiness, byte-preserving newer-DB rejection.
+- `crates/collector-storage/src/lib.rs`: empty migration, prior-v1 upgrade, repeat startup, operational tables only, real readiness, byte-preserving newer-DB rejection.
 - `crates/collector-server/src/lib.rs`: real routes, degraded 503, unknown API 404, method 405, Host/Origin denial, no CORS, injected graceful shutdown releases the port.
 - `packages/core-client-ts/src/index.test.ts`: runtime schema rejection, version mismatch, network errors and valid degraded responses.
 - `apps/webui/src/App.test.tsx`: loading, refresh, empty capabilities and all error states.

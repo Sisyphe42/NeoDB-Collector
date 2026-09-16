@@ -2,6 +2,8 @@
 use collector_domain::{API_VERSION, HealthDocument, HealthStatus, SCHEMA_VERSION, StorageStatus};
 use std::{future::Future, pin::Pin};
 
+pub mod access;
+
 pub trait StorageHealth: Send + Sync {
     fn is_ready(&self) -> Pin<Box<dyn Future<Output = bool> + Send + '_>>;
 }

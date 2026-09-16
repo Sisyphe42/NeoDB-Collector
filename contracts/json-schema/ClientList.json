@@ -1,0 +1,41 @@
+{
+  "$defs": {
+    "PairedClient": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "revoked": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "kind",
+        "revoked"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "clients": {
+      "items": {
+        "$ref": "#/$defs/PairedClient"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "clients"
+  ],
+  "title": "ClientList",
+  "type": "object"
+}

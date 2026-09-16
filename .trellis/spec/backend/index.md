@@ -1,6 +1,6 @@
 # Backend Contracts
 
-The read-only runnable foundation is implemented. Sync, connectors, pairing and distribution clients remain planned. Product authority is `../product/collector-spec.yaml`; the foundation contract distinguishes implemented behavior from later requirements.
+The runnable foundation and local session/pairing slice are implemented. NeoDB OAuth, CLI pairing, sync, connectors and distribution clients remain planned. Product authority is `../product/collector-spec.yaml`; foundation and state/pairing contracts distinguish implemented behavior from later requirements.
 
 | Contract | Owns |
 |---|---|

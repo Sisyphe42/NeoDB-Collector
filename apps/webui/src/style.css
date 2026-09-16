@@ -37,4 +37,21 @@ dd { margin: 0; overflow-wrap: anywhere; }
 .empty span { display: block; max-width: 290px; }
 footer { display: flex; justify-content: space-between; gap: 16px; border-top: 1px solid #dbe3e9; margin-top: 64px; padding: 22px 0 32px; font-size: 11px; color: #607384; }
 code, dd { font-family: "Cascadia Code", "SFMono-Regular", Consolas, "Microsoft YaHei", monospace; }
+.access-panel { margin-top: 44px; padding-top: 28px; border-top: 1px solid #dbe3e9; }
+.access-panel form { display: flex; align-items: end; flex-wrap: wrap; gap: 16px; margin: 22px 0; }
+.access-panel label { display: grid; gap: 7px; font-size: 13px; min-width: 0; }
+.access-panel input, .access-panel select, .access-panel textarea { font: inherit; padding: 10px; color: #243341; background: #fff; border: 1px solid #8196a8; border-radius: 4px; width: 100%; }
+.access-panel textarea { font-family: "Cascadia Code", Consolas, monospace; resize: vertical; }
+.access-hint, .pairing-link p { color: #607384; font-size: 13px; }
+.access-error { color: #85491f; font-size: 13px; }
+.pairing-link { padding: 20px; background: #fff; border: 1px solid #dbe3e9; }
+.client-heading { margin-top: 28px; gap: 16px; }
+.client-heading h3 { font-size: 14px; font-weight: 600; }
+.client-list { padding: 0; list-style: none; }
+.client-list li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid #dbe3e9; }
+.client-list span { min-width: 0; overflow-wrap: anywhere; }
+.client-list small { display: block; color: #607384; }
+.secondary { background: transparent; color: #243341; }
+.secondary:hover { background: #dbe3e9; }
+@media (max-width: 640px) { .access-panel form > label { width: 100%; } .client-list li { align-items: flex-start; flex-direction: column; } }
 @media (max-width: 640px) { main { padding: 0 22px; } .masthead { height: 76px; } .intro { padding-top: 36px; } .status-panel { padding: 22px 18px; flex-direction: column; align-items: stretch; gap: 20px; } .status-panel button { align-self: flex-start; margin-left: 23px; } .details { grid-template-columns: 1fr; gap: 30px; margin-top: 34px; } footer { flex-direction: column; margin-top: 40px; } }

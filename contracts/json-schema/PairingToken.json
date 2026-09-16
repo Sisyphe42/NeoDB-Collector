@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "client_id": {
+      "type": "string"
+    },
+    "scopes": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "token": {
+      "type": "string"
+    },
+    "token_type": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "client_id",
+    "token",
+    "token_type",
+    "scopes"
+  ],
+  "title": "PairingToken",
+  "type": "object"
+}

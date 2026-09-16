@@ -1,0 +1,94 @@
+# Shared WebUI Boundaries
+
+## 1. Scope / Trigger Conditions
+
+This contract applies to the WebUI embedded in desktop, served by `collector serve`, and bundled in Docker. All hosts serve the same built assets from Core and use the same `/api/v1` contract. Browser-extension UI remains a separate surface but shares generated API and domain types.
+
+## 2. Signatures and Data Shapes
+
+```ts
+interface ApiError {
+  code: string;
+  message: string;
+  field?: string;
+  retryable: boolean;
+}
+
+interface CapabilityDocument {
+  schemaVersion: number;
+  connectorIds: string[];
+  mediaTypes: string[];
+  routes: Record<string, string>;
+}
+
+interface DryRunViewModel {
+  importId: string;
+  fields: Array<{
+    field: string;
+    sourceValue: unknown;
+    neodbValue: unknown;
+    status: "accepted" | "skipped" | "needs_review" | "rejected";
+    reason: string;
+  }>;
+}
+```
+
+The WebUI discovers features from `GET /api/v1/capabilities`, uses same-origin `/api/v1` requests, and receives long-running progress through `/api/v1/events` SSE by default.
+
+## 3. Behavioral Contracts
+
+- Desktop, CLI WebUI, and Docker render the same application and domain behavior.
+- API/domain types come from one schema-generated or shared package. Components do not redefine connector, observation, plan, or error payloads.
+- Secrets, NeoDB tokens, client tokens, and pairing keys never enter `localStorage`, query strings, analytics, or error reports.
+- WebUI sessions use HttpOnly SameSite=Strict cookies plus CSRF protection. A desktop bootstrap token may arrive in a URL fragment, is exchanged once, and is then removed.
+- Mapping forms and YAML import/export round-trip through the same canonical profile schema and validator.
+- Dry-run views show field-level source value, current NeoDB value, outcome, and reason before activation.
+- UI never labels browser-online/session-dependent connectors as unattended scheduled automation.
+
+## 4. Validation and Error Matrix
+
+| Condition | Result | UI behavior |
+|---|---|---|
+| Capability schema version is unsupported | Stop feature rendering | Show upgrade-required state |
+| API returns structured field error | Preserve form state | Attach error to field |
+| SSE disconnects | Back off and reconnect | Show stale/reconnecting status |
+| CSRF/session expires | Stop mutation | Re-bootstrap session without retaining secrets |
+| Mapping YAML is invalid | Do not save/enable | Show normalized validator errors |
+| Dry-run contains `needs_review` | Keep operation non-executable | Open review surface |
+| Connector requires browser session but extension is offline | Do not claim scheduled success | Show browser-required status |
+
+## 5. Good, Base, and Bad Cases
+
+**Good case:** A user edits a mapping in the form, exports it as YAML, reimports it, and sees the same normalized rules and dry-run results on desktop and Docker WebUI.
+
+**Base case:** The user opens the same-origin WebUI, receives an HttpOnly session, and reads connector status without any secret in JavaScript storage.
+
+**Bad case:** Desktop UI calls Tauri-only business commands while Docker UI calls REST, or a component keeps the NeoDB token in `localStorage`. Both split the product contract.
+
+## 6. Tests Required
+
+- Contract tests generated from or validated against the Core API schema.
+- Round-trip tests for mapping form, canonical JSON, and YAML.
+- Browser tests asserting no secret-bearing keys are written to `localStorage` or URLs.
+- CSRF, expired-session, and one-time fragment-bootstrap tests.
+- SSE reconnect and stale-state tests.
+- Cross-host smoke tests for desktop, `collector serve`, and Docker using the same WebUI bundle.
+- Accessibility tests for onboarding, review queue, errors, and keyboard-only mapping edits.
+
+## 7. Wrong vs Correct Implementations
+
+```ts
+// Wrong: browser storage retains a credential.
+localStorage.setItem("neodb_token", token);
+
+// Correct: JavaScript relies on the HttpOnly same-origin session.
+await api.getCapabilities({ credentials: "same-origin" });
+```
+
+```ts
+// Wrong: UI invents a private API payload shape.
+type LocalImportResult = { ok: boolean; msg: string };
+
+// Correct: consume the shared generated contract.
+import type { ImportResult } from "@neodb-collector/api-contract";
+```

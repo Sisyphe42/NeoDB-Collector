@@ -1,0 +1,559 @@
+schema_version: 2
+name: NeoDB Collector
+reviewed_at: 2026-09-16
+language: zh-CN
+
+scope:
+  current_direction: source_to_neodb_only
+  current_source_access: read_only
+  current_write_targets:
+    - neodb
+  future_direction_not_hardcoded: true
+  unsupported_source_data: skip
+  source_event_warehouse: false
+  supported_media_types:
+    - movie
+    - tv
+    - game
+    - book
+    - album
+    - performance
+    - podcast
+
+future_architecture:
+  additional_platforms: connector_manifest_without_core_enum_change
+  additional_sinks: sink_adapter
+  bidirectional_flows: capability_and_policy_gated
+  current_source_writes_enabled: false
+  requirements:
+    - connector_capabilities_are_explicit_per_operation
+    - collection_and_write_execution_are_separate
+    - flow_direction_is_configuration_not_domain_type
+    - field_level_provenance_and_ownership
+    - per_endpoint_checkpoint_and_last_seen_hash
+    - dry_run_before_enabling_new_write_direction
+    - deletion_is_never_inferred_from_absence
+    - source_write_requires_future_product_decision
+
+domain_model:
+  platform_id: open_namespaced_string
+  media_type: open_namespaced_string_with_current_neodb_allowlist
+  records:
+    - Observation
+    - CanonicalItemRef
+    - UserState
+    - FieldProvenance
+    - PlannedOperation
+    - SyncCheckpoint
+  connector_capabilities:
+    - catalog.read
+    - user_state.read
+    - user_state.write
+    - progress.read
+    - progress.write
+    - review.read
+    - review.write
+  current_policy:
+    allow: [source.user_state.read, neodb.user_state.read, neodb.user_state.write]
+    deny: [source.user_state.write]
+
+product:
+  primary_distribution: desktop_bundle
+  shared_core: collector-core
+  user_experience: one_product
+  desktop_platform_priority: none
+  first_class_desktop_platforms: [windows, macos, linux]
+  neodb_profile_scope:
+    configured_profiles: 1
+    active_profiles: 1
+    base_url_configurable: true
+    multi_profile_backlog: false
+  connector_loading:
+    current: built_in_only
+    future_boundary: versioned_manifest_and_reviewed_extension_contract
+    third_party_executable_loading_enabled: false
+  hosts:
+    desktop:
+      includes: [core_service, webui, scheduler, credential_integration, tray]
+    cli:
+      commands: [serve, sync, import, doctor]
+      webui: true
+    docker:
+      includes: [core_service, webui, scheduler]
+      persistent_volume: true
+    browser_extension:
+      role: session_and_page_probe
+      direct_neodb_write: false
+      first_class_browsers: [chrome, edge]
+      codebase: webextensions_compatible
+      later_browsers: [firefox]
+    local_plugins:
+      role: local_application_probe
+      direct_neodb_write: false
+
+resolved_decisions:
+  - id: current_flow
+    value: source_read_only_to_neodb
+  - id: future_flow_architecture
+    value: connector_capabilities_and_policy_gated_flows
+  - id: source_session_access
+    value: first_party_browser_extension_without_raw_cookie_or_password_access
+  - id: service_network_shape
+    value: one_process_one_configurable_port_for_webui_api_and_events
+  - id: desktop_experience
+    value: all_in_one_bundle_with_thin_native_shell_and_shared_webui
+  - id: browser_targets
+    value: chrome_and_edge_first_firefox_later
+    compatibility_goal: webextensions
+  - id: extension_permission_mode
+    value: optional_persistent_per_site_with_active_tab_fallback
+    onboarding:
+      show_on_first_start: true
+      explain_before_request: true
+      request_requires_user_gesture: true
+      request_all_supported_sites_at_once: false
+      offer_sites_individually: true
+      allow_skip: true
+      reoffer_location: extension_settings
+      never_block_public_url_or_active_tab_mode: true
+  - id: mapping_editor_surface
+    value: webui_form_plus_yaml_import_export_and_dry_run
+  - id: current_conflict_default
+    value: keep_neodb_and_enqueue_needs_review
+    current_value_mutated: false
+  - id: first_release_platforms
+    value: windows_macos_linux_equal_first_class_desktop_targets
+    ci_required: [windows, macos, linux]
+  - id: neodb_profile_scope
+    value: exactly_one_configured_neodb_profile
+    configurable_base_url: true
+  - id: sync_activation_default
+    value: manual_first_dry_run_then_explicit_schedule_enablement
+  - id: connector_distribution
+    value: built_in_connectors_only_for_now
+    future_third_party_extension_boundary_preserved: true
+  - id: implementation_stack
+    value: rust_tokio_axum_sqlx_sqlite_react_typescript_vite_tauri_2
+    storage_role: embedded_operational_state_only
+    external_database_required: false
+    raw_source_payload_persistence: forbidden
+  - id: client_pairing_approval
+    value: pairing_uri_fragment_one_time_key_then_per_client_bearer_token
+    long_lived_key_in_uri: forbidden
+    token_at_rest: hash_only
+
+service:
+  protocol: http_and_websocket
+  default_bind: 127.0.0.1
+  default_port: 19423
+  default_port_status: proposed_before_implementation
+  configurable_port: true
+  single_port: true
+  routes:
+    webui: /
+    api: /api/v1
+    health: /api/v1/health
+    capabilities: /api/v1/capabilities
+    schema: /api/v1/schema
+    imports: /api/v1/imports
+    mapping_profiles: /api/v1/mapping-profiles
+    mapping_validate: /api/v1/mapping-profiles/validate
+    mapping_dry_run: /api/v1/mapping-profiles/{profile_id}/dry-run
+    neodb_settings: /api/v1/settings/neodb
+    pairings: /api/v1/pairings
+    events_sse: /api/v1/events
+    events_websocket: /api/v1/ws
+  rationale:
+    - WebUI and API on one origin avoid CORS and duplicate discovery.
+    - A stable default port lets extensions and plugins discover the local service.
+    - Desktop, CLI, Docker, extensions, and plugins use the same versioned contract.
+  exposure:
+    loopback_default: true
+    lan_or_remote_requires_explicit_opt_in: true
+    docker_internal_port: 19423
+    tls_strategy: reverse_proxy_preferred
+  security:
+    host_header_allowlist: true
+    origin_validation: true
+    dns_rebinding_protection: true
+    cors_default: deny
+    ui_session:
+      cookie: http_only_same_site_strict
+      csrf_protection: true
+      bootstrap: one_time_token_url_fragment_exchange
+    clients:
+      auth: bearer_pairing_token
+      token_per_client: true
+      revocable: true
+      rate_limit: true
+      request_size_limit: true
+      pairing:
+        uri_shape: "http://127.0.0.1:{port}/pair#key={one_time_key}"
+        one_time_key_transport_to_exchange: request_body
+        one_time_key_ttl_minutes: 10
+        one_time_key_single_use: true
+        long_lived_key_in_path_or_query: forbidden
+        token_transport: authorization_bearer_header
+        token_storage: hash_only
+
+storage:
+  engine: sqlite
+  deployment: embedded_single_file
+  external_service_required: false
+  purpose: durable_operational_state
+  stores:
+    - connector_configuration_without_secrets
+    - credential_references
+    - sync_checkpoints
+    - manual_item_mappings
+    - mapping_profiles
+    - review_plans
+    - idempotency_and_operation_results
+    - pairing_challenge_hashes
+    - client_token_hashes
+  never_stores:
+    - raw_source_api_payloads
+    - raw_page_html
+    - source_cookies
+    - source_passwords
+    - plaintext_client_tokens
+  secret_storage:
+    desktop: operating_system_credential_store
+    container: explicit_secret_file_or_secret_manager
+  migration_required: true
+  transaction_required_for:
+    - checkpoint_and_operation_result
+    - pairing_key_consumption_and_client_creation
+
+core_pipeline:
+  stages:
+    - discover
+    - authorize_declared_capabilities
+    - collect
+    - normalize_observation
+    - apply_mapping_profile
+    - resolve_item
+    - compare_endpoint_state
+    - plan_operations
+    - apply_flow_policy
+    - dry_run_or_execute
+    - checkpoint
+  automatic_match_requires:
+    - supported_canonical_url
+    - verified_external_id
+    - existing_manual_mapping
+  fuzzy_match_action: needs_review
+  current_conflict_default: keep_existing_sink_value_and_needs_review
+  idempotency_key: connector_instance_record_updated_at_or_hash
+  deletion_by_absence: never
+  provenance_granularity: field
+
+neodb_fields:
+  shelf_type:
+    values: [wishlist, progress, complete, dropped]
+  rating_grade:
+    range: [0, 10]
+  comment_text: string
+  tags: string_array
+  created_time: datetime
+  progress:
+    types: [page, chapter, part, episode, track, cycle, timestamp, percentage]
+  review: object
+  notes: object_array
+
+mapping:
+  customizable: true
+  format: yaml
+  editor_surfaces: [webui_form, yaml_import_export]
+  arbitrary_code: false
+  scope: source_connector_to_sink_connector_flow
+  target_allowlist: sink_capability_schema
+  current_sink_schema: neodb_fields
+  precedence:
+    - safety_and_schema_constraints
+    - connector_defaults
+    - user_mapping_profile
+    - per_item_override
+  supported_operations:
+    - enum_map
+    - numeric_scale
+    - clamp
+    - coalesce
+    - date_parse
+    - string_template_without_code
+    - condition
+    - skip
+  conflict_policies:
+    - keep_neodb
+    - replace
+    - newest
+    - needs_review
+  requirements:
+    preview_before_enable: true
+    dry_run_required: true
+    field_level_reason: true
+    profile_import_export: true
+    connector_contract_test: true
+  example_profiles:
+    - id: steam_conservative
+      source: steam
+      rules:
+        - id: owned_to_wishlist
+          enabled: false
+          when:
+            field: owned
+            equals: true
+          set:
+            shelf_type: wishlist
+        - id: played_to_progress
+          enabled: false
+          when:
+            field: playtime_minutes
+            greater_than: 0
+          set:
+            shelf_type: progress
+      conflicts:
+        shelf_type: needs_review
+        rating_grade: keep_neodb
+    - id: imdb_ratings
+      source: imdb
+      rules:
+        - id: rating_10_point
+          enabled: true
+          from: rating
+          to: rating_grade
+          operation: clamp
+          arguments: {min: 0, max: 10}
+        - id: rating_implies_complete
+          enabled: false
+          when:
+            field: rating
+            exists: true
+          set:
+            shelf_type: complete
+
+authentication_policy:
+  priority:
+    - official_oauth_or_api
+    - public_url_or_official_export
+    - first_party_browser_extension
+  browser_extension:
+    recommended_for: [douban, imdb_private_pages, xiaoyuzhou]
+    first_class_browsers: [chrome, edge]
+    webextensions_compatible: true
+    firefox_support: later
+    uses_existing_browser_session: true
+    cookies_permission: forbidden
+    raw_cookie_read_export_or_import: forbidden
+    source_password_storage: forbidden
+    extension_permissions: optional_persistent_per_site_with_active_tab_fallback
+    onboarding:
+      trigger: first_start
+      explains_permission_purpose_before_request: true
+      permission_request_requires_user_gesture: true
+      grants_are_requested_per_site: true
+      bulk_request_for_all_supported_sites: false
+      may_skip: true
+      may_manage_later_in_extension_settings: true
+      denied_or_skipped_behavior: active_tab_and_public_url_features_remain_available
+      repeated_prompt_loop: forbidden
+    reads: [current_page_dom, user_opened_list_pages, site_scoped_browser_session_requests]
+    sends_to_collector: parsed_observations_only
+    background_automation: limited_by_browser_lifecycle_and_site_permissions
+    challenge_handling: user_interaction_only
+
+connector_contract:
+  roles: [source, sink, both]
+  kinds: [api, archive, webpage, local_app, webhook]
+  read_output: Observation
+  write_input: PlannedOperation
+  write_interface_may_exist_but_is_disabled_by_current_policy: true
+  manifest_fields:
+    - id
+    - version
+    - minimum_core_version
+    - kind
+    - media_types
+    - auth
+    - source_fields
+    - read_fields
+    - write_fields
+    - identifier_schemes
+    - identifiers
+    - triggers
+    - permissions
+    - capabilities
+    - evidence
+  runtime_dependency_policy:
+    first_party_connector_preferred: true
+    small_third_party_runtime_dependency: avoid
+    third_party_allowed_as: [research_reference, fixture, compatible_import_format]
+
+platforms:
+  - id: douban
+    types: [book, movie, tv, game, album, performance]
+    phase: MVP
+    preferred_connector: first_party_browser_extension
+    fallback: [doubak_or_doufen_archive_import]
+    auth: browser_extension_session
+    automation: best_effort_background_scan
+    identifiers: [douban_id, canonical_url]
+    neodb_fields: [shelf_type, rating_grade, comment_text, tags, created_time]
+    unsupported: [broadcasts, social_interactions]
+    notes:
+      - Do not depend on Doubak at runtime; accept its export only as a compatibility format.
+      - Do not read or persist raw cookies or source passwords.
+  - id: bangumi
+    types: [book, movie, tv, game, album, performance]
+    phase: MVP
+    preferred_connector: core_api
+    auth: oauth_or_access_token
+    automation: scheduled
+    identifiers: [bangumi_subject_id, canonical_url]
+    neodb_fields: [shelf_type, rating_grade, comment_text, tags, progress, created_time]
+    unsupported: [activity_event_history]
+  - id: imdb
+    types: [movie, tv]
+    phase: MVP
+    preferred_connector: [public_page_core, browser_extension]
+    fallback: [official_csv_export]
+    auth: public_or_browser_session
+    automation: public_lists_scheduled_private_pages_best_effort
+    identifiers: [imdb_title_id, canonical_url]
+    neodb_fields: [shelf_type, rating_grade, created_time]
+  - id: weread
+    types: [book]
+    phase: Phase_2_or_experimental
+    preferred_connector: official_api_if_authorized
+    fallback: [first_party_browser_extension]
+    auth: official_authorization_or_browser_extension_session
+    automation: conditional
+    identifiers: [weread_book_id, isbn]
+    neodb_fields: [shelf_type, rating_grade, comment_text, review, notes, progress]
+    risk: distribution_terms_and_session_stability
+  - id: spotify
+    types: [album]
+    phase: Phase_2
+    preferred_connector: core_api
+    auth: oauth
+    automation: scheduled
+    identifiers: [spotify_album_id, canonical_url]
+    neodb_fields: [shelf_type]
+    unsupported: [track_plays, play_count, duration, podcast_history, rating]
+  - id: steam
+    types: [game]
+    phase: MVP
+    preferred_connector: core_api
+    auth: api_key_and_public_profile
+    automation: scheduled
+    identifiers: [steam_app_id, canonical_url]
+    neodb_fields: [shelf_type, progress]
+    mapping_defaults_disabled: [owned_to_wishlist, playtime_to_progress]
+  - id: apple_music
+    types: [album]
+    phase: Phase_2
+    preferred_connector: core_api_after_musickit_authorization
+    auth: developer_token_and_music_user_token
+    automation: scheduled_after_authorization
+    identifiers: [apple_catalog_album_id, canonical_url]
+    neodb_fields: [shelf_type]
+    unsupported: [recent_play_events, play_count, like_to_numeric_rating]
+  - id: apple_podcasts
+    types: [podcast]
+    phase: experimental
+    preferred_connector: [public_url, opml, browser_extension_current_page]
+    fallback: [apple_native_companion]
+    automation: public_items_only
+    identifiers: [apple_show_id, rss_feed_url]
+    neodb_fields: [shelf_type, progress]
+  - id: xiaoyuzhou
+    types: [podcast]
+    phase: experimental
+    preferred_connector: first_party_browser_extension
+    fallback: [public_url_or_rss]
+    auth: browser_extension_session
+    automation: best_effort
+    identifiers: [xiaoyuzhou_id, rss_feed_url]
+    neodb_fields: [shelf_type, progress]
+    risk: private_endpoints_terms_and_anti_bot
+  - id: playnite
+    types: [game]
+    phase: MVP
+    preferred_connector: first_party_generic_plugin
+    fallback: [structured_export]
+    auth: paired_client_token
+    automation: local_events
+    identifiers: [provider_game_id, source_links, local_guid]
+    neodb_fields: [shelf_type, rating_grade, tags, comment_text, progress]
+    unsupported: [raw_start_stop_events, play_sessions]
+
+extension_backlog:
+  high_leverage:
+    - universal_send_url_to_neodb
+    - watched_folder_for_archives
+    - generic_webpage_extractor
+    - batch_review_queue
+    - mapping_profile_editor
+    - connector_doctor
+    - webhook_inbox
+  candidate_sources:
+    - {id: goodreads, mode: official_archive, priority: high}
+    - {id: storygraph, mode: official_archive, priority: high}
+    - {id: letterboxd, mode: official_archive, priority: high}
+    - {id: rateyourmusic, mode: official_archive, priority: high}
+    - {id: anilist, mode: oauth_graphql, priority: medium, gate: terms_review}
+    - {id: myanimelist, mode: api, priority: medium}
+    - {id: trakt, mode: oauth_api, priority: medium, gate: current_policy_review}
+    - {id: jellyfin, mode: local_api_or_webhook, priority: medium}
+    - {id: plex_emby_kodi, mode: local_api_or_plugin, priority: medium}
+    - {id: calibre_koreader, mode: local_plugin_or_export, priority: medium}
+    - {id: listenbrainz_lastfm, mode: token_api, priority: low}
+    - {id: bandcamp_discogs_youtube_music, mode: current_page, priority: low}
+
+open_decisions:
+  - id: future_sync_conflict_model
+    question: How should a future writable source and another endpoint disagree?
+    recommended: field_ownership_plus_needs_review_no_last_write_wins_default
+    options: [field_ownership, designated_primary_endpoint, newest_timestamp]
+    blocking_before: enabling_any_second_write_endpoint
+  - id: deletion_semantics
+    question: May absence from a source clear or delete state elsewhere?
+    recommended: never_infer_deletion_from_absence_require_explicit_tombstone_and_preview
+    options: [explicit_tombstone_only, connector_specific_absence_rules]
+    blocking_before: bidirectional_or_mirror_mode
+  - id: operational_retention
+    question: How long should normalized observations and operation logs be retained?
+    recommended: latest_field_provenance_indefinite_operation_logs_90_days_raw_payload_none
+    options: [minimal_90_day_logs, user_configurable_retention]
+    blocking_before: database_schema_freeze
+  - id: license_and_distribution
+    question: What license and distribution channels should the project use?
+    recommended: decide_before_accepting_external_connectors
+    options: [open_source, source_available, private]
+    blocking_before: public_release
+
+evidence:
+  - {id: neodb_api, kind: official, url: "https://neodb.net/api/"}
+  - {id: neodb_supported_sites, kind: official, url: "https://neodb.net/sites/"}
+  - {id: neodb_schema, kind: official, url: "https://neodb.net/internals/schema/"}
+  - {id: neodb_catalog, kind: official, url: "https://neodb.net/internals/catalog/"}
+  - {id: bangumi_api, kind: official, url: "https://bangumi.github.io/api/"}
+  - {id: imdb_ratings_export, kind: official, url: "https://help.imdb.com/article/imdb/track-movies-tv/faq-for-imdb-ratings/G67Y87TFYYP6TWAV"}
+  - {id: imdb_lists_export, kind: official, url: "https://help.imdb.com/article/imdb/track-movies-tv/faq-for-the-list-feature/GNQMN47VZSE7KW38"}
+  - {id: spotify_saved_albums, kind: official, url: "https://developer.spotify.com/documentation/web-api/reference/get-users-saved-albums"}
+  - {id: steam_iplayer_service, kind: official, url: "https://partner.steamgames.com/doc/webapi/iplayerservice"}
+  - {id: apple_music_api, kind: official, url: "https://developer.apple.com/documentation/AppleMusicAPI"}
+  - {id: playnite_generic_plugins, kind: official, url: "https://api.playnite.link/docs/tutorials/extensions/genericPlugins.html"}
+  - {id: chrome_permissions, kind: official, url: "https://developer.chrome.com/docs/extensions/reference/api/permissions"}
+  - {id: chrome_cross_origin, kind: official, url: "https://developer.chrome.com/docs/extensions/develop/concepts/network-requests"}
+  - {id: tauri_architecture, kind: official, url: "https://v2.tauri.app/concept/architecture/"}
+  - {id: axum_docs, kind: official, url: "https://docs.rs/axum/latest/axum/"}
+  - {id: sqlx_sqlite, kind: official, url: "https://docs.rs/sqlx/latest/sqlx/sqlite/"}
+  - {id: cwe_598_sensitive_query, kind: security_standard, url: "https://cwe.mitre.org/data/definitions/598"}
+  - {id: rfc_9110_fragment, kind: standard, url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1"}
+  - {id: douban_agreement, kind: official, url: "https://accounts.douban.com/passport/agreement?hide_accept=1"}
+  - {id: anilist_api, kind: official, url: "https://anilist.gitbook.io/anilist-apiv2-docs"}
+  - {id: anilist_terms, kind: official, url: "https://anilist.gitbook.io/anilist-apiv2-docs/docs/guide/terms-of-use"}
+  - {id: listenbrainz_api, kind: official, url: "https://listenbrainz.readthedocs.io/en/latest/users/api/index.html"}
+  - {id: jellyfin_webhooks, kind: official, url: "https://jellyfin.org/docs/general/server/notifications/"}
+  - {id: doubak_format_reference, kind: open_source_reference_only, url: "https://github.com/Doubak/doubak-extension"}

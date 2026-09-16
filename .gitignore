@@ -1,0 +1,26 @@
+# Disposable local research and scratch output
+/temp/
+
+# Local secrets
+.env
+.env.*
+!.env.example
+
+# Rust and web build output
+/target/
+/node_modules/
+/dist/
+/coverage/
+
+# Runtime SQLite files
+*.db
+*.db-shm
+*.db-wal
+
+# Generated caches
+**/__pycache__/
+*.py[cod]
+
+# Operating-system metadata
+.DS_Store
+Thumbs.db

@@ -104,6 +104,30 @@ async fn private_routes_require_session_csrf_and_origin() {
         request(
             &app,
             "GET",
+            "/api/v1/client",
+            Value::Null,
+            &[("cookie", &cookie)]
+        )
+        .await
+        .0,
+        401
+    );
+    assert_eq!(
+        request(
+            &app,
+            "GET",
+            "/api/v1/client",
+            Value::Null,
+            &[("authorization", "Bearer invalid"), ("cookie", &cookie)]
+        )
+        .await
+        .0,
+        401
+    );
+    assert_eq!(
+        request(
+            &app,
+            "GET",
             "/api/v1/session",
             Value::Null,
             &[("cookie", &cookie)]

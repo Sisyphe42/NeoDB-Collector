@@ -1,3 +1,4 @@
+mod client;
 mod config;
 
 use clap::{Parser, Subcommand, ValueEnum};
@@ -23,6 +24,20 @@ enum Command {
     Serve,
     /// Diagnose local setup. Creates the data directory and migrates collector.db.
     Doctor {
+        #[arg(long, value_enum, default_value = "human")]
+        format: Format,
+    },
+    /// Pair using a one-time WebUI link piped to standard input.
+    Pair {
+        #[arg(long, default_value = "Collector CLI")]
+        name: String,
+        #[arg(long, value_enum, default_value = "human")]
+        format: Format,
+    },
+    /// Verify the stored client credential against the running Core.
+    Status {
+        #[arg(long, default_value = "http://127.0.0.1:19423")]
+        core_url: String,
         #[arg(long, value_enum, default_value = "human")]
         format: Format,
     },
@@ -212,10 +227,22 @@ async fn serve(config: config::Config) -> Result<(), ApiError> {
 #[tokio::main]
 async fn main() -> ExitCode {
     let cli = Cli::parse();
-    let config = resolve(&cli.overrides);
     match cli.command {
+        Command::Pair { name, format } => {
+            let result = match client::read_pairing() {
+                Ok(link) => {
+                    client::pair(&link, &name, &collector_storage::credentials::OsSecretStore).await
+                }
+                Err(error) => Err(error),
+            };
+            print_client(result, format)
+        }
+        Command::Status { core_url, format } => print_client(
+            client::status(&core_url, &collector_storage::credentials::OsSecretStore).await,
+            format,
+        ),
         Command::Serve => {
-            let result = match config {
+            let result = match resolve(&cli.overrides) {
                 Ok(config) => serve(config).await,
                 Err(error) => Err(error),
             };
@@ -228,7 +255,7 @@ async fn main() -> ExitCode {
             }
         }
         Command::Doctor { format } => {
-            let report = doctor(config).await;
+            let report = doctor(resolve(&cli.overrides)).await;
             match format {
                 Format::Json => println!(
                     "{}",
@@ -248,6 +275,34 @@ async fn main() -> ExitCode {
             } else {
                 ExitCode::FAILURE
             }
+        }
+    }
+}
+
+fn print_client<T: Serialize + std::fmt::Display>(
+    result: Result<T, ApiError>,
+    format: Format,
+) -> ExitCode {
+    match result {
+        Ok(report) => {
+            match format {
+                Format::Json => println!(
+                    "{}",
+                    serde_json::to_string_pretty(&report).expect("serializable report")
+                ),
+                Format::Human => println!("{report}"),
+            }
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            match format {
+                Format::Json => println!(
+                    "{}",
+                    serde_json::to_string(&error).expect("serializable error")
+                ),
+                Format::Human => eprintln!("{error}"),
+            }
+            ExitCode::FAILURE
         }
     }
 }

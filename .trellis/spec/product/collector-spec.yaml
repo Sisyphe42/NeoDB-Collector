@@ -196,17 +196,17 @@ service:
   configurable_port: true
   single_port: true
   implementation_status:
-    milestone: local_access_and_neodb_oauth_slice_of_preview_auth
+    milestone: preview_auth
     implemented_hosts: [cli_with_webui]
-    implemented_commands: [serve, doctor]
-    implemented_routes: [webui, health, capabilities, schema, session_bootstrap, session, pairings, pairing_exchange, clients, neodb_settings, neodb_oauth, neodb_oauth_callback]
+    implemented_commands: [serve, doctor, pair, status]
+    implemented_routes: [webui, health, capabilities, schema, session_bootstrap, session, pairings, pairing_exchange, clients, client_identity, neodb_settings, neodb_oauth, neodb_oauth_callback]
     connector_ids: []
     writes_enabled: false
     database: migration_ledger_hashed_access_credentials_singleton_endpoint_metadata
     config: yaml_v1_cli_over_env_over_file_over_defaults
     exposure: loopback_only
     authentication: webui_session_csrf_and_transactional_client_pairing
-    pending: [cli_pair_and_status, media_reads, imports, preview_jobs]
+    pending: [media_reads, imports, preview_jobs]
     code_contract: .trellis/spec/backend/foundation-runtime.md
   routes:
     webui: /
@@ -226,6 +226,7 @@ service:
     session_bootstrap: /api/v1/session/bootstrap
     session: /api/v1/session
     clients: /api/v1/clients
+    client_identity: /api/v1/client
     events_sse: /api/v1/events
     events_websocket: /api/v1/ws
   rationale:

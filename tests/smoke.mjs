@@ -13,6 +13,13 @@ const args = ['--data-dir', directory, '--assets-dir', resolve('apps/webui/dist'
 let child;
 let browser;
 try {
+  const badPair = spawnSync(binary, ['pair', '--format', 'json'], { env, input: 'not-a-pairing-link', encoding: 'utf8' });
+  assert.equal(badPair.status, 1);
+  assert.equal(JSON.parse(badPair.stdout).code, 'core_url_invalid');
+  assert(!badPair.stdout.includes('not-a-pairing-link'));
+  const badStatus = spawnSync(binary, ['status', '--core-url', 'https://example.com', '--format', 'json'], { env, encoding: 'utf8' });
+  assert.equal(badStatus.status, 1);
+  assert.equal(JSON.parse(badStatus.stdout).code, 'core_url_invalid');
   const doctor = spawnSync(binary, ['doctor', '--format', 'json', ...args], { env, encoding: 'utf8' });
   assert.equal(doctor.status, 0, doctor.stderr || doctor.stdout);
   assert.equal(JSON.parse(doctor.stdout).ok, true);
@@ -66,11 +73,15 @@ try {
   const paired = await fetch(`${address}/api/v1/pairings/exchange`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ one_time_key: oneTimeKey, client_name: 'Collector CLI', client_kind: 'cli' }) });
   assert.equal(paired.status, 200);
   const pairedToken = await paired.json();
+  const identity = await fetch(`${address}/api/v1/client`, { headers: { Authorization: `Bearer ${pairedToken.token}` } });
+  assert.equal(identity.status, 200);
+  assert.equal((await identity.json()).id, pairedToken.client_id);
   assert.equal((await fetch(`${address}/api/v1/clients`, { headers: { Authorization: `Bearer ${pairedToken.token}` } })).status, 403);
   await page.getByRole('button', { name: '隐藏链接' }).click();
   await page.getByRole('button', { name: '刷新列表' }).click();
   await page.getByRole('button', { name: '撤销 Collector CLI' }).click();
   await page.getByText('cli · 已撤销', { exact: true }).waitFor();
+  assert.equal((await fetch(`${address}/api/v1/client`, { headers: { Authorization: `Bearer ${pairedToken.token}` } })).status, 401);
   await page.getByRole('button', { name: '重新检查' }).click();
   await page.getByRole('heading', { name: '本地服务已连接' }).waitFor();
   await mkdir('test-results', { recursive: true });

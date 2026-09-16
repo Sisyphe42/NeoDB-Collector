@@ -1,6 +1,6 @@
 # Implementation checkpoint — 2026-09-16
 
-Task remains in progress and is not ready to archive. Local access, OAuth transport and Core lifecycle are committed. OAuth HTTP/UI composition is implemented; CLI pairing/status remains pending.
+All task acceptance criteria are implemented. Local access, OAuth and HTTP/UI are committed; CLI pairing/status is the final verified code checkpoint, followed by task archival.
 
 ## Completed local-access slice
 
@@ -20,7 +20,7 @@ Two test issues fixed: the cancellation mock now observes the incoming Request's
 
 1. Restrictive typed NeoDB OAuth transport and pure Core orchestrator are implemented. Ten Core tests cover lifecycle, failures, concurrent reservations and recovery using mock ports; see backend/oauth-lifecycle.md. No `/api/catalog/fetch`, media writes or real account authorization.
 2. OAuth HTTP routes, generated contracts, CLI production composition and WebUI status/authorize/cancel are implemented. Tests use fake upstream and credentials; no real-account evidence is claimed.
-3. Add CLI pair/status via the same API and OS credential store; API token exchange exists but no CLI command yet.
+3. CLI pair/status now uses versioned HTTP and OS credentials; no database access in client commands.
 4. Commit each verified coherent code slice automatically under the project workflow; request confirmation only if direction, ownership or verification is unclear.
 5. Only after this child finishes, review/activate mapping and preview-jobs children. Parent is not complete.
 
@@ -45,3 +45,13 @@ real router tests inject mock transport/credentials and exercise SQLite metadata
 Mobile capture inspected: controls fit 390px with no horizontal overflow.
 Rust emitted incremental-cache access-denied notes but all compile/check commands
 completed successfully; no cache deletion or system changes were needed.
+
+## CLI checkpoint — 2026-09-17
+
+Stdin-only pairing, local origin validation, response limits/no redirects/no proxy,
+credential preflight, token persistence, human/JSON reports and authenticated client
+identity are implemented. CLI integration tests use real loopback HTTP/SQLite with
+fake credentials, covering replay, name binding, revocation, preflight and final
+storage failures. Full verify passed: 31 Rust and 19 TS/UI tests plus all gates.
+Final test-only additions were rerun with scoped Rust tests, Clippy and smoke.
+Hosted macOS/Linux and real keychain/account checks remain separate evidence.

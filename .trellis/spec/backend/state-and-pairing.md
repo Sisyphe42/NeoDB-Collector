@@ -2,7 +2,7 @@
 
 ## 1. Scope / Trigger Conditions
 
-This contract applies whenever Core persists state across restarts or authorizes a local client. The local-access slice is implemented: WebUI bootstrap/session/CSRF, pairing, client listing/revocation and the OS credential adapter. The [OAuth lifecycle](./oauth-lifecycle.md) and restrictive transport are composed through the [OAuth HTTP/WebUI](./oauth-http.md) boundary by CLI startup. CLI pairing commands, imports and preview jobs remain unfinished. No media-platform writes are enabled. SQLite exists only for operational metadata, not a media-history warehouse.
+This contract applies whenever Core persists state across restarts or authorizes a local client. The local-access slice is implemented: WebUI bootstrap/session/CSRF, pairing, client listing/revocation and the OS credential adapter. The [OAuth lifecycle](./oauth-lifecycle.md) and restrictive transport are composed through the [OAuth HTTP/WebUI](./oauth-http.md) boundary by CLI startup. [CLI pairing and authenticated status](./cli-client.md) are implemented; imports and preview jobs remain unfinished. No media-platform writes are enabled. SQLite exists only for operational metadata, not a media-history warehouse.
 
 Owners: `crates/collector-core/src/access.rs` (ports/policy), `collector-domain/src/access.rs` (DTOs), `collector-storage/src/access.rs` and `credentials.rs` (adapters), `collector-server/src/access.rs` (HTTP boundary).
 
@@ -95,7 +95,7 @@ Content-Type: application/json
 | Invalid revoke ID | 400 | `client_id_invalid` |
 | Client kind or requested scopes are unsupported | Reject before token creation | `pairing_scope_invalid` |
 | SQLite transaction fails | Create neither client nor consumed challenge, sanitized 503 | `database_unavailable` |
-| Bearer token hash is unknown or revoked | Reject in Core; no client-only route yet | `authentication_required` |
+| Bearer token hash is unknown or revoked | Reject GET /api/v1/client in Core | `authentication_required` |
 | Raw payload persistence is attempted | Reject the write path | `raw_payload_storage_forbidden` |
 | Migration version is newer than Core | Refuse startup without changing data | `database_version_unsupported` |
 

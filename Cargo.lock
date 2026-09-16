@@ -451,6 +451,7 @@ checksum = "1c133bc6a41be0d194c306b5506d15e6feeea7b1d6604bd3f8310dfb2ca96486"
 name = "collector-cli"
 version = "0.1.0"
 dependencies = [
+ "axum",
  "clap",
  "collector-connectors",
  "collector-core",
@@ -458,11 +459,13 @@ dependencies = [
  "collector-server",
  "collector-storage",
  "directories",
+ "reqwest",
  "serde",
  "serde-saphyr",
  "serde_json",
  "tempfile",
  "tokio",
+ "url",
 ]
 
 [[package]]

@@ -270,6 +270,7 @@ pub(crate) fn routes(state: AccessState) -> Router {
         .route("/api/v1/pairings", post(create_pairing))
         .route("/api/v1/pairings/exchange", post(exchange_pairing))
         .route("/api/v1/clients", get(clients))
+        .route("/api/v1/client", get(client_identity))
         .route("/api/v1/clients/{id}", delete(revoke))
         .route("/api/v1/settings/neodb", get(crate::oauth::status))
         .route(
@@ -279,4 +280,32 @@ pub(crate) fn routes(state: AccessState) -> Router {
         .route("/api/v1/oauth/neodb/callback", get(crate::oauth::callback))
         .layer(DefaultBodyLimit::max(4096))
         .with_state(state)
+}
+
+#[utoipa::path(get, path="/api/v1/client",
+    responses((status=200, body=PairedClient), (status=401, body=ApiError), (status=503, body=ApiError)))]
+pub(crate) async fn client_identity(
+    State(state): State<AccessState>,
+    headers: HeaderMap,
+) -> Result<Json<PairedClient>, HttpError> {
+    let mut values = headers.get_all(header::AUTHORIZATION).iter();
+    let token = values
+        .next()
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .filter(|_| values.next().is_none())
+        .ok_or_else(|| {
+            HttpError::new(
+                StatusCode::UNAUTHORIZED,
+                "authentication_required",
+                "A paired client Bearer token is required.",
+            )
+        })?;
+    let record = state.service.bearer(token).await?;
+    Ok(Json(PairedClient {
+        id: record.id,
+        name: record.name,
+        kind: record.client_kind,
+        revoked: false,
+    }))
 }

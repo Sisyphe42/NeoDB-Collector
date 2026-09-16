@@ -354,6 +354,46 @@
         "tags": []
       }
     },
+    "/api/v1/client": {
+      "get": {
+        "operationId": "client_identity",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairedClient"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "access"
+        ]
+      }
+    },
     "/api/v1/clients": {
       "get": {
         "operationId": "clients",

@@ -6,6 +6,8 @@ This contract applies to desktop packaging, NeoDB endpoint configuration, connec
 
 The connector boundary remains versioned so a later product decision can add reviewed third-party extensions without changing the core observation and planning interfaces. That future boundary does not authorize an executable plugin loader now.
 
+Implementation status: `collector-connectors::neodb::NeoDbClient` now implements only the typed OAuth transport port (canonical base, app registration, authorization URL, token exchange and `/api/me`). It is not yet composed into server routes and performs no catalog/journal operation.
+
 ## 2. Signatures and Data Shapes
 
 ```ts
@@ -43,6 +45,9 @@ The runtime registry accepts `BuiltInConnectorRegistration` values generated at 
 - Built-in connectors use versioned manifests and the same registry boundary intended for future extensions.
 - Unknown or external connector packages are reported as unsupported; they are never dynamically executed.
 - New connectors remain write-disabled and schedule-disabled until the activation contract in `mapping-and-conflict-contract.md` succeeds.
+- NeoDB base origins accept HTTPS, or HTTP only for a literal loopback IPv4/IPv6 address. Reject DNS names on HTTP, userinfo, query, fragment and non-root paths. Match `url::Host::Ipv4/Ipv6` directly; bracketed IPv6 `host_str()` is not a generic `IpAddr` input.
+- The OAuth adapter follows no redirect, has a 10-second total request timeout and caps decoded response bytes at 64 KiB even for chunked responses. It requests only `scope=read`, rejects any returned scope other than exactly read, and sanitizes all upstream bodies/errors.
+- The OAuth adapter exposes no generic request method and no catalog fetch, mark, webhook or other media/state write operation. The reviewed endpoint set is `/api/v1/apps`, `/oauth/authorize`, `/oauth/token`, `/api/me`.
 
 ## 4. Validation and Error Matrix
 
@@ -68,6 +73,7 @@ The runtime registry accepts `BuiltInConnectorRegistration` values generated at 
 
 - CI compile and unit-test matrix for Windows, macOS, and Linux.
 - Contract-test `GET` and `PUT /api/v1/settings/neodb`, including credential redaction and rejection of profile arrays.
+- Adapter tests must use a local mock server to assert form fields, `read` scope, Bearer identity lookup, redirect denial, response cap, sanitized errors and rejection of unsafe base origins. They must never contact a live account.
 - Registry-test unique IDs, minimum Core version checks, and deterministic built-in enumeration.
 - Security test that paths, URLs, archives, and modules supplied as third-party connectors are rejected without loading code.
 - End-to-end test that each supported desktop adapter can start the shared Core and open the shared WebUI.

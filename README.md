@@ -75,6 +75,7 @@ Linux 构建还需要 `libdbus-1-dev` 和 `pkg-config`，用于系统凭据库�
 ```text
 crates/collector-domain      Rust DTO 与版本常量，无 I/O
 crates/collector-core        用例与端口，不依赖具体运行时
+crates/collector-connectors  内置平台网络适配器；当前仅有尚未接入路由的 NeoDB 只读 OAuth 传输
 crates/collector-storage     SQLx / SQLite 适配器
 crates/collector-server      Axum HTTP 与静态 WebUI
 crates/collector-cli         配置、诊断、进程生命周期

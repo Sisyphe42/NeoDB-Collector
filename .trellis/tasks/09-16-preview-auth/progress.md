@@ -18,7 +18,7 @@ Two test issues fixed: the cancellation mock now observes the incoming Request's
 
 ## Continue next
 
-1. Implement restrictive NeoDB OAuth transport plus orchestrator with mock upstream/credential ports; no `/api/catalog/fetch`, no media writes, no real account authorization.
+1. Restrictive typed NeoDB OAuth transport is implemented and locally tested; compose the pure Core orchestrator with mock upstream/credential ports next. No `/api/catalog/fetch`, media writes or real account authorization.
 2. Add OAuth HTTP routes and UI status/cancel flow; generated contracts and cancellation/state/replay tests.
 3. Add CLI pair/status via the same API and OS credential store; API token exchange exists but no CLI command yet.
 4. Commit each verified coherent code slice automatically under the project workflow; request confirmation only if direction, ownership or verification is unclear.

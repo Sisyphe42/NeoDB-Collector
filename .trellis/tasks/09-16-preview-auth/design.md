@@ -1,0 +1,13 @@
+# Security prerequisite design
+
+Domain owns session/pairing/settings DTOs (camelCase except the already specified snake_case pairing exchange). Core owns ports and local access policy; storage implements hashed credential persistence and OS keyring. Connectors owns a NeoDB-only network adapter with typed methods, no arbitrary request passthrough. Server composes adapters. CLI uses the same pairing HTTP contract.
+
+WebUI bootstrap is a 256-bit URL-safe random key delivered only in a URI fragment, hash-only at rest, 10-minute expiry and atomic consumption. The resulting random session is HttpOnly, SameSite=Strict, Path=/, 8-hour absolute expiry. CSRF token is tied to the session, returned only to same-origin UI; all stateful cookie requests require it and exact Origin. Loopback HTTP cannot require Secure cookies. Public health/capabilities/schema stay public. No request-body/query/header logging. CSP forbids framing and external script connections.
+
+Authenticated WebUI may create a 10-minute pairing for a declared client kind. Atomic exchange produces an opaque 256-bit token and fixed scopes; DB contains hashes only. Client tokens survive restart and are revocable. Bearer authentication never falls back to cookies after invalid credentials. Only browser sessions administer OAuth/settings/pairings; paired CLI gets read/import/profile scopes, never administration by accident.
+
+OAuth start validates one origin (HTTPS or explicit loopback HTTP), registers a read-only app for the actual loopback callback, stores its secret in OS keyring, and creates a 10-minute one-time state tied to the active session. Callback is exempt from cookie authentication, not state validation; it consumes state before token exchange, validates returned read-only scope and reads /api/me, then atomically saves singleton settings with opaque credential references. It redirects to a clean local URL, no token reaches browser JS. No unsupported PKCE claim: NeoDB's inspected flow uses client_id/client_secret/code/redirect_uri. No cross-origin redirects. OS storage failures abort; no file/memory production fallback. Startup restores stored settings, not an OAuth session.
+
+Expose bootstrap exchange/session/logout, pairings create/exchange/list/revoke, singleton NeoDB settings/status, OAuth start/cancel/callback. Use generated OpenAPI/JSON schemas. Request caps and bounded auth rate limiting. Responses never echo submitted secrets or upstream bodies.
+
+Integration mocks inject credential and transport ports; production always uses real OS keyring. Tests use injected clock to avoid sleeps. Retain foundation public router behavior. Migration 2 creates authentication/endpoint operational tables only; do not create preview tables before their owning child.

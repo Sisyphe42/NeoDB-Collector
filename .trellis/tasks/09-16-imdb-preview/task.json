@@ -1,0 +1,30 @@
+{
+  "id": "imdb-preview",
+  "name": "imdb-preview",
+  "title": "IMDb import and read-only NeoDB preview",
+  "description": "",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "sisyphe42",
+  "assignee": "sisyphe42",
+  "createdAt": "2026-09-16",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "master",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "09-16-preview-auth",
+    "09-16-preview-mapping",
+    "09-16-preview-jobs"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

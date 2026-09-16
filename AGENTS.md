@@ -39,6 +39,9 @@ Spec entrypoints:
 - Secrets use the OS credential store or explicit container secrets. Pairing uses a short-lived single-use URI-fragment key, then a revocable per-client Bearer token; long-lived secrets never go in URI paths or queries.
 - Browser-session access uses the first-party extension and the user's existing session. Do not request the browser `cookies` permission, export/import raw cookies, store source passwords, bypass access controls, or automate CAPTCHA/MFA.
 - Desktop, CLI WebUI, Docker, browser extension, and local plugins share one versioned Core API. Windows, macOS, and Linux are equal desktop targets; platform-specific behavior stays behind adapters.
+- Agent assistance is optional: configuration validation, dry-run, review, and scheduled synchronization must remain deterministic and fully usable without a model or external agent service.
+- Do not bundle or reimplement a general workflow engine. A future first-party n8n node is a thin client of the versioned Core API and is never loaded as executable code by Core.
+- Keep the approved Monorepo dependency direction in `.trellis/spec/backend/repository-layout.md`: external clients and integrations consume generated contracts or the versioned Core API, never Core internals.
 
 ## Change maintenance
 

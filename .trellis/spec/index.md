@@ -15,6 +15,7 @@ The product YAML is the machine-readable source of truth. Backend/frontend Markd
 - [Mapping and Conflict Contract](./backend/mapping-and-conflict-contract.md) — declarative profiles, dry-run, review, and activation.
 - [Runtime Distribution and Connectors](./backend/runtime-distribution-and-connectors.md) — cross-platform hosts, singleton NeoDB endpoint, and built-in registry.
 - [Operational State and Pairing](./backend/state-and-pairing.md) — embedded SQLite, secrets boundary, pairing URI, and Bearer tokens.
+- [Repository Layout and Dependency Boundaries](./backend/repository-layout.md) — Monorepo ownership, workspace boundaries, dependency direction, and independent artifacts.
 
 ## Frontend
 

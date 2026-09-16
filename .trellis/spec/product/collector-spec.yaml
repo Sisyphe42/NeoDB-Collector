@@ -58,6 +58,36 @@ domain_model:
     deny: [source.user_state.write]
 
 product:
+  positioning:
+    current: local_first_personal_media_record_collection_and_sync
+    user_value: collect_preview_and_sync_media_state_without_repeating_manual_marking
+    current_release_focus: neodb_as_the_only_write_target
+    future_product_shape: capability_gated_multi_endpoint_and_multi_direction_data_flows
+    current_name_retained: NeoDB Collector
+    future_rename: deferred_until_a_second_write_endpoint_is_in_scope
+  agent_assistance:
+    role: optional_configuration_and_troubleshooting_copilot
+    runtime_dependency: false
+    model_dependency_for_scheduled_sync: false
+    may_help_with:
+      - onboarding
+      - authorization_guidance
+      - declarative_mapping_authoring
+      - dry_run_explanation
+      - ambiguous_match_review
+      - failure_diagnosis
+    may_not:
+      - bypass_connector_or_flow_policy
+      - infer_ambiguous_identity_as_certain
+      - write_without_the_same_activation_and_review_gates
+      - receive_or_persist_plaintext_secrets
+  workflow_engine_scope:
+    current: embedded_scheduler_only
+    bundle_external_workflow_engine: false
+    general_workflow_platform: false
+    planned_first_party_clients: [browser_extension, n8n_node]
+    n8n_node_role: thin_client_over_versioned_core_api
+    core_loads_n8n_node_packages: false
   primary_distribution: desktop_bundle
   shared_core: collector-core
   user_experience: one_product
@@ -96,6 +126,22 @@ resolved_decisions:
     value: source_read_only_to_neodb
   - id: future_flow_architecture
     value: connector_capabilities_and_policy_gated_flows
+  - id: product_positioning
+    value: local_first_personal_media_record_collection_and_sync
+    current_release_focus: neodb_only
+    future_scope: multi_endpoint_and_multi_direction_without_current_rename
+  - id: agent_role
+    value: optional_copilot_not_runtime_dependency
+    deterministic_non_agent_operation_required: true
+  - id: external_workflow_scope
+    value: do_not_bundle_or_build_a_general_workflow_engine
+    planned_clients: [browser_extension, n8n_node]
+    n8n_integration: thin_client_over_versioned_core_api
+  - id: repository_topology
+    value: monorepo_with_independently_buildable_and_publishable_components
+    package_boundaries: [crates, apps, packages, integrations, contracts]
+    independent_release_artifacts: [core_cli, desktop, browser_extension, n8n_node, playnite_plugin]
+    split_only_on: [independent_ownership, independent_release_train, license_boundary]
   - id: source_session_access
     value: first_party_browser_extension_without_raw_cookie_or_password_access
   - id: service_network_shape

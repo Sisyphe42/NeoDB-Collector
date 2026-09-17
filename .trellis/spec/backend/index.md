@@ -8,6 +8,7 @@ The runnable foundation, local session/pairing, NeoDB OAuth HTTP/UI and CLI pair
 | [Connector Observation and Capability](./connector-contract.md) | Manifests, observations, policy, matching, and idempotency |
 | [IMDb CSV Adapter](./imdb-csv.md) | Internal bounded ratings parser and normalized observations |
 | [Mapping and Conflict](./mapping-and-conflict-contract.md) | Mapping validation, dry-run, activation, and review |
+| [Mapping Evaluator](./mapping-evaluator.md) | Implemented pure suggestions and bounded YAML/JSON configuration |
 | [Runtime Distribution and Connectors](./runtime-distribution-and-connectors.md) | Desktop targets, singleton NeoDB endpoint, built-in registry |
 | [Operational State and Pairing](./state-and-pairing.md) | SQLite boundary, migrations, secret references, and client authentication |
 | [NeoDB OAuth Lifecycle](./oauth-lifecycle.md) | Runtime-independent authorization, state consumption, replacement and cleanup |

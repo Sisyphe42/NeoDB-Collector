@@ -1,5 +1,10 @@
 # Mapping Profiles, Dry-run, and Current Conflict Policy
 
+Implementation status: the pure evaluator and bounded YAML/JSON codec are now
+implemented; see [Mapping Evaluator](./mapping-evaluator.md) for the executable
+schema and error codes. The HTTP routes, conflict plan, activation and WebUI flow
+below remain planned contracts, not currently available endpoints.
+
 ## 1. Scope / Trigger Conditions
 
 This contract applies whenever an observation is transformed into a proposed NeoDB field update. Mapping profiles are editable through WebUI forms and YAML import/export, but both surfaces use the same schema and validator. A profile must pass validation and dry-run preview before it can be enabled.

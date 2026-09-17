@@ -18,6 +18,7 @@ use utoipa::OpenApi;
 pub mod access;
 #[cfg(test)]
 mod access_tests;
+pub mod mapping_profiles;
 mod oauth;
 #[cfg(test)]
 mod oauth_tests;

@@ -511,6 +511,7 @@ dependencies = [
  "collector-storage",
  "schemars",
  "serde",
+ "serde-saphyr",
  "serde_json",
  "tempfile",
  "tokio",

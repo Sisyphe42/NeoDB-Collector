@@ -8,4 +8,5 @@ No real-account or native-keychain test is claimed.
 Remaining children in order: preview-mapping, then preview-jobs. Review their
 existing planning artifacts before activation. Parent acceptance is not complete:
 the internal IMDb CSV adapter and pure mapping evaluator/YAML/JSON codec now exist,
-but importer UI/API, profile persistence and preview execution remain incomplete.
+and immutable disabled profile persistence is implemented. Importer/profile UI/API
+and preview execution remain incomplete.

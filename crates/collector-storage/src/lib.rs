@@ -10,6 +10,7 @@ static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 
 mod access;
 pub mod credentials;
+mod mapping;
 
 #[derive(Clone)]
 pub struct Storage {
@@ -112,7 +113,12 @@ mod tests {
             .unwrap();
             assert_eq!(
                 names,
-                vec!["_sqlx_migrations", "access_credentials", "neodb_endpoint"]
+                vec![
+                    "_sqlx_migrations",
+                    "access_credentials",
+                    "mapping_profiles",
+                    "neodb_endpoint"
+                ]
             );
             storage.close().await;
             assert!(!storage.is_ready().await);
@@ -124,7 +130,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let storage = Storage::open(dir.path()).await.unwrap();
         // Recreate the exact committed v1 shape and ledger in an isolated fixture.
-        sqlx::raw_sql("DROP TABLE access_credentials; DROP TABLE neodb_endpoint; DELETE FROM _sqlx_migrations WHERE version=2;")
+        sqlx::raw_sql("DROP TABLE mapping_profiles; DROP TABLE access_credentials; DROP TABLE neodb_endpoint; DELETE FROM _sqlx_migrations WHERE version>=2;")
             .execute(&storage.pool).await.unwrap();
         storage.close().await;
         let upgraded = Storage::open(dir.path()).await.unwrap();
@@ -132,7 +138,7 @@ mod tests {
             .fetch_one(&upgraded.pool)
             .await
             .unwrap();
-        assert_eq!(latest, 2);
+        assert_eq!(latest, 3);
         assert!(upgraded.is_ready().await);
         upgraded.close().await;
     }

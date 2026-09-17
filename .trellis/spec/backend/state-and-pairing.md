@@ -17,12 +17,14 @@ access_credentials(id, token_hash, kind, audience, name, client_kind, expires_at
 neodb_endpoint(singleton, base_url, account, credential_ref)
 ```
 
-Kinds are bootstrap/session/pairing/client; hashes are unique. `singleton=1` constrains endpoint metadata exposed through authenticated GET /api/v1/settings/neodb. Later schema ownership (not implemented):
+Kinds are bootstrap/session/pairing/client; hashes are unique. `singleton=1` constrains endpoint metadata exposed through authenticated GET /api/v1/settings/neodb.
+Migration `0003_mapping_profiles.sql` now stores immutable validated disabled
+configuration revisions: `mapping_profiles(id, version, profile_json)`; see
+[Mapping Storage](./mapping-storage.md). Later schema ownership (not implemented):
 
 ```sql
 sync_checkpoints(connector_instance_id, stream, cursor_json, updated_at)
 item_mappings(connector_id, external_item_id, canonical_url, neodb_item_uuid, method, resolved_at)
-mapping_profiles(id, source_connector_id, version, rules_yaml, enabled, updated_at)
 planned_operations(id, canonical_item_id, field, operation, value_json, status, reason)
 operation_results(id, planned_operation_id, idempotency_key, status, error_code, executed_at)
 ```

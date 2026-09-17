@@ -529,6 +529,7 @@ dependencies = [
  "collector-domain",
  "getrandom 0.3.4",
  "keyring",
+ "serde_json",
  "sha2",
  "sqlx",
  "tempfile",

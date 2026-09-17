@@ -6,6 +6,29 @@ use collector_domain::{
 };
 use std::collections::HashSet;
 
+/// Immutable revisions: expected_version=0 creates version 1. A save must compare
+/// the latest revision atomically, never overwrite a previously saved revision.
+pub trait MappingRepository: Send + Sync {
+    fn load(
+        &self,
+        id: String,
+        version: Option<u32>,
+    ) -> crate::access::PortFuture<'_, Option<MappingProfile>>;
+    fn save(
+        &self,
+        profile: MappingProfile,
+        expected_version: u32,
+    ) -> crate::access::PortFuture<'_, ()>;
+}
+
+pub fn validate_revision(profile: &MappingProfile, expected_version: u32) -> Result<(), ApiError> {
+    validate(profile)?;
+    if expected_version.checked_add(1) != Some(profile.version) {
+        return Err(error("mapping_version_invalid", "version"));
+    }
+    Ok(())
+}
+
 fn error(code: &str, field: &str) -> ApiError {
     let mut value = ApiError::new(code, "Mapping configuration or observation is invalid.");
     value.field = Some(field.into());

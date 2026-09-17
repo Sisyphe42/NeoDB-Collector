@@ -3,8 +3,9 @@
 ## 1. Scope / Trigger
 
 Implemented internal preview building block. Domain owns types, Core owns pure
-validation/evaluation, Server owns configuration decoding. No HTTP, database,
-WebUI, activation, matching, sink comparison or writes in this checkpoint.
+validation/evaluation, Server owns configuration decoding. The separate
+[Mapping Storage](./mapping-storage.md) adapter persists validated revisions.
+No HTTP, WebUI, activation, matching, sink comparison or media writes yet.
 The wider conflict/activation contract remains in mapping-and-conflict-contract.md.
 
 ## 2. Signatures

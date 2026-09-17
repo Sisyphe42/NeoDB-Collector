@@ -1,7 +1,7 @@
 //! Bounded configuration codec; no routes or persistence in this slice.
 use collector_domain::{ApiError, mapping::MappingProfile};
 
-pub const MAX_PROFILE_BYTES: usize = 65_536;
+pub use collector_domain::mapping::MAX_PROFILE_BYTES;
 
 #[derive(Clone, Copy)]
 pub enum Format {

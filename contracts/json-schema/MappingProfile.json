@@ -1,0 +1,284 @@
+{
+  "$defs": {
+    "MappingRule": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "operation": {
+          "$ref": "#/$defs/Operation"
+        },
+        "target": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "enabled",
+        "target",
+        "operation"
+      ],
+      "type": "object"
+    },
+    "Operation": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "from": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "direct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "from"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "from": {
+              "type": "string"
+            },
+            "input_max": {
+              "format": "double",
+              "type": "number"
+            },
+            "input_min": {
+              "format": "double",
+              "type": "number"
+            },
+            "kind": {
+              "const": "numeric_scale",
+              "type": "string"
+            },
+            "output_max": {
+              "format": "double",
+              "type": "number"
+            },
+            "output_min": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "from",
+            "input_min",
+            "input_max",
+            "output_min",
+            "output_max"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "from": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "clamp",
+              "type": "string"
+            },
+            "max": {
+              "format": "double",
+              "type": "number"
+            },
+            "min": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "from",
+            "min",
+            "max"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "from": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "enum_map",
+              "type": "string"
+            },
+            "values": {
+              "additionalProperties": {
+                "$ref": "#/$defs/ScalarValue"
+              },
+              "type": "object"
+            }
+          },
+          "required": [
+            "kind",
+            "from",
+            "values"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "from": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "condition",
+              "type": "string"
+            },
+            "test": {
+              "$ref": "#/$defs/Predicate"
+            },
+            "value": {
+              "$ref": "#/$defs/ScalarValue"
+            }
+          },
+          "required": [
+            "kind",
+            "from",
+            "test",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "skip",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Predicate": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "exists",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "equals",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/ScalarValue"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "greater_than",
+              "type": "string"
+            },
+            "value": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ScalarValue": {
+      "anyOf": [
+        {
+          "format": "double",
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "enabled": {
+      "type": "boolean"
+    },
+    "id": {
+      "type": "string"
+    },
+    "rules": {
+      "items": {
+        "$ref": "#/$defs/MappingRule"
+      },
+      "type": "array"
+    },
+    "schemaVersion": {
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "sinkConnectorId": {
+      "type": "string"
+    },
+    "sourceConnectorId": {
+      "type": "string"
+    },
+    "version": {
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "id",
+    "version",
+    "sourceConnectorId",
+    "sinkConnectorId",
+    "enabled",
+    "rules"
+  ],
+  "title": "MappingProfile",
+  "type": "object"
+}

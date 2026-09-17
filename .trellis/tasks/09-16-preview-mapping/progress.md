@@ -20,12 +20,15 @@ normalized JSON revisions. Atomic expected-version saves prevent lost updates;
 old versions remain readable. Disabled-only validation, migration preservation,
 restart/history, races, write failures, corruption and size limits are tested.
 
-Remaining: authenticated profile API/generated contracts and shared WebUI
-editing/import/export. The storage port is internal and grants no HTTP authority.
+Fourth checkpoint: authenticated validation/GET latest/PUT versioned save routes,
+generated contracts and shared TS client methods. Session saves require CSRF;
+Bearer authentication never falls back to cookies. JSON-string envelopes preserve
+strict duplicate-aware YAML/JSON parsing. Missing/invalid/oversize/stale saves
+never create or enable profiles. WebUI editing/import/export remains unfinished.
 No importer is yet advertised through capabilities or exposed to end users.
 Task remains in progress; do not archive.
 
-Validation: full pnpm verify passed on Windows, 49 Rust and 19 TS/UI tests,
+Validation: full pnpm verify passed on Windows, 52 Rust and 22 TS/UI tests,
 Clippy/formatting, contracts, dependency boundaries, lint/typecheck, build and
 actual local CLI/Chromium smoke. No live IMDb/NeoDB account was accessed.
 An existing cancellation mock GC-lifetime bug was reproduced and fixed separately

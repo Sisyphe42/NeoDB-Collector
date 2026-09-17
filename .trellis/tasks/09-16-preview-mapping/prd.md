@@ -6,7 +6,7 @@ Parse real IMDb ratings format and produce safe deterministic mapped observation
 
 ## Requirements and acceptance criteria
 
-- [ ] Depends on preview-auth before exposing any private HTTP data.
+- [x] Depends on preview-auth before exposing any private HTTP data.
 - [x] UTF-8/BOM CSV, column-name parsing, quotes/newlines, structural validation and line errors; 10 MiB/10,000 rows.
 - [x] movie/tvMovie/short and tvSeries/tvMiniSeries map to movie/tv; episodes and other types skipped; conflicting duplicate records rejected.
 - [x] Built-in connector emits observations only. Core owns validated declarative mapping: direct, scale, clamp, enum, condition, skip.

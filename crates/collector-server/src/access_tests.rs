@@ -10,7 +10,7 @@ use tower::ServiceExt;
 
 const HOST: &str = "127.0.0.1:19423";
 const ORIGIN: &str = "http://127.0.0.1:19423";
-async fn setup() -> (tempfile::TempDir, Storage, Arc<AccessService>, Router) {
+pub(super) async fn setup() -> (tempfile::TempDir, Storage, Arc<AccessService>, Router) {
     let dir = tempfile::tempdir().unwrap();
     let storage = Storage::open(dir.path()).await.unwrap();
     let service = Arc::new(AccessService {
@@ -19,15 +19,17 @@ async fn setup() -> (tempfile::TempDir, Storage, Arc<AccessService>, Router) {
         clock: Arc::new(SystemClock),
         audience: ORIGIN.into(),
     });
+    let mut access_state = access::AccessState::new(service.clone());
+    access_state.mappings = Some(Arc::new(storage.clone()));
     let app = protected_router(
         Arc::new(storage.clone()),
         dir.path().into(),
         HOST.parse().unwrap(),
-        Some(access::AccessState::new(service.clone())),
+        Some(access_state),
     );
     (dir, storage, service, app)
 }
-async fn request(
+pub(super) async fn request(
     app: &Router,
     method: &str,
     path: &str,
@@ -54,7 +56,7 @@ async fn request(
     let body = to_bytes(response.into_body(), 100_000).await.unwrap();
     (status, headers, serde_json::from_slice(&body).unwrap())
 }
-async fn login(app: &Router, service: &AccessService) -> (String, String) {
+pub(super) async fn login(app: &Router, service: &AccessService) -> (String, String) {
     let key = service.bootstrap().await.unwrap();
     let (status, headers, view) = request(
         app,

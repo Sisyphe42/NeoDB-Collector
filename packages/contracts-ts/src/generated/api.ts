@@ -79,6 +79,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/mapping-profiles/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["validate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mapping-profiles/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["load"];
+        put: operations["save"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/oauth/neodb": {
         parameters: {
             query?: never;
@@ -245,6 +277,27 @@ export interface components {
         };
         /** @enum {string} */
         HealthStatus: "ok" | "degraded";
+        MappingDocument: {
+            document: string;
+            format: components["schemas"]["ProfileFormat"];
+        };
+        MappingProfile: {
+            enabled: boolean;
+            id: string;
+            rules: components["schemas"]["MappingRule"][];
+            /** Format: int32 */
+            schemaVersion: number;
+            sinkConnectorId: string;
+            sourceConnectorId: string;
+            /** Format: int32 */
+            version: number;
+        };
+        MappingRule: {
+            enabled: boolean;
+            id: string;
+            operation: components["schemas"]["Operation"];
+            target: string;
+        };
         NeoDbAuthorization: {
             authorizationUrl: string;
             /** Format: int64 */
@@ -258,6 +311,47 @@ export interface components {
             baseUrl?: string | null;
             connected: boolean;
             pending: boolean;
+        };
+        Operation: {
+            from: string;
+            /** @enum {string} */
+            kind: "direct";
+        } | {
+            from: string;
+            /** Format: double */
+            input_max: number;
+            /** Format: double */
+            input_min: number;
+            /** @enum {string} */
+            kind: "numeric_scale";
+            /** Format: double */
+            output_max: number;
+            /** Format: double */
+            output_min: number;
+        } | {
+            from: string;
+            /** @enum {string} */
+            kind: "clamp";
+            /** Format: double */
+            max: number;
+            /** Format: double */
+            min: number;
+        } | {
+            from: string;
+            /** @enum {string} */
+            kind: "enum_map";
+            values: {
+                [key: string]: components["schemas"]["ScalarValue"];
+            };
+        } | {
+            from: string;
+            /** @enum {string} */
+            kind: "condition";
+            test: components["schemas"]["Predicate"];
+            value: components["schemas"]["ScalarValue"];
+        } | {
+            /** @enum {string} */
+            kind: "skip";
         };
         PairedClient: {
             id: string;
@@ -285,6 +379,28 @@ export interface components {
             token: string;
             token_type: string;
         };
+        Predicate: {
+            /** @enum {string} */
+            kind: "exists";
+        } | {
+            /** @enum {string} */
+            kind: "equals";
+            value: components["schemas"]["ScalarValue"];
+        } | {
+            /** @enum {string} */
+            kind: "greater_than";
+            /** Format: double */
+            value: number;
+        };
+        /** @enum {string} */
+        ProfileFormat: "json" | "yaml";
+        SaveMappingProfile: {
+            document: string;
+            /** Format: int32 */
+            expectedVersion: number;
+            format: components["schemas"]["ProfileFormat"];
+        };
+        ScalarValue: number | boolean | string;
         SessionView: {
             csrfToken: string;
             /** Format: int64 */
@@ -491,6 +607,203 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthDocument"];
+                };
+            };
+        };
+    };
+    validate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MappingDocument"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MappingProfile"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    load: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MappingProfile"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    save: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveMappingProfile"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MappingProfile"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
                 };
             };
         };

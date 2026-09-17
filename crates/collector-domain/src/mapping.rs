@@ -6,6 +6,28 @@ use utoipa::ToSchema;
 
 pub const MAX_PROFILE_BYTES: usize = 65_536;
 
+#[derive(Clone, Copy, Serialize, Deserialize, JsonSchema, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ProfileFormat {
+    Json,
+    Yaml,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema, ToSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MappingDocument {
+    pub format: ProfileFormat,
+    pub document: String,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema, ToSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SaveMappingProfile {
+    pub format: ProfileFormat,
+    pub document: String,
+    pub expected_version: u32,
+}
+
 #[derive(Clone, PartialEq, Serialize, Deserialize, JsonSchema, ToSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct MappingProfile {

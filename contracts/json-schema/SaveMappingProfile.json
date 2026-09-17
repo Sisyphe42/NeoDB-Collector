@@ -1,0 +1,33 @@
+{
+  "$defs": {
+    "ProfileFormat": {
+      "enum": [
+        "json",
+        "yaml"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "document": {
+      "type": "string"
+    },
+    "expectedVersion": {
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "format": {
+      "$ref": "#/$defs/ProfileFormat"
+    }
+  },
+  "required": [
+    "format",
+    "document",
+    "expectedVersion"
+  ],
+  "title": "SaveMappingProfile",
+  "type": "object"
+}

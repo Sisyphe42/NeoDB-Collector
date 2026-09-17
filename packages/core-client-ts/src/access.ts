@@ -1,5 +1,5 @@
 import createClient from 'openapi-fetch';
-import { validateSessionView, validatePairingLink, validateClientList, validateActionResult, validateApiError, validateNeoDbStatus, validateNeoDbAuthorization, type paths, type components } from '@neodb-collector/contracts';
+import { validateSessionView, validatePairingLink, validateClientList, validateActionResult, validateApiError, validateNeoDbStatus, validateNeoDbAuthorization, validateMappingProfile, type paths, type components } from '@neodb-collector/contracts';
 
 export type SessionView = components['schemas']['SessionView'];
 export type PairedClient = components['schemas']['PairedClient'];
@@ -30,6 +30,15 @@ export function createAccessClient(options: { baseUrl?: string; fetch?: typeof f
     }
   }
   return {
+    async mappingProfile(id: string) {
+      return checked(client.GET('/api/v1/mapping-profiles/{id}', { ...requestOptions(), params: { path: { id } } }), validateMappingProfile);
+    },
+    async validateMapping(body: components['schemas']['MappingDocument']) {
+      return checked(client.POST('/api/v1/mapping-profiles/validate', { ...requestOptions(), body }), validateMappingProfile);
+    },
+    async saveMapping(id: string, body: components['schemas']['SaveMappingProfile']) {
+      return checked(client.PUT('/api/v1/mapping-profiles/{id}', { ...mutationOptions(), params: { path: { id } }, body }), validateMappingProfile);
+    },
     async neodbStatus() {
       return checked(client.GET('/api/v1/settings/neodb', requestOptions()), validateNeoDbStatus);
     },

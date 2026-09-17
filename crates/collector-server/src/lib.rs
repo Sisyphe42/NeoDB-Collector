@@ -10,6 +10,7 @@ use collector_core::StorageHealth;
 use collector_domain::{
     ApiError, CapabilityDocument, HealthDocument, HealthStatus, MEDIA_TYPES, SCHEMA_VERSION,
     access::*,
+    mapping::{MappingDocument, MappingProfile, SaveMappingProfile},
 };
 use std::{collections::BTreeMap, future::Future, net::SocketAddr, path::PathBuf, sync::Arc};
 use tower_http::services::ServeDir;
@@ -18,6 +19,9 @@ use utoipa::OpenApi;
 pub mod access;
 #[cfg(test)]
 mod access_tests;
+mod mapping_http;
+#[cfg(test)]
+mod mapping_http_tests;
 pub mod mapping_profiles;
 mod oauth;
 #[cfg(test)]
@@ -71,6 +75,7 @@ async fn capabilities() -> Json<CapabilityDocument> {
             ("clientIdentity".into(), "/api/v1/client".into()),
             ("neodbSettings".into(), "/api/v1/settings/neodb".into()),
             ("neodbOAuth".into(), "/api/v1/oauth/neodb".into()),
+            ("mappingProfiles".into(), "/api/v1/mapping-profiles".into()),
         ]),
     })
 }
@@ -97,7 +102,10 @@ async fn schema() -> Json<utoipa::openapi::OpenApi> {
         oauth::status,
         oauth::start,
         oauth::cancel,
-        oauth::callback
+        oauth::callback,
+        mapping_http::validate,
+        mapping_http::load,
+        mapping_http::save
     ),
     components(schemas(
         ApiError,
@@ -114,7 +122,10 @@ async fn schema() -> Json<utoipa::openapi::OpenApi> {
         ActionResult,
         NeoDbStartRequest,
         NeoDbAuthorization,
-        NeoDbStatus
+        NeoDbStatus,
+        MappingDocument,
+        MappingProfile,
+        SaveMappingProfile
     ))
 )]
 struct ApiDoc;
@@ -147,7 +158,10 @@ pub fn contract_documents() -> serde_json::Value {
             "ActionResult": schemars::schema_for!(ActionResult),
             "NeoDbStartRequest": schemars::schema_for!(NeoDbStartRequest),
             "NeoDbAuthorization": schemars::schema_for!(NeoDbAuthorization),
-            "NeoDbStatus": schemars::schema_for!(NeoDbStatus)
+            "NeoDbStatus": schemars::schema_for!(NeoDbStatus),
+            "MappingDocument": schemars::schema_for!(MappingDocument),
+            "MappingProfile": schemars::schema_for!(MappingProfile),
+            "SaveMappingProfile": schemars::schema_for!(SaveMappingProfile)
         }
     })
 }

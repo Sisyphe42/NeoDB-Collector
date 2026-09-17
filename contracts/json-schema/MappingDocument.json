@@ -1,0 +1,27 @@
+{
+  "$defs": {
+    "ProfileFormat": {
+      "enum": [
+        "json",
+        "yaml"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "document": {
+      "type": "string"
+    },
+    "format": {
+      "$ref": "#/$defs/ProfileFormat"
+    }
+  },
+  "required": [
+    "format",
+    "document"
+  ],
+  "title": "MappingDocument",
+  "type": "object"
+}

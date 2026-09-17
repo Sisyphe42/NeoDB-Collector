@@ -200,7 +200,7 @@ service:
     milestone: preview_auth
     implemented_hosts: [cli_with_webui]
     implemented_commands: [serve, doctor, pair, status]
-    implemented_routes: [webui, health, capabilities, schema, session_bootstrap, session, pairings, pairing_exchange, clients, client_identity, neodb_settings, neodb_oauth, neodb_oauth_callback]
+    implemented_routes: [webui, health, capabilities, schema, session_bootstrap, session, pairings, pairing_exchange, clients, client_identity, neodb_settings, neodb_oauth, neodb_oauth_callback, mapping_validate, mapping_get, mapping_save]
     connector_ids: []
     writes_enabled: false
     database: migration_ledger_hashed_access_credentials_singleton_endpoint_metadata

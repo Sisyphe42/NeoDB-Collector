@@ -3,8 +3,9 @@
 ## 1. Scope / Trigger
 
 Implemented operational configuration persistence. Core declares the repository
-port; Storage implements it with SQLite. No HTTP/UI or platform writes are exposed
-by this slice. Authorization remains the responsibility of the future API boundary.
+port; Storage implements it with SQLite. [Mapping HTTP](./mapping-http.md) owns
+authorization and exposes configuration routes. No UI or platform writes are
+implemented by this storage layer.
 
 ## 2. Signatures
 

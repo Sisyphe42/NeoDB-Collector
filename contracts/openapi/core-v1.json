@@ -138,6 +138,89 @@
         ],
         "type": "string"
       },
+      "MappingDocument": {
+        "additionalProperties": false,
+        "properties": {
+          "document": {
+            "type": "string"
+          },
+          "format": {
+            "$ref": "#/components/schemas/ProfileFormat"
+          }
+        },
+        "required": [
+          "format",
+          "document"
+        ],
+        "type": "object"
+      },
+      "MappingProfile": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/MappingRule"
+            },
+            "type": "array"
+          },
+          "schemaVersion": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "sinkConnectorId": {
+            "type": "string"
+          },
+          "sourceConnectorId": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "id",
+          "version",
+          "sourceConnectorId",
+          "sinkConnectorId",
+          "enabled",
+          "rules"
+        ],
+        "type": "object"
+      },
+      "MappingRule": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "operation": {
+            "$ref": "#/components/schemas/Operation"
+          },
+          "target": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "enabled",
+          "target",
+          "operation"
+        ],
+        "type": "object"
+      },
       "NeoDbAuthorization": {
         "properties": {
           "authorizationUrl": {
@@ -192,6 +275,162 @@
           "pending"
         ],
         "type": "object"
+      },
+      "Operation": {
+        "oneOf": [
+          {
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "direct"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "from",
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "input_max": {
+                "format": "double",
+                "type": "number"
+              },
+              "input_min": {
+                "format": "double",
+                "type": "number"
+              },
+              "kind": {
+                "enum": [
+                  "numeric_scale"
+                ],
+                "type": "string"
+              },
+              "output_max": {
+                "format": "double",
+                "type": "number"
+              },
+              "output_min": {
+                "format": "double",
+                "type": "number"
+              }
+            },
+            "required": [
+              "from",
+              "input_min",
+              "input_max",
+              "output_min",
+              "output_max",
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "clamp"
+                ],
+                "type": "string"
+              },
+              "max": {
+                "format": "double",
+                "type": "number"
+              },
+              "min": {
+                "format": "double",
+                "type": "number"
+              }
+            },
+            "required": [
+              "from",
+              "min",
+              "max",
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "enum_map"
+                ],
+                "type": "string"
+              },
+              "values": {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/ScalarValue"
+                },
+                "propertyNames": {
+                  "type": "string"
+                },
+                "type": "object"
+              }
+            },
+            "required": [
+              "from",
+              "values",
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "condition"
+                ],
+                "type": "string"
+              },
+              "test": {
+                "$ref": "#/components/schemas/Predicate"
+              },
+              "value": {
+                "$ref": "#/components/schemas/ScalarValue"
+              }
+            },
+            "required": [
+              "from",
+              "test",
+              "value",
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "skip"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          }
+        ]
       },
       "PairedClient": {
         "properties": {
@@ -293,6 +532,104 @@
           "scopes"
         ],
         "type": "object"
+      },
+      "Predicate": {
+        "oneOf": [
+          {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "exists"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "equals"
+                ],
+                "type": "string"
+              },
+              "value": {
+                "$ref": "#/components/schemas/ScalarValue"
+              }
+            },
+            "required": [
+              "value",
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "greater_than"
+                ],
+                "type": "string"
+              },
+              "value": {
+                "format": "double",
+                "type": "number"
+              }
+            },
+            "required": [
+              "value",
+              "kind"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "ProfileFormat": {
+        "enum": [
+          "json",
+          "yaml"
+        ],
+        "type": "string"
+      },
+      "SaveMappingProfile": {
+        "additionalProperties": false,
+        "properties": {
+          "document": {
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "format": {
+            "$ref": "#/components/schemas/ProfileFormat"
+          }
+        },
+        "required": [
+          "format",
+          "document",
+          "expectedVersion"
+        ],
+        "type": "object"
+      },
+      "ScalarValue": {
+        "oneOf": [
+          {
+            "format": "double",
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string"
+          }
+        ]
       },
       "SessionView": {
         "properties": {
@@ -551,6 +888,264 @@
           }
         },
         "tags": []
+      }
+    },
+    "/api/v1/mapping-profiles/validate": {
+      "post": {
+        "operationId": "validate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MappingDocument"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MappingProfile"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "mapping_http"
+        ]
+      }
+    },
+    "/api/v1/mapping-profiles/{id}": {
+      "get": {
+        "operationId": "load",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MappingProfile"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "mapping_http"
+        ]
+      },
+      "put": {
+        "operationId": "save",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveMappingProfile"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MappingProfile"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "mapping_http"
+        ]
       }
     },
     "/api/v1/oauth/neodb": {

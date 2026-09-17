@@ -1,9 +1,11 @@
 # Mapping Profiles, Dry-run, and Current Conflict Policy
 
-Implementation status: the pure evaluator and bounded YAML/JSON codec are now
-implemented; see [Mapping Evaluator](./mapping-evaluator.md) for the executable
-schema and error codes. The HTTP routes, conflict plan, activation and WebUI flow
-below remain planned contracts, not currently available endpoints.
+Implementation status: the pure evaluator, bounded YAML/JSON codec, immutable
+version storage and authenticated validation/read/save routes are implemented;
+see [Mapping Evaluator](./mapping-evaluator.md) and [Mapping HTTP](./mapping-http.md)
+for executable schemas. Conflict planning, activation and WebUI editing remain
+planned. The TypeScript shapes below describe future planning, not extra accepted
+profile fields in the implemented strict schema.
 
 ## 1. Scope / Trigger Conditions
 
@@ -60,7 +62,7 @@ interface ConnectorActivation {
 
 HTTP contracts:
 
-- `POST /api/v1/mapping-profiles/validate` accepts YAML or parsed JSON and returns normalized validation errors without saving or enabling it.
+- `POST /api/v1/mapping-profiles/validate` accepts a JSON envelope `{format, document}` with YAML or JSON text, returning the normalized profile or sanitized errors without saving or enabling it.
 - `PUT /api/v1/mapping-profiles/{profile_id}` saves a valid, disabled profile version by default.
 - `POST /api/v1/mapping-profiles/{profile_id}/dry-run` evaluates selected observations against current NeoDB state and returns `MappingDryRunResult`; it performs no writes.
 - Enabling a profile requires the exact profile version to have a successful dry-run record.

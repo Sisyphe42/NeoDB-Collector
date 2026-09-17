@@ -16,6 +16,7 @@ const COOKIE: &str = "collector_session";
 pub struct AccessState {
     pub service: Arc<AccessService>,
     pub oauth: Option<Arc<collector_core::oauth::OAuthService>>,
+    pub mappings: Option<Arc<dyn collector_core::mapping::MappingRepository>>,
     limiter: Arc<Mutex<(i64, u32)>>,
 }
 impl AccessState {
@@ -23,6 +24,7 @@ impl AccessState {
         Self {
             service,
             oauth: None,
+            mappings: None,
             limiter: Arc::new(Mutex::new((0, 0))),
         }
     }
@@ -46,6 +48,9 @@ impl AccessState {
 
 pub(crate) struct HttpError(StatusCode, ApiError);
 impl HttpError {
+    pub(crate) fn from_parts(status: StatusCode, error: ApiError) -> Self {
+        Self(status, error)
+    }
     pub(crate) fn new(status: StatusCode, code: &str, message: &str) -> Self {
         Self(status, ApiError::new(code, message))
     }
@@ -279,6 +284,7 @@ pub(crate) fn routes(state: AccessState) -> Router {
         )
         .route("/api/v1/oauth/neodb/callback", get(crate::oauth::callback))
         .layer(DefaultBodyLimit::max(4096))
+        .merge(crate::mapping_http::routes())
         .with_state(state)
 }
 
@@ -288,6 +294,19 @@ pub(crate) async fn client_identity(
     State(state): State<AccessState>,
     headers: HeaderMap,
 ) -> Result<Json<PairedClient>, HttpError> {
+    let record = bearer(&state, &headers).await?;
+    Ok(Json(PairedClient {
+        id: record.id,
+        name: record.name,
+        kind: record.client_kind,
+        revoked: false,
+    }))
+}
+
+pub(crate) async fn bearer(
+    state: &AccessState,
+    headers: &HeaderMap,
+) -> Result<AccessRecord, HttpError> {
     let mut values = headers.get_all(header::AUTHORIZATION).iter();
     let token = values
         .next()
@@ -301,11 +320,5 @@ pub(crate) async fn client_identity(
                 "A paired client Bearer token is required.",
             )
         })?;
-    let record = state.service.bearer(token).await?;
-    Ok(Json(PairedClient {
-        id: record.id,
-        name: record.name,
-        kind: record.client_kind,
-        revoked: false,
-    }))
+    Ok(state.service.bearer(token).await?)
 }

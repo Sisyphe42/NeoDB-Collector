@@ -3,11 +3,7 @@ use collector_domain::{ApiError, mapping::MappingProfile};
 
 pub use collector_domain::mapping::MAX_PROFILE_BYTES;
 
-#[derive(Clone, Copy)]
-pub enum Format {
-    Json,
-    Yaml,
-}
+pub use collector_domain::mapping::ProfileFormat as Format;
 
 fn invalid(format: Format) -> ApiError {
     ApiError::new(

@@ -14,6 +14,8 @@ const ajv = new Ajv2020({ code: { source: true, esm: true }, strict: true });
 // Rust emits this annotation; integer/minimum/maximum carry the actual constraint.
 ajv.addFormat('uint32', true);
 ajv.addFormat('int64', true);
+// Rust f64 annotation; AJV's strict number type check rejects NaN/Infinity.
+ajv.addFormat('double', true);
 const validators = { validateHealth: 'HealthDocument', validateCapabilities: 'CapabilityDocument', validateApiError: 'ApiError' };
 for (const name of Object.keys(source.schemas)) {
   if (!Object.values(validators).includes(name)) validators[`validate${name}`] = name;

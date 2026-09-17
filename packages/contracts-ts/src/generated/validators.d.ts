@@ -6,6 +6,8 @@ export declare function validateApiError(value: unknown): value is components['s
 export declare function validateActionResult(value: unknown): value is components['schemas']['ActionResult'];
 export declare function validateBootstrapExchange(value: unknown): value is components['schemas']['BootstrapExchange'];
 export declare function validateClientList(value: unknown): value is components['schemas']['ClientList'];
+export declare function validateMappingDocument(value: unknown): value is components['schemas']['MappingDocument'];
+export declare function validateMappingProfile(value: unknown): value is components['schemas']['MappingProfile'];
 export declare function validateNeoDbAuthorization(value: unknown): value is components['schemas']['NeoDbAuthorization'];
 export declare function validateNeoDbStartRequest(value: unknown): value is components['schemas']['NeoDbStartRequest'];
 export declare function validateNeoDbStatus(value: unknown): value is components['schemas']['NeoDbStatus'];
@@ -14,4 +16,5 @@ export declare function validatePairingExchange(value: unknown): value is compon
 export declare function validatePairingLink(value: unknown): value is components['schemas']['PairingLink'];
 export declare function validatePairingRequest(value: unknown): value is components['schemas']['PairingRequest'];
 export declare function validatePairingToken(value: unknown): value is components['schemas']['PairingToken'];
+export declare function validateSaveMappingProfile(value: unknown): value is components['schemas']['SaveMappingProfile'];
 export declare function validateSessionView(value: unknown): value is components['schemas']['SessionView'];

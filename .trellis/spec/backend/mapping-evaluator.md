@@ -5,7 +5,8 @@
 Implemented internal preview building block. Domain owns types, Core owns pure
 validation/evaluation, Server owns configuration decoding. The separate
 [Mapping Storage](./mapping-storage.md) adapter persists validated revisions.
-No HTTP, WebUI, activation, matching, sink comparison or media writes yet.
+[Mapping HTTP](./mapping-http.md) now exposes configuration validation/read/save.
+No WebUI editor, activation, matching, sink comparison or media writes yet.
 The wider conflict/activation contract remains in mapping-and-conflict-contract.md.
 
 ## 2. Signatures

@@ -56,6 +56,21 @@ interface PlannedOperation {
 - Resolution, mapping, conflict comparison, planning, policy checks, and execution remain separate stages.
 - Current flow policy permits source reads, NeoDB reads for comparison, and NeoDB writes. It denies every source write capability even if a future-facing interface exists.
 - Automatic matching requires a supported canonical URL, verified external ID, or existing manual mapping. Fuzzy matches become `needs_review`.
+- Native NeoDB catalog fetching is approved for preview resolution (2026-09-17),
+  but not implemented yet. For supported external links, API `fetch_item` and
+  web `fetch` share SiteManager/get_item and enqueue_fetch(..., False, user).
+  The web confirmation flow is not identical to the API endpoint. See pinned
+  `neodb_native_fetch_api` / `neodb_native_fetch_web` product evidence.
+- Fetch may create a public catalog item even during preview; never describe it
+  as side-effect-free. It must not write personal marks/ratings/reviews, force
+  refresh an existing item or mutate source data. Only connector-validated public
+  canonical item links may be submitted, not arbitrary/private/local URLs.
+- Handle 202 with polls at least 15 seconds apart and a 120-second deadline;
+  handle 422/429/network failures as unavailable, not proof of absence. Validate
+  302 destinations as same-instance catalog-detail paths before following them;
+  do not enable generic redirect following or forward credentials to source sites.
+  Verify returned external identity and item granularity before automatic binding.
+  Cancelling local work stops polling but cannot undo remote creation.
 - Built-in connector registration is compile-time/build-time only in MVP. A valid external manifest is not execution authority.
 - Unsupported source fields are reported as skipped and are not preserved as a general history record.
 

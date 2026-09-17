@@ -7,7 +7,7 @@ Compare mapped records with NeoDB and retain resumable review results.
 ## Requirements and acceptance criteria
 
 - [ ] Depends on preview-auth and preview-mapping.
-- [ ] Search and detail reads only; verify IMDb IDs, ambiguous candidates need explicit manual confirmation; catalog/fetch forbidden.
+- [ ] Resolve validated public links with native catalog/fetch, then detail/identity checks; search is fallback. Verify IMDb IDs and show/season granularity; ambiguous candidates need manual confirmation. Handle 202 with bounded polling, 302 with same-instance detail validation, 422/429/timeouts explicitly; cancellation cannot undo remote catalog creation.
 - [ ] Read current marks; equal skipped, conflict needs_review preserving sink; network failure is not absence; missing shelf blocks readiness.
 - [ ] Background jobs with polling, cancel, interrupted-on-restart and explicit resume; fresh comparison on resume.
 - [ ] Persist normalized fields, identity evidence, snapshot time/account/profile version; never raw files/responses or unsupported field values.
@@ -16,4 +16,4 @@ Compare mapped records with NeoDB and retain resumable review results.
 
 ## Approval
 
-User approved the complete plan with “实施计划” on 2026-09-16. Work remains read-only toward media platforms. No live account access or remote publish is authorized by this task.
+User approved the complete plan on 2026-09-16 and native NeoDB catalog fetching on 2026-09-17. Preview may create catalog entries, but never changes personal marks/ratings/reviews or source data. Tests use mocks, not live accounts.

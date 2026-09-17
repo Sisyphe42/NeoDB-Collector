@@ -1,6 +1,6 @@
 schema_version: 2
 name: NeoDB Collector
-reviewed_at: 2026-09-16
+reviewed_at: 2026-09-17
 language: zh-CN
 
 scope:
@@ -47,6 +47,7 @@ domain_model:
     - SyncCheckpoint
   connector_capabilities:
     - catalog.read
+    - catalog.fetch
     - user_state.read
     - user_state.write
     - progress.read
@@ -54,7 +55,7 @@ domain_model:
     - review.read
     - review.write
   current_policy:
-    allow: [source.user_state.read, neodb.user_state.read, neodb.user_state.write]
+    allow: [source.user_state.read, neodb.catalog.fetch, neodb.user_state.read, neodb.user_state.write]
     deny: [source.user_state.write]
 
 product:
@@ -323,6 +324,21 @@ core_pipeline:
     - verified_external_id
     - existing_manual_mapping
   fuzzy_match_action: needs_review
+  neodb_native_fetch:
+    status: approved_not_yet_implemented
+    approved_at: 2026-09-17
+    operation: GET_/api/catalog/fetch
+    purpose: resolve_supported_external_item_url_using_neodb_native_catalog
+    preview_catalog_creation_allowed: true
+    personal_mark_rating_review_writes_in_preview: false
+    source_mutation_allowed: false
+    force_refetch_allowed: false
+    input: connector_validated_public_canonical_item_url
+    success: verify_resolved_external_identity_and_media_granularity
+    pending: bounded_polling_at_least_15_seconds_apart_stop_after_120_seconds
+    redirects: manually_validate_same_instance_catalog_detail_only
+    cancellation: stop_local_polling_cannot_undo_remote_catalog_creation
+    evidence: [neodb_native_fetch_api, neodb_native_fetch_web]
   current_conflict_default: keep_existing_sink_value_and_needs_review
   idempotency_key: connector_instance_record_updated_at_or_hash
   deletion_by_absence: never
@@ -613,6 +629,8 @@ open_decisions:
     blocking_before: public_release
 
 evidence:
+  - {id: neodb_native_fetch_api, kind: official_source, url: "https://github.com/neodb-social/neodb/blob/496e68811f730a333f1166440d2dbff24134b176/neodb/catalog/apis.py"}
+  - {id: neodb_native_fetch_web, kind: official_source, url: "https://github.com/neodb-social/neodb/blob/496e68811f730a333f1166440d2dbff24134b176/neodb/catalog/views/search.py"}
   - {id: neodb_api, kind: official, url: "https://neodb.net/api/"}
   - {id: neodb_supported_sites, kind: official, url: "https://neodb.net/sites/"}
   - {id: neodb_schema, kind: official, url: "https://neodb.net/internals/schema/"}

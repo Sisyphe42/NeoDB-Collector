@@ -3,8 +3,8 @@
 Implementation status: the pure evaluator, bounded YAML/JSON codec, immutable
 version storage and authenticated validation/read/save routes are implemented;
 see [Mapping Evaluator](./mapping-evaluator.md) and [Mapping HTTP](./mapping-http.md)
-for executable schemas. Conflict planning, activation and WebUI editing remain
-planned. The TypeScript shapes below describe future planning, not extra accepted
+for executable schemas. [WebUI editing](../frontend/mapping-editor.md) is implemented;
+conflict planning and activation remain planned. The TypeScript shapes below describe future planning, not extra accepted
 profile fields in the implemented strict schema.
 
 ## 1. Scope / Trigger Conditions

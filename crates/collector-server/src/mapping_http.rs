@@ -11,11 +11,16 @@ use axum::{
 };
 use collector_domain::{
     ApiError,
-    mapping::{MappingDocument, MappingProfile, SaveMappingProfile},
+    mapping::{ConvertMappingDocument, MappingDocument, MappingProfile, SaveMappingProfile},
 };
 
 pub(crate) fn routes() -> Router<AccessState> {
     Router::new()
+        .route(
+            "/api/v1/mapping-profiles/defaults/imdb",
+            get(default_profile),
+        )
+        .route("/api/v1/mapping-profiles/documents/convert", post(convert))
         .route(
             "/api/v1/mapping-profiles/validate",
             post(validate)
@@ -169,4 +174,32 @@ fn unavailable() -> HttpError {
         "mapping_unavailable",
         "Mapping storage is unavailable.",
     )
+}
+
+#[utoipa::path(get, path="/api/v1/mapping-profiles/defaults/imdb",
+    responses((status=200, body=MappingProfile), (status=401, body=ApiError), (status=403, body=ApiError), (status=503, body=ApiError)))]
+pub(crate) async fn default_profile(
+    State(state): State<AccessState>,
+    headers: HeaderMap,
+) -> Result<Json<MappingProfile>, HttpError> {
+    authorize(&state, &headers, false).await?;
+    Ok(Json(collector_core::mapping::imdb_default()))
+}
+
+#[utoipa::path(post, path="/api/v1/mapping-profiles/documents/convert", request_body=ConvertMappingDocument,
+    responses((status=200, body=MappingDocument), (status=400, body=ApiError), (status=401, body=ApiError), (status=403, body=ApiError), (status=413, body=ApiError), (status=503, body=ApiError)))]
+pub(crate) async fn convert(
+    State(state): State<AccessState>,
+    headers: HeaderMap,
+    body: Result<Json<ConvertMappingDocument>, JsonRejection>,
+) -> Result<Json<MappingDocument>, HttpError> {
+    authorize(&state, &headers, false).await?;
+    let body = access::json(body)?;
+    let profile =
+        mapping_profiles::decode(&body.input.document, body.input.format).map_err(mapping_error)?;
+    let document = mapping_profiles::encode(&profile, body.target_format).map_err(mapping_error)?;
+    Ok(Json(MappingDocument {
+        format: body.target_format,
+        document,
+    }))
 }

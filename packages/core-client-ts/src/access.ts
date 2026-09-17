@@ -1,13 +1,15 @@
 import createClient from 'openapi-fetch';
-import { validateSessionView, validatePairingLink, validateClientList, validateActionResult, validateApiError, validateNeoDbStatus, validateNeoDbAuthorization, validateMappingProfile, type paths, type components } from '@neodb-collector/contracts';
+import { validateSessionView, validatePairingLink, validateClientList, validateActionResult, validateApiError, validateNeoDbStatus, validateNeoDbAuthorization, validateMappingProfile, validateMappingDocument, type paths, type components } from '@neodb-collector/contracts';
 
 export type SessionView = components['schemas']['SessionView'];
 export type PairedClient = components['schemas']['PairedClient'];
 export type PairingRequest = components['schemas']['PairingRequest'];
 export type PairingLink = components['schemas']['PairingLink'];
 export type NeoDbStatus = components['schemas']['NeoDbStatus'];
+export type MappingProfile = components['schemas']['MappingProfile'];
+export type ProfileFormat = components['schemas']['ProfileFormat'];
 export class AccessClientError extends Error {
-  constructor(public readonly code: string) { super('Local access request failed.'); }
+  constructor(public readonly code: string, public readonly field?: string) { super('Local access request failed.'); }
 }
 
 export function createAccessClient(options: { baseUrl?: string; fetch?: typeof fetch; timeoutMs?: number } = {}) {
@@ -20,7 +22,7 @@ export function createAccessClient(options: { baseUrl?: string; fetch?: typeof f
       const result = await request;
       if (!result.response.ok) {
         if (result.response.status === 401) csrf = undefined;
-        throw new AccessClientError(validateApiError(result.error) ? result.error.code : 'request_failed');
+        throw new AccessClientError(validateApiError(result.error) ? result.error.code : 'request_failed', validateApiError(result.error) ? result.error.field ?? undefined : undefined);
       }
       if (!validate(result.data)) throw new AccessClientError('invalid_response');
       return result.data;
@@ -30,6 +32,12 @@ export function createAccessClient(options: { baseUrl?: string; fetch?: typeof f
     }
   }
   return {
+    async defaultMapping() {
+      return checked(client.GET('/api/v1/mapping-profiles/defaults/imdb', requestOptions()), validateMappingProfile);
+    },
+    async convertMapping(body: components['schemas']['ConvertMappingDocument']) {
+      return checked(client.POST('/api/v1/mapping-profiles/documents/convert', { ...requestOptions(), body }), validateMappingDocument);
+    },
     async mappingProfile(id: string) {
       return checked(client.GET('/api/v1/mapping-profiles/{id}', { ...requestOptions(), params: { path: { id } } }), validateMappingProfile);
     },

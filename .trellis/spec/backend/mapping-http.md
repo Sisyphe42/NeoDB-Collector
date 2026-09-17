@@ -12,9 +12,11 @@ dry-run, activation, catalog fetch or user-state writes are invoked.
 - POST `/api/v1/mapping-profiles/validate`: MappingDocument -> MappingProfile.
 - GET `/api/v1/mapping-profiles/{id}`: latest saved MappingProfile, or 404.
 - PUT `/api/v1/mapping-profiles/{id}`: SaveMappingProfile -> saved MappingProfile.
+- GET `/api/v1/mapping-profiles/defaults/imdb`: unsaved Core default MappingProfile.
+- POST `/api/v1/mapping-profiles/documents/convert`: ConvertMappingDocument -> MappingDocument.
 - Domain owns DTOs, OpenAPI/JSON Schema/TS validators are generated.
 - `createAccessClient`: `validateMapping(body)`, `mappingProfile(id)`,
-  `saveMapping(id, body)` use generated paths and validate responses.
+  `saveMapping(id, body)`, `defaultMapping()` and `convertMapping(body)` use generated paths and validate responses.
 
 ## 3. Contracts
 
@@ -25,6 +27,11 @@ editable JSON object is serialized to text by the client. This deliberately avoi
 letting generic JSON BTreeMap parsing silently swallow duplicate enum keys.
 Unknown envelope fields are rejected. Body cap is 512 KiB to allow JSON string
 escaping; decoded document cap remains 64 KiB. Existing access routes retain 4 KiB.
+
+ConvertMappingDocument has `input: MappingDocument` and `targetFormat: json|yaml`.
+Conversion uses the shared decode/validate/encode path, does not persist or enable,
+and requires the same read authorization as validation. Defaults likewise do not
+persist. There is no second set of default business rules embedded in WebUI.
 
 GET and validation require a WebUI session or valid paired Bearer with mapping.read;
 save requires mapping.write, or a session with same Origin and correct CSRF.
@@ -72,6 +79,8 @@ version, thereby defeating the expected-version protection.
   denial and revocation, invalid documents/envelopes, caps, no persistence on error.
 - `packages/core-client-ts/src/mapping.test.ts`: generated request/response wiring,
   save-only CSRF, wire rejection/nonfinite doubles, sanitized conflict errors.
+- Router tests additionally prove default/convert authorization, full YAML/JSON
+  round trips and no persistence. MappingPanel tests consume the generated client.
 - Full `pnpm verify`: contracts, boundaries, Rust/TS/UI and local smoke. No live
   NeoDB accounts or native credential-store test is implied.
 

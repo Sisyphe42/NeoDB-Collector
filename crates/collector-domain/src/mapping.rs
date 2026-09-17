@@ -22,6 +22,13 @@ pub struct MappingDocument {
 
 #[derive(Serialize, Deserialize, JsonSchema, ToSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ConvertMappingDocument {
+    pub input: MappingDocument,
+    pub target_format: ProfileFormat,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema, ToSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SaveMappingProfile {
     pub format: ProfileFormat,
     pub document: String,

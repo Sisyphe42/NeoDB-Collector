@@ -10,7 +10,7 @@ use collector_core::StorageHealth;
 use collector_domain::{
     ApiError, CapabilityDocument, HealthDocument, HealthStatus, MEDIA_TYPES, SCHEMA_VERSION,
     access::*,
-    mapping::{MappingDocument, MappingProfile, SaveMappingProfile},
+    mapping::{ConvertMappingDocument, MappingDocument, MappingProfile, SaveMappingProfile},
 };
 use std::{collections::BTreeMap, future::Future, net::SocketAddr, path::PathBuf, sync::Arc};
 use tower_http::services::ServeDir;
@@ -105,7 +105,9 @@ async fn schema() -> Json<utoipa::openapi::OpenApi> {
         oauth::callback,
         mapping_http::validate,
         mapping_http::load,
-        mapping_http::save
+        mapping_http::save,
+        mapping_http::default_profile,
+        mapping_http::convert
     ),
     components(schemas(
         ApiError,
@@ -125,7 +127,8 @@ async fn schema() -> Json<utoipa::openapi::OpenApi> {
         NeoDbStatus,
         MappingDocument,
         MappingProfile,
-        SaveMappingProfile
+        SaveMappingProfile,
+        ConvertMappingDocument
     ))
 )]
 struct ApiDoc;
@@ -161,7 +164,8 @@ pub fn contract_documents() -> serde_json::Value {
             "NeoDbStatus": schemars::schema_for!(NeoDbStatus),
             "MappingDocument": schemars::schema_for!(MappingDocument),
             "MappingProfile": schemars::schema_for!(MappingProfile),
-            "SaveMappingProfile": schemars::schema_for!(SaveMappingProfile)
+            "SaveMappingProfile": schemars::schema_for!(SaveMappingProfile),
+            "ConvertMappingDocument": schemars::schema_for!(ConvertMappingDocument)
         }
     })
 }

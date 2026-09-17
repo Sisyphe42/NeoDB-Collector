@@ -6,6 +6,7 @@ export declare function validateApiError(value: unknown): value is components['s
 export declare function validateActionResult(value: unknown): value is components['schemas']['ActionResult'];
 export declare function validateBootstrapExchange(value: unknown): value is components['schemas']['BootstrapExchange'];
 export declare function validateClientList(value: unknown): value is components['schemas']['ClientList'];
+export declare function validateConvertMappingDocument(value: unknown): value is components['schemas']['ConvertMappingDocument'];
 export declare function validateMappingDocument(value: unknown): value is components['schemas']['MappingDocument'];
 export declare function validateMappingProfile(value: unknown): value is components['schemas']['MappingProfile'];
 export declare function validateNeoDbAuthorization(value: unknown): value is components['schemas']['NeoDbAuthorization'];

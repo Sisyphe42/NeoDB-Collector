@@ -9,7 +9,9 @@ Remaining children in order: preview-mapping, then preview-jobs. Review their
 existing planning artifacts before activation. Parent acceptance is not complete:
 the internal IMDb CSV adapter and pure mapping evaluator/YAML/JSON codec now exist,
 and immutable disabled profile persistence plus authenticated profile API are
-implemented. Importer API, profile editor and preview execution remain incomplete.
+implemented. On 2026-09-18 the profile editor and YAML/JSON interchange completed
+preview-mapping, verified by 53 Rust/25 TS tests and real local browser round trips.
+Importer submission API and preview execution remain incomplete.
 
 2026-09-17: user approved native catalog fetching after upstream API/web equivalence
 verification (2732542). Preview may create catalog entries, never personal state.

@@ -10,6 +10,61 @@ const PATH: &str = "/api/v1/mapping-profiles/imdb_ratings";
 const VALIDATE: &str = "/api/v1/mapping-profiles/validate";
 
 #[tokio::test]
+async fn defaults_and_document_conversion_are_authenticated_and_side_effect_free() {
+    let (_dir, store, service, app) = setup().await;
+    let defaults = "/api/v1/mapping-profiles/defaults/imdb";
+    let convert = "/api/v1/mapping-profiles/documents/convert";
+    assert_eq!(
+        request(&app, "GET", defaults, json!(null), &[]).await.0,
+        401
+    );
+    assert_eq!(request(&app, "POST", convert, json!({}), &[]).await.0, 401);
+    let (cookie, _) = login(&app, &service).await;
+    let headers = [("cookie", cookie.as_str())];
+    let (status, _, profile) = request(&app, "GET", defaults, json!(null), &headers).await;
+    assert_eq!(status, 200);
+    assert_eq!(profile["enabled"], false);
+    assert_eq!(profile["rules"][1]["enabled"], false);
+    let (status, _, yaml) = request(
+        &app,
+        "POST",
+        convert,
+        json!({"input":{"format":"json", "document":profile.to_string()}, "targetFormat":"yaml"}),
+        &headers,
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(yaml["format"], "yaml");
+    assert_eq!(
+        request(&app, "POST", VALIDATE, yaml.clone(), &headers)
+            .await
+            .2,
+        profile
+    );
+    let (status, _, json_doc) = request(
+        &app,
+        "POST",
+        convert,
+        json!({"input":yaml,"targetFormat":"json"}),
+        &headers,
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(
+        request(&app, "POST", VALIDATE, json_doc, &headers).await.2,
+        profile
+    );
+    assert!(
+        store
+            .load("imdb_ratings".into(), None)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    store.close().await;
+}
+
+#[tokio::test]
 async fn validates_without_saving_and_preserves_versions_through_authenticated_http() {
     let (_dir, store, service, app) = setup().await;
     let (cookie, csrf) = login(&app, &service).await;

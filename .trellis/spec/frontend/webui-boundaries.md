@@ -72,6 +72,13 @@ The WebUI discovers features from `GET /api/v1/capabilities`, uses same-origin `
 
 ## 6. Tests Required
 
+- Pending fetch mocks must retain the incoming native Request until settlement,
+  not only its signal. Node's Request owns a controller through a strong reference;
+  its input-signal bridge uses a WeakRef. If the Request is collected, holding
+  request.signal alone can lose cancellation and cause intermittent timeout tests.
+  A local --expose-gc reproduction confirmed signal-only abort=false versus a
+  retained Request abort=true. See core-client-ts/src/index.test.ts.
+
 - Contract tests generated from or validated against the Core API schema.
 - Round-trip tests for mapping form, canonical JSON, and YAML.
 - Browser tests asserting no secret-bearing keys are written to `localStorage` or URLs.

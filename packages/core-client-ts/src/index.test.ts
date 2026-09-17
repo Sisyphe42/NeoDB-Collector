@@ -31,8 +31,13 @@ describe('versioned Core client', () => {
     await expect(createCoreClient({ baseUrl: 'http://localhost', fetch: async () => new Response('<html>') }).status()).rejects.toMatchObject({ kind: 'unavailable' });
   });
   it('bounds requests with a timeout and accepts caller cancellation', async () => {
+    // Native Request owns the controller bridging its input signal. A signal-only
+    // mock can lose that controller to GC while its response promise is pending.
+    const pendingRequests: Request[] = [];
     const timedClient = createCoreClient({ baseUrl: 'http://localhost', timeoutMs: 10, fetch: async input => {
-      const { signal } = input instanceof Request ? input : new Request(input);
+      const request = input instanceof Request ? input : new Request(input);
+      pendingRequests.push(request);
+      const { signal } = request;
       return new Promise<Response>((_, reject) => {
         if (signal.aborted) reject(signal.reason);
         else signal.addEventListener('abort', () => reject(signal.reason), { once: true });
@@ -42,5 +47,7 @@ describe('versioned Core client', () => {
     const controller = new AbortController();
     controller.abort();
     await expect(timedClient.status(controller.signal)).rejects.toMatchObject({ kind: 'unavailable' });
+    expect(pendingRequests).toHaveLength(4);
+    expect(pendingRequests.every(request => request.signal.aborted)).toBe(true);
   });
 });

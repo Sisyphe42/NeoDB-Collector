@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 pub mod access;
+pub mod observation;
 
 pub const API_VERSION: &str = "v1";
 pub const SCHEMA_VERSION: u32 = 1;

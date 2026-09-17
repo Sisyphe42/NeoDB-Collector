@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 2
-- **Last Active**: 2026-09-17
+- **Total Sessions**: 3
+- **Last Active**: 2026-09-18
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~76 | Active |
+| `journal-1.md` | ~114 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 3 | 2026-09-18 | Complete IMDb mapping configuration | `73e77c8`, `3494766`, `6e34046`, `2732542`, `5a02cde`, `e428916` | `master` |
 | 2 | 2026-09-17 | Complete local access and NeoDB OAuth prerequisite | `890db1f`, `84ceb05`, `341d745`, `ca75436`, `e92273e` | `master` |
 | 1 | 2026-09-16 | Runnable foundation implementation | `856117f` | `master` |
 <!-- @@@/auto:session-history -->

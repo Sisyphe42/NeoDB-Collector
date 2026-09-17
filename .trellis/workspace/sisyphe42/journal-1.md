@@ -74,3 +74,41 @@ Implemented session/CSRF, client pairing and revocation, read-only NeoDB OAuth l
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: Complete IMDb mapping configuration
+
+**Date**: 2026-09-18
+**Task**: Complete IMDb mapping configuration
+**Branch**: `master`
+
+### Summary
+
+Completed IMDb observations, declarative evaluator, strict YAML/JSON codec, immutable disabled profile revisions, authenticated API and shared WebUI editor. Verified 53 Rust and 25 TS/UI tests, contracts, boundaries, Clippy and real local browser save/export/download/upload/import/reload on desktop/mobile. Updated specs and archived preview-mapping; parent preview execution remains unfinished.
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `73e77c8` | (see git log) |
+| `3494766` | (see git log) |
+| `6e34046` | (see git log) |
+| `2732542` | (see git log) |
+| `5a02cde` | (see git log) |
+| `e428916` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

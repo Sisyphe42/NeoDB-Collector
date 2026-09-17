@@ -10,6 +10,8 @@ use url::Url;
 
 const RESPONSE_LIMIT: usize = 64 * 1024;
 
+mod catalog;
+
 pub struct NeoDbClient {
     http: Client,
 }

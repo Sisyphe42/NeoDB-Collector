@@ -7,6 +7,11 @@ pub const CONNECTOR_ID: &str = "imdb:ratings_csv";
 pub const MAX_BYTES: usize = 10 * 1024 * 1024;
 pub const MAX_ROWS: usize = 10_000;
 
+pub(crate) fn valid_title_id(id: &str) -> bool {
+    let digits = id.strip_prefix("tt").unwrap_or("");
+    (7..=16).contains(&digits.len()) && digits.bytes().all(|b| b.is_ascii_digit())
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct ImportError {
     pub code: &'static str,
@@ -141,8 +146,7 @@ pub fn parse_ratings(input: &[u8], observed_at: &str) -> Result<ImportBatch, Imp
             }
         };
         let id = &record[id_col];
-        let digits = id.strip_prefix("tt").unwrap_or("");
-        if digits.len() < 7 || digits.len() > 16 || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        if !valid_title_id(id) {
             return Err(invalid("imdb_id_invalid", line, Some("Const")));
         }
         let raw_rating = &record[rating_col];

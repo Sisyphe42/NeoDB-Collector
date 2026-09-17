@@ -6,7 +6,7 @@ This contract applies to desktop packaging, NeoDB endpoint configuration, connec
 
 The connector boundary remains versioned so a later product decision can add reviewed third-party extensions without changing the core observation and planning interfaces. That future boundary does not authorize an executable plugin loader now.
 
-Implementation status: `collector-connectors::neodb::NeoDbClient` now implements only the typed OAuth transport port (canonical base, app registration, authorization URL, token exchange and `/api/me`). It is not yet composed into server routes and performs no catalog/journal operation.
+Implementation status: `collector-connectors::neodb::NeoDbClient` implements the typed OAuth transport (composed into server routes) and a separate internal [catalog transport](./neodb-catalog.md). Catalog fetch/detail is not yet composed into jobs or public routes. No journal writer exists.
 
 ## 2. Signatures and Data Shapes
 

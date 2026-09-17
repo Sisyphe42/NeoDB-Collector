@@ -3,6 +3,7 @@ use collector_domain::{API_VERSION, HealthDocument, HealthStatus, SCHEMA_VERSION
 use std::{future::Future, pin::Pin};
 
 pub mod access;
+pub mod catalog;
 pub mod mapping;
 pub mod oauth;
 #[cfg(test)]

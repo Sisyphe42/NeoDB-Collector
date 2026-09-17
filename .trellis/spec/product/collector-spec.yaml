@@ -325,7 +325,8 @@ core_pipeline:
     - existing_manual_mapping
   fuzzy_match_action: needs_review
   neodb_native_fetch:
-    status: approved_not_yet_implemented
+    status: internal_single_attempt_transport_implemented
+    pending_implementation: [bounded_polling, identity_resolution, preview_job_integration]
     approved_at: 2026-09-17
     operation: GET_/api/catalog/fetch
     purpose: resolve_supported_external_item_url_using_neodb_native_catalog
@@ -338,7 +339,7 @@ core_pipeline:
     pending: bounded_polling_at_least_15_seconds_apart_stop_after_120_seconds
     redirects: manually_validate_same_instance_catalog_detail_only
     cancellation: stop_local_polling_cannot_undo_remote_catalog_creation
-    evidence: [neodb_native_fetch_api, neodb_native_fetch_web]
+    evidence: [neodb_native_fetch_api, neodb_native_fetch_web, neodb_catalog_item_schema, neodb_catalog_movie_schema, neodb_catalog_tv_schema]
   current_conflict_default: keep_existing_sink_value_and_needs_review
   idempotency_key: connector_instance_record_updated_at_or_hash
   deletion_by_absence: never
@@ -631,6 +632,9 @@ open_decisions:
 evidence:
   - {id: neodb_native_fetch_api, kind: official_source, url: "https://github.com/neodb-social/neodb/blob/496e68811f730a333f1166440d2dbff24134b176/neodb/catalog/apis.py"}
   - {id: neodb_native_fetch_web, kind: official_source, url: "https://github.com/neodb-social/neodb/blob/496e68811f730a333f1166440d2dbff24134b176/neodb/catalog/views/search.py"}
+  - {id: neodb_catalog_item_schema, kind: official_source, url: "https://github.com/neodb-social/neodb/blob/496e68811f730a333f1166440d2dbff24134b176/neodb/catalog/models/item.py"}
+  - {id: neodb_catalog_movie_schema, kind: official_source, url: "https://github.com/neodb-social/neodb/blob/496e68811f730a333f1166440d2dbff24134b176/neodb/catalog/models/movie.py"}
+  - {id: neodb_catalog_tv_schema, kind: official_source, url: "https://github.com/neodb-social/neodb/blob/496e68811f730a333f1166440d2dbff24134b176/neodb/catalog/models/tv.py"}
   - {id: neodb_api, kind: official, url: "https://neodb.net/api/"}
   - {id: neodb_supported_sites, kind: official, url: "https://neodb.net/sites/"}
   - {id: neodb_schema, kind: official, url: "https://neodb.net/internals/schema/"}

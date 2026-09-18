@@ -9,6 +9,7 @@ use axum::{
 use collector_core::access::{AccessRecord, AccessService};
 use collector_domain::{ApiError, access::*};
 use std::sync::{Arc, Mutex};
+use subtle::ConstantTimeEq;
 
 const COOKIE: &str = "collector_session";
 
@@ -157,11 +158,7 @@ pub(crate) async fn admin(
             .and_then(|v| v.to_str().ok())
             .unwrap_or_default();
         let equal = actual.len() == expected.len()
-            && actual
-                .bytes()
-                .zip(expected.bytes())
-                .fold(0_u8, |diff, (a, b)| diff | (a ^ b))
-                == 0;
+            && bool::from(actual.as_bytes().ct_eq(expected.as_bytes()));
         if !equal {
             return Err(HttpError::new(
                 StatusCode::FORBIDDEN,

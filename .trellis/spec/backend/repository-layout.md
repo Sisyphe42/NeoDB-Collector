@@ -64,11 +64,35 @@ apps/integrations --versioned HTTP/WS--> collector-server
 
 Independent release versions must declare a compatible Core API range. Sharing the Monorepo does not imply lockstep release versions.
 
+### Standard-library and dependency reuse
+
+- Prefer the standard library, then maintained, widely used, focused libraries for
+  generic mechanisms such as parsing, cryptography and asynchronous control.
+  Core owns identity, mapping, conflict and authorization lifecycle policy; it
+  should not reimplement those generic mechanisms merely to avoid a dependency.
+- Runtime independence is not a zero-dependency goal. Reviewed pure libraries may
+  be used in Core; network/runtime/database/OS capabilities remain behind adapters.
+  Do not introduce a port solely to hide a pure library function.
+- Before adding a library, review its purpose, maintenance, license, supported
+  Rust version/platforms, enabled features/transitive capabilities and net
+  complexity. Record the evidence and tradeoff in the owning task. Preserve
+  limits, cancellation, redaction and other existing contracts over library defaults.
+- `tools/boundaries.mjs` is an exact, reviewed dependency allowlist, not a permanent
+  ban on new Core dependencies. Update the affected allowlist, owning contract,
+  Cargo manifests/lockfile and tests together when introducing a Core dependency;
+  never relax the check to allow arbitrary crates.
+- Do not replace simple `clamp`, collection operations or small domain state
+  transitions with frameworks. Evaluate one bounded migration at a time.
+- Current example: Server uses `subtle::ConstantTimeEq` for CSRF verification
+  (`crates/collector-server/src/access.rs`); Core's allowlist is unchanged. Secret-type and OAuth protocol
+  migrations require separate review; this convention does not approve them en masse.
+
 ## 4. Validation and Error Matrix
 
 | Condition | Required result |
 |---|---|
 | An app or integration imports Core implementation internals | Reject in dependency-boundary checks |
+| A Core library is added without explicit allowlist review | Fail `pnpm boundaries:check`; review capabilities before allowing it |
 | A cross-process type is handwritten in more than one consumer | Replace with the generated contract owner |
 | A host-specific package is placed in `packages/` | Move it to `apps/` or `integrations/` before merge |
 | A new top-level `common`, `shared`, or `utils` bucket is proposed | Reject until ownership and at least two real consumers are demonstrated |
@@ -88,6 +112,7 @@ Independent release versions must declare a compatible Core API range. Sharing t
 ## 6. Tests Required
 
 - A dependency-boundary check proving `collector-domain` and `collector-core` do not acquire forbidden framework/runtime dependencies.
+- For a library replacement, regression tests prove existing error, limit and lifecycle behavior; inspect resolved features/transitive dependencies as well as direct imports.
 - Contract generation and clean-tree drift checks for OpenAPI, JSON Schema, TypeScript validators, and shared fixtures.
 - Consumer contract tests for WebUI, extension, n8n Node, and Playnite payloads against the same schema version.
 - A package test proving the n8n Node can build and pack without workspace-only runtime files.

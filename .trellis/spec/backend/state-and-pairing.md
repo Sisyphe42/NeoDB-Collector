@@ -69,6 +69,11 @@ Content-Type: application/json
 - Startup delivers one 256-bit bootstrap key in the local terminal's `/#key=...` URI. It expires in 600 seconds and is consumed transactionally once. This explicit delivery is not a request log. Exchange requires exact Origin.
 - Sessions are opaque random credentials, hash-only at rest, HttpOnly, SameSite=Strict, Path=/, absolute lifetime 8 hours. Secure is deliberately omitted on loopback HTTP. Stateful cookie requests require exact Origin and session-bound `X-CSRF-Token`; Authorization never falls back to cookies on admin routes.
 - Pairing names are nonempty after trimming, at most 80 UTF-8 bytes, no control characters; kinds are cli/browser_extension/local_plugin. Challenges bind both values and the actual Core origin including port. Changing port requires new pairing; restart preserves live credentials and revocations on the same origin.
+- After session and Origin validation, Server CSRF verification rejects unequal
+  lengths, then uses `subtle::ConstantTimeEq`
+  on equal-length byte slices, not a handwritten XOR loop. Missing, empty, short,
+  long or mismatched tokens return the same `403 csrf_invalid`; failures do not
+  consume the session. This does not claim constant-time behavior for the whole HTTP path.
 - `AccessRepository::exchange(ChallengeMatch, AccessRecord)` consumes a live matching challenge and inserts its replacement in one transaction; insertion failure rolls back consumption. Revocation is idempotent and only targets client-kind records; logout revokes only the current session.
 - Bootstrap, pairing creation and exchange share a process-wide 60-attempt/minute fixed window and 4096-byte JSON body cap. Every response, including denials, has no-store/nosniff/no-referrer and restrictive CSP. Expiry is checked on every lookup; expired non-client records are cleaned at startup.
 - `OsSecretStore` uses keyring 3.6.3: Windows Credential Store, macOS Keychain, Linux Secret Service with encrypted DBus transport. Blocking workers serialize native calls within the process; failures are sanitized and have no plaintext fallback. Linux builds need libdbus headers/pkg-config. CLI OAuth composition uses this adapter; tests inject fake credentials and never access real keychains.
@@ -113,6 +118,9 @@ Content-Type: application/json
 
 - Implemented tests: `crates/collector-storage/src/access.rs` covers hash-only rows, expiry, replay, client/origin binding, concurrent exchange, rollback and revoked-token restart. `src/lib.rs` covers empty/v1 upgrade/reopen and byte-preserving newer-schema rejection.
 - `crates/collector-server/src/access_tests.rs` covers real router lifecycle, Origin/CSRF, Bearer non-escalation, caps/redaction/rate limit and revoke. `packages/core-client-ts/src/access.test.ts` covers validators, mutation-only CSRF and sanitized failures.
+- `csrf_rejects_missing_length_and_equal_length_mismatches` tests missing/empty,
+  short/long, first/last-byte mismatch and another session's CSRF, then confirms
+  the original valid token still succeeds. These are behavior tests, not timing proofs.
 - `apps/webui/src/AccessPanel.test.tsx` proves pre-request fragment removal, StrictMode single exchange, incompatible-Core refusal and logout. `tests/smoke.mjs` exercises real CLI/Core/Chromium, HttpOnly cookie, clean address bar, pairing/revoke/reload/logout, empty browser storage and screenshots without keys. No remote-account/keychain evidence is implied.
 - Smoke startup parsers wait for the terminating newline: stderr lines can arrive in multiple chunks. Never include buffered bootstrap output in failure diagnostics. Cancellation mocks should observe the incoming Request's signal rather than cloning it unnecessarily.
 - Migration test from an empty database and every committed prior schema version.

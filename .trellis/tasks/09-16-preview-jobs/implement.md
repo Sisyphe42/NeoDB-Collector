@@ -45,6 +45,23 @@ tests, 25 TS/UI tests, Clippy, contracts, boundaries, builds and browser smoke.
 No live catalog fetch or personal-state write. Search/manual fallback is still
 unchecked above; B is not complete and the child remains active.
 
+### Library reuse follow-up (approved 2026-09-18)
+
+- [x] Promote the standard-library/maintained-library reuse principle to the
+  repository dependency contract; keep explicit Core allowlist review.
+- [x] Replace Server's handwritten CSRF comparison with `subtle::ConstantTimeEq`.
+- [x] Cover absent/empty/short/long/equal-length mismatch and cross-session CSRF;
+  preserve Origin/session/Bearer behavior and allow the valid token after denials.
+
+Verification: Server's 17 tests passed offline. Full `pnpm verify` passed with
+77 Rust tests, 25 TS/UI tests, Clippy, contracts/boundaries, lint/typecheck, builds
+and CLI/HTTP/browser smoke. Initial parallel compilation exhausted Windows
+commit memory (1455/LNK1102); rerun used process-local `CARGO_BUILD_JOBS=1`, without
+system changes or skipped checks. `cargo tree -i subtle -e features --offline`
+confirmed reuse of existing 2.6.1; no new crate version or Core dependency.
+Secret-type and OAuth protocol migrations remain separate assessment items in
+`research/core-library-review.md`. The preview child remains unfinished/active.
+
 ### C. Personal-state reads and pure comparison
 
 - [ ] Verify mark-read API and absence semantics with primary evidence; persist

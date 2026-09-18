@@ -16,6 +16,7 @@ serde.workspace = true
 serde-saphyr = "1"
 schemars.workspace = true
 utoipa.workspace = true
+subtle.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }

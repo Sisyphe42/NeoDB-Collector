@@ -87,6 +87,57 @@ pub(super) async fn login(app: &Router, service: &AccessService) -> (String, Str
 }
 
 #[tokio::test]
+async fn csrf_rejects_missing_length_and_equal_length_mismatches() {
+    let (_dir, _storage, service, app) = setup().await;
+    let (cookie, csrf) = login(&app, &service).await;
+    let (_, other_csrf) = login(&app, &service).await;
+    let mut wrong_first = csrf.clone();
+    wrong_first.replace_range(..1, if csrf.starts_with('A') { "B" } else { "A" });
+    let mut wrong_last = csrf.clone();
+    wrong_last.replace_range(
+        csrf.len() - 1..,
+        if csrf.ends_with('A') { "B" } else { "A" },
+    );
+    for token in [
+        None,
+        Some(String::new()),
+        Some(csrf[..csrf.len() - 1].into()),
+        Some(format!("{csrf}x")),
+        Some(wrong_first),
+        Some(wrong_last),
+        Some(other_csrf),
+    ] {
+        let mut headers = vec![("cookie", cookie.as_str()), ("origin", ORIGIN)];
+        if let Some(ref token) = token {
+            headers.push(("x-csrf-token", token));
+        }
+        let (status, _, body) = request(
+            &app,
+            "POST",
+            "/api/v1/pairings",
+            json!({"clientName":"CLI", "clientKind":"cli"}),
+            &headers,
+        )
+        .await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        assert_eq!(body["code"], "csrf_invalid");
+    }
+    let (status, _, _) = request(
+        &app,
+        "POST",
+        "/api/v1/pairings",
+        json!({"clientName":"CLI", "clientKind":"cli"}),
+        &[
+            ("cookie", &cookie),
+            ("origin", ORIGIN),
+            ("x-csrf-token", &csrf),
+        ],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+}
+
+#[tokio::test]
 async fn private_routes_require_session_csrf_and_origin() {
     let (_dir, storage, service, app) = setup().await;
     assert_eq!(

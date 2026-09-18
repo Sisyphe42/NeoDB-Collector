@@ -15,6 +15,8 @@ Search before adding a helper, schema, platform branch, or connector-specific ma
 ## Before Adding Code
 
 - Search for the field, route, status, capability, or error code first.
+- Before implementing a generic mechanism, check the standard library and maintained
+  libraries; follow the [dependency reuse contract](../backend/repository-layout.md#standard-library-and-dependency-reuse).
 - Extend an open namespaced ID or manifest; do not add a closed platform enum.
 - Add a connector adapter, not a platform branch inside Core.
 - Add a mapping operation to the allowlisted evaluator only when it is reusable and safe; never embed executable scripts.

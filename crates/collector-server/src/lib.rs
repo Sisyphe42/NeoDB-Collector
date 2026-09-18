@@ -26,6 +26,7 @@ pub mod mapping_profiles;
 mod oauth;
 #[cfg(test)]
 mod oauth_tests;
+pub mod resolution_control;
 
 pub const HEALTH_ROUTE: &str = "/api/v1/health";
 pub const CAPABILITIES_ROUTE: &str = "/api/v1/capabilities";

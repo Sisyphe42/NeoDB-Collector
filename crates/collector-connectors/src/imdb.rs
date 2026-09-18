@@ -12,6 +12,34 @@ pub(crate) fn valid_title_id(id: &str) -> bool {
     (7..=16).contains(&digits.len()) && digits.bytes().all(|b| b.is_ascii_digit())
 }
 
+/// Validate even in-process observations before preparing resolver expectations.
+pub fn catalog_identity(
+    item: &ObservedItem,
+) -> Result<collector_core::catalog_resolver::CatalogIdentity, collector_domain::ApiError> {
+    let invalid = || {
+        collector_domain::ApiError::new(
+            "catalog_identity_invalid",
+            "Expected a consistent supported IMDb item identity.",
+        )
+    };
+    let id = item.external_ids.get("imdb:title").ok_or_else(invalid)?;
+    if !valid_title_id(id) || item.canonical_url != format!("https://www.imdb.com/title/{id}/") {
+        return Err(invalid());
+    }
+    let model = match item.media_type.as_str() {
+        "movie" => "Movie",
+        "tv" => "TVShow",
+        _ => return Err(invalid()),
+    };
+    Ok(collector_core::catalog_resolver::CatalogIdentity {
+        source_url: item.canonical_url.clone(),
+        media_type: item.media_type.clone(),
+        model: model.into(),
+        scheme: "imdb:title".into(),
+        external_id: id.clone(),
+    })
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct ImportError {
     pub code: &'static str,

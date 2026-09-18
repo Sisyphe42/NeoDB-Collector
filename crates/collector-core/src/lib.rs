@@ -4,6 +4,7 @@ use std::{future::Future, pin::Pin};
 
 pub mod access;
 pub mod catalog;
+pub mod catalog_resolver;
 pub mod mapping;
 pub mod oauth;
 #[cfg(test)]

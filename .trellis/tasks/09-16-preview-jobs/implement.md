@@ -30,14 +30,20 @@ passed. Catalog transport has no public route; checkpoints B-E remain pending.
 
 ### B. Bounded resolver and identity evidence
 
-- [ ] Add runtime-independent polling/cancellation ports and fake-clock tests.
-- [ ] Enforce >=15-second poll spacing and <=120-second overall budget, including
+- [x] Add runtime-independent polling/cancellation ports and fake-clock tests.
+- [x] Enforce >=15-second poll spacing and <=120-second overall budget, including
   slow requests; cancellation produces no subsequent poll.
-- [ ] Normalize and compare exact IDs, canonical links and media granularity.
+- [x] Normalize and compare exact IDs, canonical links and media granularity.
 - [ ] Add bounded search fallback/manual resolution; title-only/contradictory
   candidates remain review-required, unavailable is not absent.
-- [ ] Test movie/show/season distinctions, pending exhaustion, cancellation,
+- [x] Test movie/show/season distinctions, pending exhaustion, cancellation,
   rate-limit behavior and identity mismatches; verify and commit.
+
+Checkpoint B1 verification (2026-09-18): native resolver, IMDb expectation
+validation and Tokio/CancellationToken adapter passed `pnpm verify`: 76 Rust
+tests, 25 TS/UI tests, Clippy, contracts, boundaries, builds and browser smoke.
+No live catalog fetch or personal-state write. Search/manual fallback is still
+unchecked above; B is not complete and the child remains active.
 
 ### C. Personal-state reads and pure comparison
 

@@ -4,8 +4,9 @@
 
 Internal single-attempt transport is implemented in
 `crates/collector-connectors/src/neodb/catalog.rs`, implementing the Core port in
-`crates/collector-core/src/catalog.rs`. No API route, polling scheduler, automatic
-identity binding or personal-state operation is exposed by this checkpoint.
+`crates/collector-core/src/catalog.rs`. The internal [resolver](./catalog-resolver.md)
+now adds bounded polling and identity checks. No API route, running job scheduler
+or personal-state operation is exposed.
 Native fetch can create public catalog entries, even during preview.
 
 ## 2. Signatures
@@ -28,9 +29,9 @@ No public wire schema or generated client change is needed for these internal po
 - Fetch accepts only exact `https://www.imdb.com/title/tt<7..16 digits>/` at this
   stage. CSV and catalog share `imdb::valid_title_id`. Reject before network I/O;
   neither a claimed connector ID nor a parseable arbitrary URL grants authority.
-- GET `/api/catalog/fetch` once; 202 returns Pending without retry. The future
-  resolver must enforce >=15s pending spacing and a 120s overall deadline before
-  this port is connected to jobs. No unattended polling exists yet.
+- GET `/api/catalog/fetch` once; 202 returns Pending without retry in this adapter.
+  The Core resolver enforces >=15s pending spacing and a 120s overall deadline.
+  No unattended job scheduling exists yet.
 - 302 requires one Location header, root-relative or absolute same origin.
   Validate before following. Supported detail paths: `/api/movie/{uuid}`,
   `/api/tv/{uuid}`, `/api/tv/season/{uuid}`, `/api/tv/episode/{uuid}`.

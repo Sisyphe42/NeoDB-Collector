@@ -8,6 +8,7 @@ The runnable foundation, local session/pairing, NeoDB OAuth HTTP/UI and CLI pair
 | [Connector Observation and Capability](./connector-contract.md) | Manifests, observations, policy, matching, and idempotency |
 | [IMDb CSV Adapter](./imdb-csv.md) | Internal bounded ratings parser and normalized observations |
 | [NeoDB Catalog Transport](./neodb-catalog.md) | Internal native fetch and restrictive catalog-detail evidence reads |
+| [Native Catalog Resolver](./catalog-resolver.md) | Bounded polling, cancellation and exact identity/granularity checks |
 | [Mapping and Conflict](./mapping-and-conflict-contract.md) | Mapping validation, dry-run, activation, and review |
 | [Mapping Evaluator](./mapping-evaluator.md) | Implemented pure suggestions and bounded YAML/JSON configuration |
 | [Mapping Storage](./mapping-storage.md) | Immutable disabled profile revisions and atomic version checks |

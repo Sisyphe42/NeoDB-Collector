@@ -58,7 +58,8 @@ interface PlannedOperation {
 - Automatic matching requires a supported canonical URL, verified external ID, or existing manual mapping. Fuzzy matches become `needs_review`.
 - Native NeoDB catalog fetching is approved for preview resolution (2026-09-17),
   with internal single-attempt transport now implemented in [NeoDB Catalog Transport](./neodb-catalog.md);
-  polling and identity resolution remain pending. For supported external links, API `fetch_item` and
+  internal [bounded polling and identity checks](./catalog-resolver.md) are implemented,
+  while search/manual fallback and job integration remain pending. For supported external links, API `fetch_item` and
   web `fetch` share SiteManager/get_item and enqueue_fetch(..., False, user).
   The web confirmation flow is not identical to the API endpoint. See pinned
   `neodb_native_fetch_api` / `neodb_native_fetch_web` product evidence.

@@ -1,5 +1,36 @@
 use super::*;
 const NOW: &str = "2026-09-17T00:00:00Z";
+
+#[test]
+fn resolver_expectations_require_consistent_url_id_and_supported_model() {
+    for (kind, model) in [("movie", "Movie"), ("tvSeries", "TVShow")] {
+        let batch = parse(&format!(
+            "Const,Your Rating,Title Type\ntt1234567,8,{kind}\n"
+        ))
+        .unwrap();
+        let item = &batch.observations[0].item;
+        let identity = catalog_identity(item).unwrap();
+        assert_eq!(identity.model, model);
+        assert_eq!(identity.external_id, "tt1234567");
+        assert_eq!(identity.scheme, "imdb:title");
+        for mutation in 0..4 {
+            let mut item = item.clone();
+            match mutation {
+                0 => item.canonical_url = "https://www.imdb.com/title/tt7654321/".into(),
+                1 => item.media_type = "tvseason".into(),
+                2 => item.external_ids.clear(),
+                _ => {
+                    item.external_ids
+                        .insert("imdb:title".into(), "ttbad".into());
+                }
+            }
+            assert_eq!(
+                catalog_identity(&item).err().unwrap().code,
+                "catalog_identity_invalid"
+            );
+        }
+    }
+}
 fn parse(text: &str) -> Result<ImportBatch, ImportError> {
     parse_ratings(text.as_bytes(), NOW)
 }

@@ -45,6 +45,10 @@ seconds apart, with a total 120-second deadline including I/O. Runtime cancellat
 or deadline expiry drops in-flight work and prevents further requests. Cancellation
 does not undo catalog creation already queued remotely. No busy-loop retry on 429.
 
+Implementation refinement approved on 2026-09-18: reuse Tokio timeout/select/sleep
+and tokio-util CancellationToken/drop_guard in the runtime adapter. Core keeps
+only a thin execution-control port and business rules, not a custom future race.
+
 The first checkpoint contains only the internal port, restrictive transport and
 mock tests; polling/resolution follows as a second checkpoint. Neither exposes a
 public Core route, so neither requires speculative OpenAPI DTOs.

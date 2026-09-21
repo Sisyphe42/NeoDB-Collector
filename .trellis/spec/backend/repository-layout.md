@@ -83,9 +83,10 @@ Independent release versions must declare a compatible Core API range. Sharing t
   never relax the check to allow arbitrary crates.
 - Do not replace simple `clamp`, collection operations or small domain state
   transitions with frameworks. Evaluate one bounded migration at a time.
-- Current example: Server uses `subtle::ConstantTimeEq` for CSRF verification
-  (`crates/collector-server/src/access.rs`); Core's allowlist is unchanged. Secret-type and OAuth protocol
-  migrations require separate review; this convention does not approve them en masse.
+- Current examples: Server uses `subtle::ConstantTimeEq` for CSRF verification;
+  Core's allowlist includes `secrecy` for [internal secret values](./internal-secrets.md).
+  Neither binds Core to a runtime. OAuth protocol migration remains a separate
+  evaluation; this convention does not approve replacements en masse.
 
 ## 4. Validation and Error Matrix
 

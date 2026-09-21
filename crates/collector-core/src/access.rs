@@ -1,4 +1,5 @@
 //! Access use cases and ports; no OS, HTTP, SQL or async-runtime dependency.
+use crate::secrets::SecretString;
 use collector_domain::{ApiError, access::*};
 use std::{future::Future, pin::Pin, sync::Arc};
 
@@ -57,8 +58,8 @@ pub trait AccessRepository: Send + Sync {
 }
 
 pub trait SecretStore: Send + Sync {
-    fn set(&self, reference: String, secret: String) -> PortFuture<'_, ()>;
-    fn get(&self, reference: String) -> PortFuture<'_, String>;
+    fn set(&self, reference: String, secret: SecretString) -> PortFuture<'_, ()>;
+    fn get(&self, reference: String) -> PortFuture<'_, SecretString>;
     fn delete(&self, reference: String) -> PortFuture<'_, ()>;
 }
 pub trait TokenSource: Send + Sync {

@@ -9,6 +9,7 @@ pub mod mapping;
 pub mod oauth;
 #[cfg(test)]
 mod oauth_tests;
+pub mod secrets;
 
 pub trait StorageHealth: Send + Sync {
     fn is_ready(&self) -> Pin<Box<dyn Future<Output = bool> + Send + '_>>;

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 const metadata = JSON.parse(execFileSync('cargo', ['metadata', '--format-version', '1', '--no-deps', '--locked'], { encoding: 'utf8' }));
 const allowed = {
   'collector-domain': ['serde', 'schemars', 'utoipa'],
-  'collector-core': ['collector-domain'],
+  'collector-core': ['collector-domain', 'secrecy'],
 };
 for (const [name, dependencies] of Object.entries(allowed)) {
   const pkg = metadata.packages.find(p => p.name === name);

@@ -16,6 +16,7 @@ The runnable foundation, local session/pairing, NeoDB OAuth HTTP/UI and CLI pair
 | [Runtime Distribution and Connectors](./runtime-distribution-and-connectors.md) | Desktop targets, singleton NeoDB endpoint, built-in registry |
 | [Operational State and Pairing](./state-and-pairing.md) | SQLite boundary, migrations, secret references, and client authentication |
 | [NeoDB OAuth Lifecycle](./oauth-lifecycle.md) | Runtime-independent authorization, state consumption, replacement and cleanup |
+| [Internal Secret Values](./internal-secrets.md) | SecretString ports, explicit exposure and unchanged wire/credential boundaries |
 | [OAuth HTTP and WebUI](./oauth-http.md) | Session/CSRF routes, cookie-free callback and generated client |
 | [CLI Client](./cli-client.md) | Stdin pairing, OS-stored client token and authenticated status |
 | [Repository Layout and Dependency Boundaries](./repository-layout.md) | Monorepo directories, workspace ownership, dependency direction, and release isolation |

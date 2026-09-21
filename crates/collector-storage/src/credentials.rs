@@ -1,5 +1,6 @@
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use collector_core::access::{Clock, PortFuture, SecretStore, TokenSource};
+use collector_core::secrets::{ExposeSecret, SecretString};
 use collector_domain::ApiError;
 use sha2::{Digest, Sha256};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -40,23 +41,26 @@ fn entry(reference: &str) -> Result<keyring::Entry, ApiError> {
     keyring::Entry::new("org.neodb.collector", reference).map_err(|_| unavailable())
 }
 impl SecretStore for OsSecretStore {
-    fn set(&self, reference: String, secret: String) -> PortFuture<'_, ()> {
+    fn set(&self, reference: String, secret: SecretString) -> PortFuture<'_, ()> {
         Box::pin(async move {
             tokio::task::spawn_blocking(move || {
                 let _guard = KEYRING_ACCESS.lock().map_err(|_| unavailable())?;
                 entry(&reference)?
-                    .set_password(&secret)
+                    .set_password(secret.expose_secret())
                     .map_err(|_| unavailable())
             })
             .await
             .map_err(|_| unavailable())?
         })
     }
-    fn get(&self, reference: String) -> PortFuture<'_, String> {
+    fn get(&self, reference: String) -> PortFuture<'_, SecretString> {
         Box::pin(async move {
             tokio::task::spawn_blocking(move || {
                 let _guard = KEYRING_ACCESS.lock().map_err(|_| unavailable())?;
-                entry(&reference)?.get_password().map_err(|_| unavailable())
+                entry(&reference)?
+                    .get_password()
+                    .map(SecretString::from)
+                    .map_err(|_| unavailable())
             })
             .await
             .map_err(|_| unavailable())?

@@ -3,6 +3,17 @@
 Status: approved and activated on 2026-09-18.
 Dependencies: preview-auth and preview-mapping are completed and archived.
 
+## Delegation for remaining work (user request, 2026-09-21)
+
+The main agent owns planning, boundaries, acceptance and checkpoint commits.
+Delegate bounded local/mechanical implementation to `gpt-5.6-luna` / `max`, and
+cross-module or authentication work to `gpt-5.6-sol` / `medium`. Supply the active
+task path and exact scope/specs explicitly, split file ownership and prohibit
+recursive delegation. The current secret-value review/test completion uses Sol.
+Sub-agents report evidence and do not commit; the main agent reviews the integrated
+diff and verification results. Model availability failures must be reported rather
+than silently substituting a different model. This does not remove review gates.
+
 ## Activation gate
 
 - [x] Inspect parent approval, implemented adapters and owning product contracts.
@@ -59,8 +70,25 @@ and CLI/HTTP/browser smoke. Initial parallel compilation exhausted Windows
 commit memory (1455/LNK1102); rerun used process-local `CARGO_BUILD_JOBS=1`, without
 system changes or skipped checks. `cargo tree -i subtle -e features --offline`
 confirmed reuse of existing 2.6.1; no new crate version or Core dependency.
-Secret-type and OAuth protocol migrations remain separate assessment items in
-`research/core-library-review.md`. The preview child remains unfinished/active.
+The secret-type follow-up is completed under user continuation; OAuth
+protocol migration remains a separate assessment in `research/core-library-review.md`.
+The preview child remains unfinished/active.
+
+### Internal secret values (library reuse follow-up)
+
+- [x] Review `secrecy` features/license/transitive dependencies; add exact allowlist entry.
+- [x] Migrate credential/OAuth internal values and consuming adapters without wire changes.
+- [x] Add Deserialize/Debug tests and compile-fail Serialize/Display tests.
+- [x] Complete independent code review and adapter regression coverage.
+- [x] Run full workspace verification and sync specs for a separate checkpoint.
+
+Verification (2026-09-21): Sol/medium completed the code review and added mock
+form/invalid-secret/scope-redaction coverage. Main agent reviewed the integrated
+code/spec diff and resolved dependency features. `pnpm verify` passed with
+`CARGO_BUILD_JOBS=1`: 79 Rust unit tests, 2 compile-fail doctests, 25 TS/UI tests,
+Clippy, generated contracts, dependency boundaries, lint/typecheck, WebUI/CLI
+builds and actual CLI/local HTTP/desktop-mobile browser smoke. No real keychain
+or NeoDB account operation. Public API DTOs and database schemas are unchanged.
 
 ### C. Personal-state reads and pure comparison
 

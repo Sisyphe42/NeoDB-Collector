@@ -6,8 +6,10 @@ publish.workspace = true
 
 [dependencies]
 collector-domain.workspace = true
+secrecy.workspace = true
 
 [dev-dependencies]
+serde_json.workspace = true
 tokio = { workspace = true, features = ["sync"] }
 
 [lints]

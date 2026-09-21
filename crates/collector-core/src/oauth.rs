@@ -2,20 +2,21 @@
 use crate::access::{
     AccessRecord, AccessRepository, Clock, Endpoint, PortFuture, SecretStore, TokenSource,
 };
+use crate::secrets::{ExposeSecret, SecretString};
 use collector_domain::ApiError;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 pub const OAUTH_STATE_TTL: i64 = 600;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct OAuthApp {
     pub client_id: String,
-    pub client_secret: String,
+    pub client_secret: SecretString,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct OAuthToken {
-    pub access_token: String,
+    pub access_token: SecretString,
     pub scope: String,
 }
 
@@ -38,10 +39,14 @@ pub trait NeoDbOAuthTransport: Send + Sync {
         &self,
         base: String,
         app: OAuthApp,
-        code: String,
+        code: SecretString,
         callback: String,
     ) -> PortFuture<'_, OAuthToken>;
-    fn identity(&self, base: String, token: String) -> PortFuture<'_, OAuthIdentity>;
+    fn identity<'a>(
+        &'a self,
+        base: String,
+        token: &'a SecretString,
+    ) -> PortFuture<'a, OAuthIdentity>;
 }
 
 pub struct OAuthStartResult {
@@ -312,7 +317,7 @@ impl OAuthService {
     pub async fn complete(
         &self,
         raw_state: &str,
-        code: String,
+        code: SecretString,
     ) -> Result<OAuthCompletion, ApiError> {
         let (pending, expired) = self.take_pending(raw_state)?;
         let _reservation = Reservation::new(self);
@@ -323,7 +328,7 @@ impl OAuthService {
                     "OAuth state expired; start again.",
                 ));
             }
-            if code.is_empty() {
+            if code.expose_secret().is_empty() {
                 return Err(ApiError::new(
                     "oauth_denied",
                     "Authorization was denied or incomplete.",
@@ -358,7 +363,7 @@ impl OAuthService {
             let token = exchanged?;
             if token.scope.split_whitespace().next().is_none()
                 || token.scope.split_whitespace().any(|s| s != "read")
-                || token.access_token.is_empty()
+                || token.access_token.expose_secret().is_empty()
             {
                 return Err(ApiError::new(
                     "oauth_scope_invalid",
@@ -367,7 +372,7 @@ impl OAuthService {
             }
             let identity = self
                 .transport
-                .identity(pending.base_url.clone(), token.access_token.clone())
+                .identity(pending.base_url.clone(), &token.access_token)
                 .await?;
             let token_ref = format!("neodb-token:{}", self.tokens.random()?);
             let previous = self.repository.endpoint().await?;

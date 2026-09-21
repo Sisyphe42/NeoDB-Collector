@@ -12,12 +12,12 @@ use std::{
 
 #[derive(Default)]
 struct Secrets {
-    values: Mutex<HashMap<String, String>>,
+    values: Mutex<HashMap<String, SecretString>>,
     fail: AtomicBool,
     fail_token: AtomicBool,
 }
 impl SecretStore for Secrets {
-    fn set(&self, reference: String, secret: String) -> PortFuture<'_, ()> {
+    fn set(&self, reference: String, secret: SecretString) -> PortFuture<'_, ()> {
         Box::pin(async move {
             if self.fail.load(Ordering::SeqCst)
                 || (reference.starts_with("collector-cli:")
@@ -32,7 +32,7 @@ impl SecretStore for Secrets {
             Ok(())
         })
     }
-    fn get(&self, reference: String) -> PortFuture<'_, String> {
+    fn get(&self, reference: String) -> PortFuture<'_, SecretString> {
         Box::pin(async move {
             self.values
                 .lock()
@@ -136,16 +136,16 @@ async fn pairs_through_real_http_stores_only_in_fake_keychain_and_detects_revoca
     assert!(
         !serde_json::to_string(&paired)
             .unwrap()
-            .contains(&saved_token)
+            .contains(saved_token.expose_secret())
     );
-    assert!(!paired.to_string().contains(&saved_token));
+    assert!(!paired.to_string().contains(saved_token.expose_secret()));
     let report = status(&base, &secrets).await.unwrap();
     assert!(report.authenticated);
     assert_eq!(report.client.id, paired.client_id);
     assert!(
         !serde_json::to_string(&report)
             .unwrap()
-            .contains(&saved_token)
+            .contains(saved_token.expose_secret())
     );
     assert_eq!(
         pair(&link.uri, "Collector CLI", &secrets)
@@ -156,8 +156,15 @@ async fn pairs_through_real_http_stores_only_in_fake_keychain_and_detects_revoca
         "authentication_required"
     );
     assert_eq!(
-        secrets.values.lock().unwrap().values().next().unwrap(),
-        &saved_token
+        secrets
+            .values
+            .lock()
+            .unwrap()
+            .values()
+            .next()
+            .unwrap()
+            .expose_secret(),
+        saved_token.expose_secret()
     );
     let next = access
         .create_pairing(PairingRequest {
@@ -176,8 +183,15 @@ async fn pairs_through_real_http_stores_only_in_fake_keychain_and_detects_revoca
         "pairing_storage_failed"
     );
     assert_eq!(
-        secrets.values.lock().unwrap().values().next().unwrap(),
-        &saved_token
+        secrets
+            .values
+            .lock()
+            .unwrap()
+            .values()
+            .next()
+            .unwrap()
+            .expose_secret(),
+        saved_token.expose_secret()
     );
     secrets.fail_token.store(false, Ordering::SeqCst);
     storage

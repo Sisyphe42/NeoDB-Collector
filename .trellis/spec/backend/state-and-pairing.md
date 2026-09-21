@@ -85,6 +85,8 @@ Content-Type: application/json
 - SQLite stores checkpoints, manual mappings, normalized review plans, mapping profiles, idempotency metadata, operation results, credential references, and authentication hashes.
 - SQLite never stores raw source API payloads, page HTML, cookies, passwords, plaintext client tokens, or NeoDB access tokens.
 - Source and NeoDB secrets live in an OS credential store or explicit container secret; SQLite stores only an opaque reference.
+- `SecretStore::set/get` transfer `SecretString`, not ordinary strings; see
+  [Internal Secret Values](./internal-secrets.md) for exposure and serialization rules.
 - All schema changes use ordered migrations. Do not create tables opportunistically from request handlers.
 
 ## 4. Validation and Error Matrix

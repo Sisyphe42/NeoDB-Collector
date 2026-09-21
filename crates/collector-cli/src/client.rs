@@ -1,5 +1,6 @@
 //! Thin local API client; never opens Core's database.
 use collector_core::access::{SecretStore, TokenSource};
+use collector_core::secrets::{ExposeSecret, SecretString};
 use collector_domain::{
     API_VERSION, ApiError, HealthDocument, SCHEMA_VERSION,
     access::{PairedClient, PairingExchange, PairingToken},
@@ -185,12 +186,13 @@ pub async fn pair(
         .await
         .map_err(|_| unavailable())?;
     let paired: PairingToken = decode(response).await?;
-    collector_core::access::validate_key(&paired.token)?;
+    let token = SecretString::from(paired.token);
+    collector_core::access::validate_key(token.expose_secret())?;
     collector_core::access::validate_key(&paired.client_id)?;
     if paired.token_type != "Bearer" {
         return Err(unavailable());
     }
-    secrets.set(reference(&base), paired.token).await.map_err(|_| error(
+    secrets.set(reference(&base), token).await.map_err(|_| error(
         "pairing_storage_failed", "Core paired the client but saving its token failed. Revoke that client in WebUI and pair again.",
     ))?;
     Ok(PairReport {
@@ -226,11 +228,11 @@ pub async fn status(input: &str, secrets: &dyn SecretStore) -> Result<StatusRepo
     let client = http()?;
     let health = health(&client, &base).await?;
     let token = secrets.get(reference(&base)).await?;
-    collector_core::access::validate_key(&token)?;
+    collector_core::access::validate_key(token.expose_secret())?;
     let identity: PairedClient = decode(
         client
             .get(base.join("api/v1/client").map_err(|_| invalid())?)
-            .bearer_auth(token)
+            .bearer_auth(token.expose_secret())
             .send()
             .await
             .map_err(|_| unavailable())?,

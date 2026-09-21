@@ -96,7 +96,7 @@ pub(crate) async fn callback(
         };
         service(&state)
             .map_err(|_| ())?
-            .complete(&query.state, code)
+            .complete(&query.state, code.into())
             .await
             .map_err(|_| ())?;
         Ok::<(), ()>(())

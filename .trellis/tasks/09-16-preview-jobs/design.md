@@ -16,6 +16,17 @@ Product scope is already approved in the parent and `prd.md`.
   versioned API and generated contracts.
 - No personal-state writer, activation or schedule-enablement endpoint is added.
 
+### Internal secret-value follow-up
+
+Library-reuse follow-up: migrate credential-store values, OAuth app secrets/access
+tokens and internal authorization codes to `secrecy::SecretString`; keep API DTOs,
+database metadata and state-machine semantics unchanged. Reexport the reviewed
+types from Core instead of adding a wrapper. Deserialize upstream secret fields
+directly; borrow tokens for identity reads, move them into storage, and expose only
+at consumers. Acceptance includes Debug redaction and compile-fail serialization/
+Display tests plus all existing rollback paths. See `internal-secrets.md` in the
+backend specs. OAuth protocol replacement remains a separate evaluation.
+
 ## 1. Native catalog-fetch boundary (first checkpoint)
 
 Add an internal catalog transport port with a single-attempt fetch operation and

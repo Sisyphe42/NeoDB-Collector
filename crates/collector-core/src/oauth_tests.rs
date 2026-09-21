@@ -1,3 +1,4 @@
+use crate::secrets::{ExposeSecret, SecretString};
 use crate::{
     access::{
         AccessRecord, AccessRepository, Clock, Endpoint, PortFuture, SecretStore, TokenSource,
@@ -61,12 +62,12 @@ impl AccessRepository for Repo {
 
 #[derive(Default)]
 struct Secrets {
-    values: Mutex<HashMap<String, String>>,
+    values: Mutex<HashMap<String, SecretString>>,
     fail_set: AtomicBool,
     fail_delete_ref: Mutex<Option<String>>,
 }
 impl SecretStore for Secrets {
-    fn set(&self, reference: String, secret: String) -> PortFuture<'_, ()> {
+    fn set(&self, reference: String, secret: SecretString) -> PortFuture<'_, ()> {
         Box::pin(async move {
             // Model an adapter that persists before reporting failure.
             self.values.lock().unwrap().insert(reference, secret);
@@ -79,7 +80,7 @@ impl SecretStore for Secrets {
             Ok(())
         })
     }
-    fn get(&self, reference: String) -> PortFuture<'_, String> {
+    fn get(&self, reference: String) -> PortFuture<'_, SecretString> {
         Box::pin(async move {
             self.values
                 .lock()
@@ -183,7 +184,13 @@ impl NeoDbOAuthTransport for Transport {
             Ok(format!("{base}/oauth/authorize?state={state}&scope=read"))
         })
     }
-    fn exchange(&self, _: String, _: OAuthApp, _: String, _: String) -> PortFuture<'_, OAuthToken> {
+    fn exchange(
+        &self,
+        _: String,
+        _: OAuthApp,
+        _: SecretString,
+        _: String,
+    ) -> PortFuture<'_, OAuthToken> {
         Box::pin(async move {
             self.maybe("exchange")?;
             self.pause("exchange").await;
@@ -193,7 +200,7 @@ impl NeoDbOAuthTransport for Transport {
             })
         })
     }
-    fn identity(&self, _: String, _: String) -> PortFuture<'_, OAuthIdentity> {
+    fn identity<'a>(&'a self, _: String, _: &'a SecretString) -> PortFuture<'a, OAuthIdentity> {
         Box::pin(async move {
             self.maybe("identity")?;
             Ok(OAuthIdentity {
@@ -309,7 +316,7 @@ async fn failed_rollback_cleanup_is_explicit_and_retried_without_changing_old_ac
             .lock()
             .unwrap()
             .get("old-token")
-            .map(String::as_str),
+            .map(ExposeSecret::expose_secret),
         Some("old-secret")
     );
 }
@@ -391,7 +398,7 @@ async fn callback_expiry_scope_and_credential_failures_never_connect() {
                 .lock()
                 .unwrap()
                 .values()
-                .any(|v| v == "access-token")
+                .any(|v| v.expose_secret() == "access-token")
         );
         *f.secrets.fail_delete_ref.lock().unwrap() = None;
         assert!(!f.service.status().await.unwrap().pending);
@@ -524,7 +531,7 @@ async fn success_consumes_state_replaces_endpoint_and_cleans_secrets() {
             .lock()
             .unwrap()
             .values()
-            .any(|value| value == &state)
+            .any(|value| value.expose_secret() == state)
     );
     let completed = f.service.complete(&state, "code".into()).await.unwrap();
     assert_eq!(completed.account, "alice");
@@ -541,7 +548,7 @@ async fn success_consumes_state_replaces_endpoint_and_cleans_secrets() {
             .lock()
             .unwrap()
             .get(&saved.credential_ref)
-            .map(String::as_str),
+            .map(ExposeSecret::expose_secret),
         Some("access-token")
     );
     assert!(!f.secrets.values.lock().unwrap().contains_key("old-token"));

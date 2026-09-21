@@ -36,6 +36,10 @@ only the authenticated client's public identity and health. Cookie-only requests
 cannot use this endpoint. Unknown/revoked tokens are 401, with no cookie fallback.
 This endpoint grants no additional privileges or access to other clients.
 
+The stored token follows [Internal Secret Values](./internal-secrets.md): wrap
+the decoded pairing token before validation/storage and expose a retrieved token
+only for validation and Bearer encoding. Public reports and API DTOs are unchanged.
+
 HTTP uses no proxies, no redirects, 10-second request timeout and 64-KiB decoded
 response cap. Upstream bodies and transport errors are not echoed.
 Pair/status use their explicit endpoint inputs; serve/doctor config is not loaded.

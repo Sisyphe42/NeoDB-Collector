@@ -1,5 +1,6 @@
 use super::*;
 use axum::body::{Body, to_bytes};
+use collector_core::secrets::{ExposeSecret, SecretString};
 use collector_core::{
     access::{AccessService, PortFuture, SecretStore},
     oauth::*,
@@ -13,15 +14,15 @@ use std::{collections::HashMap, sync::Mutex};
 use tower::ServiceExt;
 
 #[derive(Default)]
-struct Secrets(Mutex<HashMap<String, String>>);
+struct Secrets(Mutex<HashMap<String, SecretString>>);
 impl SecretStore for Secrets {
-    fn set(&self, r: String, s: String) -> PortFuture<'_, ()> {
+    fn set(&self, r: String, s: SecretString) -> PortFuture<'_, ()> {
         Box::pin(async move {
             self.0.lock().unwrap().insert(r, s);
             Ok(())
         })
     }
-    fn get(&self, r: String) -> PortFuture<'_, String> {
+    fn get(&self, r: String) -> PortFuture<'_, SecretString> {
         Box::pin(async move {
             self.0
                 .lock()
@@ -68,18 +69,18 @@ impl NeoDbOAuthTransport for Transport {
         &self,
         _: String,
         _: OAuthApp,
-        code: String,
+        code: SecretString,
         _: String,
     ) -> PortFuture<'_, OAuthToken> {
         Box::pin(async move {
-            assert_eq!(code, "valid-code");
+            assert_eq!(code.expose_secret(), "valid-code");
             Ok(OAuthToken {
                 access_token: "secret-token".into(),
                 scope: "read".into(),
             })
         })
     }
-    fn identity(&self, _: String, _: String) -> PortFuture<'_, OAuthIdentity> {
+    fn identity<'a>(&'a self, _: String, _: &'a SecretString) -> PortFuture<'a, OAuthIdentity> {
         Box::pin(async {
             Ok(OAuthIdentity {
                 username: "alice".into(),

@@ -10,7 +10,7 @@ audience. Pending authorization is memory-only and never restored.
 ## 2. Signatures
 
 - `start(&AccessRecord, requested_base: String, callback: String) -> OAuthStartResult`
-- `complete(raw_state: &str, code: String) -> OAuthCompletion`
+- `complete(raw_state: &str, code: SecretString) -> OAuthCompletion`
 - `cancel(&AccessRecord) -> ()`
 - `status() -> OAuthStatus`
 
@@ -19,6 +19,11 @@ must pass a freshly authenticated WebUI session from AccessService; a record
 is an internal trusted input, not an HTTP payload. Complete requires no cookie.
 
 ## 3. Contracts
+
+- App secrets, access tokens and internal authorization codes follow
+  [Internal Secret Values](./internal-secrets.md). Identity lookup borrows the
+  token; only the credential store subsequently takes ownership. Lifecycle,
+  scope, rollback and cleanup behavior below is unchanged by secret wrapping.
 
 - Start validates session kind, audience and expiry. Callback must exactly equal
   `{audience}/api/v1/oauth/neodb/callback`. The transport canonicalizes NeoDB's

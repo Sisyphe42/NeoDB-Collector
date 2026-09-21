@@ -1,3 +1,4 @@
+use collector_core::secrets::{ExposeSecret, SecretString};
 use collector_core::{
     access::PortFuture,
     oauth::{NeoDbOAuthTransport, OAuthApp, OAuthIdentity, OAuthToken},
@@ -91,11 +92,11 @@ async fn limited<T: DeserializeOwned>(mut response: Response) -> Result<T, ApiEr
 #[derive(Deserialize)]
 struct AppReply {
     client_id: String,
-    client_secret: String,
+    client_secret: SecretString,
 }
 #[derive(Deserialize)]
 struct TokenReply {
-    access_token: String,
+    access_token: SecretString,
     token_type: String,
     scope: String,
 }
@@ -128,7 +129,7 @@ impl NeoDbOAuthTransport for NeoDbClient {
                     .map_err(|_| upstream())?,
             )
             .await?;
-            if reply.client_id.is_empty() || reply.client_secret.is_empty() {
+            if reply.client_id.is_empty() || reply.client_secret.expose_secret().is_empty() {
                 return Err(upstream());
             }
             Ok(OAuthApp {
@@ -162,11 +163,11 @@ impl NeoDbOAuthTransport for NeoDbClient {
         &self,
         base: String,
         app: OAuthApp,
-        code: String,
+        code: SecretString,
         callback: String,
     ) -> PortFuture<'_, OAuthToken> {
         Box::pin(async move {
-            if code.is_empty() {
+            if code.expose_secret().is_empty() {
                 return Err(upstream());
             }
             let reply: TokenReply = limited(
@@ -174,8 +175,8 @@ impl NeoDbOAuthTransport for NeoDbClient {
                     .post(endpoint(&base, "/oauth/token")?)
                     .form(&[
                         ("client_id", app.client_id.as_str()),
-                        ("client_secret", app.client_secret.as_str()),
-                        ("code", code.as_str()),
+                        ("client_secret", app.client_secret.expose_secret()),
+                        ("code", code.expose_secret()),
                         ("redirect_uri", callback.as_str()),
                         ("grant_type", "authorization_code"),
                     ])
@@ -184,7 +185,7 @@ impl NeoDbOAuthTransport for NeoDbClient {
                     .map_err(|_| upstream())?,
             )
             .await?;
-            if reply.access_token.is_empty()
+            if reply.access_token.expose_secret().is_empty()
                 || reply.token_type != "Bearer"
                 || reply.scope.split_whitespace().any(|s| s != "read")
                 || !reply.scope.split_whitespace().any(|s| s == "read")
@@ -197,15 +198,19 @@ impl NeoDbOAuthTransport for NeoDbClient {
             })
         })
     }
-    fn identity(&self, base: String, token: String) -> PortFuture<'_, OAuthIdentity> {
+    fn identity<'a>(
+        &'a self,
+        base: String,
+        token: &'a SecretString,
+    ) -> PortFuture<'a, OAuthIdentity> {
         Box::pin(async move {
-            if token.is_empty() {
+            if token.expose_secret().is_empty() {
                 return Err(upstream());
             }
             let reply: IdentityReply = limited(
                 self.http
                     .get(endpoint(&base, "/api/me")?)
-                    .bearer_auth(token)
+                    .bearer_auth(token.expose_secret())
                     .send()
                     .await
                     .map_err(|_| upstream())?,
@@ -264,7 +269,11 @@ mod tests {
             form.get("grant_type").map(String::as_str),
             Some("authorization_code")
         );
-        assert_eq!(form.get("code").map(String::as_str), Some("code"));
+        assert!(
+            form.get("client_secret")
+                .is_some_and(|value| value == "secret")
+        );
+        assert!(form.get("code").is_some_and(|value| value == "code"));
         seen.0.lock().unwrap().push("token".into());
         Json(serde_json::json!({"access_token":"access", "token_type":"Bearer", "scope":"read"}))
     }
@@ -350,7 +359,7 @@ mod tests {
         assert_eq!(token.scope, "read");
         assert_eq!(
             client
-                .identity(base, token.access_token)
+                .identity(base, &token.access_token)
                 .await
                 .unwrap()
                 .username,
@@ -358,6 +367,76 @@ mod tests {
         );
         assert_eq!(*seen.0.lock().unwrap(), ["apps", "token", "me"]);
         task.abort();
+    }
+
+    fn assert_sanitized<T>(result: Result<T, ApiError>, secret_markers: &[&str]) {
+        let error = result.err().expect("invalid OAuth reply must be rejected");
+        assert_eq!(error.code, "neodb_oauth_unavailable");
+        assert!(
+            secret_markers
+                .iter()
+                .all(|secret| !error.message.contains(secret))
+        );
+    }
+
+    #[tokio::test]
+    async fn rejects_invalid_secret_fields_and_scopes_without_echoing_them() {
+        let client = NeoDbClient::new().unwrap();
+        for reply in [
+            serde_json::json!({"client_id":"client", "client_secret":""}),
+            serde_json::json!({"client_id":"client", "client_secret":{"value":"app-private-marker"}}),
+        ] {
+            let router = Router::new().route(
+                "/api/v1/apps",
+                post(move || {
+                    let reply = reply.clone();
+                    async move { Json(reply) }
+                }),
+            );
+            let (base, task) = server(router).await;
+            assert_sanitized(
+                client
+                    .register(base, "http://127.0.0.1/callback".into())
+                    .await,
+                &["app-private-marker"],
+            );
+            task.abort();
+        }
+
+        for reply in [
+            serde_json::json!({"access_token":"", "token_type":"Bearer", "scope":"read"}),
+            serde_json::json!({"access_token":{"value":"token-private-marker"}, "token_type":"Bearer", "scope":"read"}),
+            serde_json::json!({"access_token":"token-private-marker", "token_type":"Bearer", "scope":"read write-private-marker"}),
+        ] {
+            let router = Router::new().route(
+                "/oauth/token",
+                post(move || {
+                    let reply = reply.clone();
+                    async move { Json(reply) }
+                }),
+            );
+            let (base, task) = server(router).await;
+            assert_sanitized(
+                client
+                    .exchange(
+                        base,
+                        OAuthApp {
+                            client_id: "client".into(),
+                            client_secret: "app-private-marker".into(),
+                        },
+                        "code-private-marker".into(),
+                        "http://127.0.0.1/callback".into(),
+                    )
+                    .await,
+                &[
+                    "app-private-marker",
+                    "code-private-marker",
+                    "token-private-marker",
+                    "write-private-marker",
+                ],
+            );
+            task.abort();
+        }
     }
 
     #[tokio::test]
@@ -398,7 +477,7 @@ mod tests {
                 .await
                 .is_err()
         );
-        assert!(client.identity(base, "access".into()).await.is_err());
+        assert!(client.identity(base, &"access".into()).await.is_err());
         task.abort();
     }
 }

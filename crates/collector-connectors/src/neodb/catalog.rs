@@ -2,11 +2,15 @@ use super::{NeoDbClient, RESPONSE_LIMIT, canonical};
 use crate::imdb::valid_title_id;
 use collector_core::{
     access::PortFuture,
-    catalog::{CatalogFetch, CatalogItem, NeoDbCatalogTransport},
+    catalog::{
+        CatalogFetch, CatalogItem, CatalogSearchCandidate, CatalogSearchPage,
+        NeoDbCatalogSearchTransport, NeoDbCatalogTransport,
+    },
+    catalog_resolver::validate_catalog_search_query,
 };
 use collector_domain::ApiError;
 use reqwest::{Response, StatusCode};
-use serde::Deserialize;
+use serde::{Deserialize, de::DeserializeOwned};
 use std::{
     collections::BTreeSet,
     time::{Duration, Instant},
@@ -110,11 +114,7 @@ struct Resource {
     url: String,
 }
 
-async fn read_detail(
-    mut response: Response,
-    base: &Url,
-    requested: &Url,
-) -> Result<CatalogItem, ApiError> {
+async fn read_reply<T: DeserializeOwned>(mut response: Response) -> Result<T, ApiError> {
     if response
         .content_length()
         .is_some_and(|n| n > RESPONSE_LIMIT as u64)
@@ -128,7 +128,23 @@ async fn read_detail(
         }
         bytes.extend_from_slice(&chunk);
     }
-    let reply: DetailReply = serde_json::from_slice(&bytes).map_err(|_| unavailable())?;
+    serde_json::from_slice(&bytes).map_err(|_| unavailable())
+}
+
+async fn read_detail(
+    response: Response,
+    base: &Url,
+    requested: &Url,
+) -> Result<CatalogItem, ApiError> {
+    let reply: DetailReply = read_reply(response).await?;
+    normalize_detail(reply, base, requested)
+}
+
+fn normalize_detail(
+    reply: DetailReply,
+    base: &Url,
+    requested: &Url,
+) -> Result<CatalogItem, ApiError> {
     let (media, model, uuid) = item_path(requested.path()).ok_or_else(unavailable)?;
     let canonical_url = base
         .join(
@@ -169,6 +185,69 @@ async fn read_detail(
         model: reply.model,
         parent_uuid: reply.parent_uuid,
         external_ids: ids.into_iter().collect(),
+    })
+}
+
+#[derive(Deserialize)]
+struct SearchReply {
+    data: Vec<SearchItem>,
+    pages: i64,
+    count: i64,
+}
+
+#[derive(Deserialize)]
+struct SearchItem {
+    title: String,
+    #[serde(flatten)]
+    detail: DetailReply,
+}
+
+fn search_category(value: &str) -> Result<&str, ApiError> {
+    match value {
+        "movie" | "tv" => Ok(value),
+        _ => Err(ApiError::new(
+            "neodb_catalog_category_invalid",
+            "Expected a supported NeoDB catalog search category.",
+        )),
+    }
+}
+
+fn search_title(value: String) -> Result<String, ApiError> {
+    if value.len() > 1024 || value.chars().any(char::is_control) {
+        return Err(unavailable());
+    }
+    let value = value.trim();
+    if value.is_empty() {
+        Err(unavailable())
+    } else {
+        Ok(value.to_owned())
+    }
+}
+
+async fn read_search(
+    response: Response,
+    base: &Url,
+    category: &str,
+) -> Result<CatalogSearchPage, ApiError> {
+    let reply: SearchReply = read_reply(response).await?;
+    if reply.pages < 0 || reply.count < 0 || reply.data.len() > 20 {
+        return Err(unavailable());
+    }
+    let more_available = reply.pages > 1 || reply.count as u64 > reply.data.len() as u64;
+    let mut uuids = BTreeSet::new();
+    let mut candidates = Vec::with_capacity(reply.data.len());
+    for result in reply.data {
+        let title = search_title(result.title)?;
+        let requested = detail_url(base, &result.detail.api_url)?;
+        let item = normalize_detail(result.detail, base, &requested)?;
+        if item.media_type != category || !uuids.insert(item.uuid.clone()) {
+            return Err(unavailable());
+        }
+        candidates.push(CatalogSearchCandidate { title, item });
+    }
+    Ok(CatalogSearchPage {
+        candidates,
+        more_available,
     })
 }
 
@@ -230,6 +309,37 @@ impl NeoDbCatalogTransport for NeoDbClient {
                 }
             }
             Err(unavailable())
+        })
+    }
+}
+
+impl NeoDbCatalogSearchTransport for NeoDbClient {
+    fn search(
+        &self,
+        base: String,
+        query: String,
+        category: String,
+    ) -> PortFuture<'_, CatalogSearchPage> {
+        Box::pin(async move {
+            let query = validate_catalog_search_query(&query)?.to_owned();
+            let category = search_category(&category)?.to_owned();
+            let base = canonical(&base)?;
+            let mut url = base
+                .join("/api/catalog/search")
+                .map_err(|_| unavailable())?;
+            url.query_pairs_mut()
+                .append_pair("query", &query)
+                .append_pair("category", &category)
+                .append_pair("page", "1");
+            let response = self.http.get(url).send().await.map_err(|_| unavailable())?;
+            match response.status() {
+                StatusCode::OK => read_search(response, &base, &category).await,
+                StatusCode::TOO_MANY_REQUESTS => Err(ApiError::new(
+                    "neodb_catalog_rate_limited",
+                    "NeoDB catalog rate limit reached; try later.",
+                )),
+                _ => Err(unavailable()),
+            }
         })
     }
 }

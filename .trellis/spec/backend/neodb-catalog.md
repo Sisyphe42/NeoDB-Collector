@@ -8,6 +8,8 @@ Internal single-attempt transport is implemented in
 now adds bounded polling and identity checks. No API route, running job scheduler
 or personal-state operation is exposed.
 Native fetch can create public catalog entries, even during preview.
+The separate [bounded search contract](./catalog-search.md) owns local-index
+candidate discovery; it reuses detail evidence validation, not native fetch.
 
 ## 2. Signatures
 
@@ -49,7 +51,8 @@ No public wire schema or generated client change is needed for these internal po
   have the same lexical bounds. Missing identity yields empty evidence, not a match.
 - Retain valid `imdb` metadata and exact canonical IMDb external-resource IDs,
   deduplicating equal claims while preserving conflicting IDs. Other external
-  resources, titles, descriptions and raw replies are discarded and never fetched.
+  resources, titles, descriptions and raw replies are discarded by detail reads.
+  Search additionally retains a bounded title hint; it never follows result links.
   Additional external-link normalization belongs in a separately tested extension.
 - Transport errors use static sanitized diagnostics, never upstream bodies/URLs.
   Dropping the future cancels local I/O, not catalog creation already queued remotely.

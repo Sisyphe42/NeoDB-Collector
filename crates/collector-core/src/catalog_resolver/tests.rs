@@ -1,4 +1,5 @@
 use super::*;
+use crate::catalog::CatalogSearchCandidate;
 use std::{
     collections::VecDeque,
     future::{Future, pending, poll_fn},
@@ -72,6 +73,11 @@ struct Transport {
     detail_elapsed: u64,
     detail_error: Option<ApiError>,
     detail_args: Mutex<Vec<(String, String)>>,
+    search_page: Mutex<Option<CatalogSearchPage>>,
+    search_error: Option<ApiError>,
+    search_hang: bool,
+    search_elapsed: u64,
+    search_args: Mutex<Vec<(String, String, String)>>,
     dropped: AtomicBool,
 }
 struct DropGuard<'a>(&'a AtomicBool);
@@ -122,6 +128,36 @@ impl NeoDbCatalogTransport for Transport {
         })
     }
 }
+impl NeoDbCatalogSearchTransport for Transport {
+    fn search(
+        &self,
+        base: String,
+        query: String,
+        category: String,
+    ) -> PortFuture<'_, CatalogSearchPage> {
+        Box::pin(async move {
+            self.search_args
+                .lock()
+                .unwrap()
+                .push((base, query, category));
+            self.calls
+                .lock()
+                .unwrap()
+                .push(("search".into(), self.control.now().as_secs()));
+            if self.search_hang {
+                let _guard = DropGuard(&self.dropped);
+                return pending().await;
+            }
+            self.control
+                .now
+                .fetch_add(self.search_elapsed, Ordering::SeqCst);
+            if let Some(error) = &self.search_error {
+                return Err(error.clone());
+            }
+            Ok(self.search_page.lock().unwrap().take().unwrap())
+        })
+    }
+}
 fn identity() -> CatalogIdentity {
     CatalogIdentity {
         source_url: "https://www.imdb.com/title/tt1234567/".into(),
@@ -153,6 +189,14 @@ fn setup(fetches: Vec<Fetch>) -> (Arc<Control>, Transport) {
         detail_elapsed: 0,
         detail_error: None,
         detail_args: Mutex::new(vec![]),
+        search_page: Mutex::new(Some(CatalogSearchPage {
+            candidates: vec![],
+            more_available: false,
+        })),
+        search_error: None,
+        search_hang: false,
+        search_elapsed: 0,
+        search_args: Mutex::new(vec![]),
         dropped: AtomicBool::new(false),
     };
     (control, transport)
@@ -633,4 +677,249 @@ fn manual_deadline_drops_hung_detail_and_rejects_late_result() {
         assert_eq!(transport.dropped.load(Ordering::SeqCst), !late);
         assert_eq!(*transport.calls.lock().unwrap(), [("detail".into(), 0)]);
     }
+}
+
+#[test]
+fn search_query_validation_uses_original_utf8_bytes_and_controls() {
+    let exact = format!("{}ab", "界".repeat(170));
+    assert_eq!(exact.len(), 512);
+    assert_eq!(validate_catalog_search_query(&exact).unwrap(), exact);
+    assert_eq!(validate_catalog_search_query("  title  ").unwrap(), "title");
+    for invalid in [
+        "".to_owned(),
+        "   ".to_owned(),
+        "\ntitle".to_owned(),
+        format!("{}x", " ".repeat(512)),
+        format!("{}abc", "界".repeat(170)),
+    ] {
+        assert_eq!(
+            validate_catalog_search_query(&invalid).unwrap_err().code,
+            "catalog_search_query_invalid"
+        );
+    }
+}
+
+#[test]
+fn search_is_only_used_once_after_unsupported_and_stays_review_only() {
+    for has_candidate in [false, true] {
+        let candidates = if has_candidate {
+            vec![CatalogSearchCandidate {
+                title: "Exact title".into(),
+                item: item(),
+            }]
+        } else {
+            vec![]
+        };
+        let (clock, transport) = setup(vec![Fetch::Reply(CatalogFetch::Unsupported, 7)]);
+        *transport.search_page.lock().unwrap() = Some(CatalogSearchPage {
+            candidates,
+            more_available: true,
+        });
+        let expected = identity();
+        let mut future = Box::pin(resolve_with_search(
+            &transport,
+            clock.as_ref(),
+            "https://neodb.example",
+            &expected,
+            "  Search title  ",
+        ));
+        let Resolution::SearchCandidates(page) = ready(poll(future.as_mut())).unwrap() else {
+            panic!("search must always remain a review-only outcome");
+        };
+        assert!(page.more_available);
+        assert_eq!(
+            page.candidates,
+            if has_candidate {
+                vec![CatalogSearchCandidate {
+                    title: "Exact title".into(),
+                    item: item(),
+                }]
+            } else {
+                vec![]
+            }
+        );
+        assert_eq!(
+            *transport.search_args.lock().unwrap(),
+            [(
+                "https://neodb.example".into(),
+                "Search title".into(),
+                "tv".into()
+            )]
+        );
+        assert_eq!(
+            *transport.calls.lock().unwrap(),
+            [("fetch".into(), 0), ("search".into(), 7)]
+        );
+    }
+}
+
+#[test]
+fn invalid_search_query_fails_before_native_io() {
+    for query in ["", "   ", "\ttitle", &format!("{}x", " ".repeat(512))] {
+        let (clock, transport) = setup(vec![]);
+        let expected = identity();
+        let mut future = Box::pin(resolve_with_search(
+            &transport,
+            clock.as_ref(),
+            "base",
+            &expected,
+            query,
+        ));
+        assert_eq!(
+            ready(poll(future.as_mut())).unwrap_err().code,
+            "catalog_search_query_invalid"
+        );
+        assert!(transport.calls.lock().unwrap().is_empty());
+    }
+}
+
+#[test]
+fn nonunsupported_native_outcomes_and_errors_never_search() {
+    for (fetch, wanted) in [
+        (
+            Fetch::Reply(CatalogFetch::RateLimited, 0),
+            Resolution::RateLimited,
+        ),
+        (
+            Fetch::Reply(CatalogFetch::Unavailable, 0),
+            Resolution::Unavailable,
+        ),
+        (
+            Fetch::Reply(CatalogFetch::Detail("ref".into()), 0),
+            Resolution::Matched(item()),
+        ),
+    ] {
+        let (clock, transport) = setup(vec![fetch]);
+        let expected = identity();
+        let mut future = Box::pin(resolve_with_search(
+            &transport,
+            clock.as_ref(),
+            "base",
+            &expected,
+            "title",
+        ));
+        assert_eq!(ready(poll(future.as_mut())).unwrap(), wanted);
+        assert!(transport.search_args.lock().unwrap().is_empty());
+    }
+
+    let (clock, transport) = setup(vec![Fetch::Reply(CatalogFetch::Detail("ref".into()), 0)]);
+    transport
+        .item
+        .lock()
+        .unwrap()
+        .as_mut()
+        .unwrap()
+        .external_ids = vec![];
+    let expected = identity();
+    let mut future = Box::pin(resolve_with_search(
+        &transport,
+        clock.as_ref(),
+        "base",
+        &expected,
+        "title",
+    ));
+    assert!(matches!(
+        ready(poll(future.as_mut())).unwrap(),
+        Resolution::NeedsReview {
+            reason: "item_identity_missing",
+            ..
+        }
+    ));
+    assert!(transport.search_args.lock().unwrap().is_empty());
+
+    let (clock, transport) = setup(vec![Fetch::Fail]);
+    let expected = identity();
+    let mut future = Box::pin(resolve_with_search(
+        &transport,
+        clock.as_ref(),
+        "base",
+        &expected,
+        "title",
+    ));
+    assert_eq!(
+        ready(poll(future.as_mut())).unwrap_err().code,
+        "neodb_catalog_unavailable"
+    );
+    assert!(transport.search_args.lock().unwrap().is_empty());
+}
+
+#[test]
+fn search_shares_native_deadline_and_drops_hung_or_late_work() {
+    for late in [false, true] {
+        let (clock, mut transport) = setup(vec![Fetch::Reply(CatalogFetch::Unsupported, 119)]);
+        transport.search_hang = !late;
+        transport.search_elapsed = u64::from(late);
+        let expected = identity();
+        let mut future = Box::pin(resolve_with_search(
+            &transport,
+            clock.as_ref(),
+            "base",
+            &expected,
+            "title",
+        ));
+        if !late {
+            assert!(poll(future.as_mut()).is_pending());
+            clock.now.store(120, Ordering::SeqCst);
+        }
+        assert_eq!(
+            ready(poll(future.as_mut())).unwrap_err().code,
+            "catalog_resolution_timeout"
+        );
+        assert_eq!(transport.dropped.load(Ordering::SeqCst), !late);
+        assert_eq!(transport.search_args.lock().unwrap().len(), 1);
+    }
+}
+
+#[test]
+fn search_cancellation_and_errors_are_preserved_without_retry() {
+    for cancel_before_search in [true, false] {
+        let (clock, mut transport) = setup(vec![Fetch::Reply(CatalogFetch::Unsupported, 0)]);
+        transport.search_hang = true;
+        if cancel_before_search {
+            clock.cancelled.store(true, Ordering::SeqCst);
+        }
+        let expected = identity();
+        let mut future = Box::pin(resolve_with_search(
+            &transport,
+            clock.as_ref(),
+            "base",
+            &expected,
+            "title",
+        ));
+        if !cancel_before_search {
+            assert!(poll(future.as_mut()).is_pending());
+            clock.cancelled.store(true, Ordering::SeqCst);
+        }
+        assert_eq!(
+            ready(poll(future.as_mut())).unwrap_err().code,
+            "catalog_resolution_cancelled"
+        );
+        assert_eq!(
+            transport.search_args.lock().unwrap().len(),
+            usize::from(!cancel_before_search)
+        );
+        assert_eq!(
+            transport.dropped.load(Ordering::SeqCst),
+            !cancel_before_search
+        );
+    }
+
+    let (clock, mut transport) = setup(vec![Fetch::Reply(CatalogFetch::Unsupported, 0)]);
+    transport.search_error = Some(ApiError::new(
+        "neodb_catalog_rate_limited",
+        "Catalog search is rate limited.",
+    ));
+    let expected = identity();
+    let mut future = Box::pin(resolve_with_search(
+        &transport,
+        clock.as_ref(),
+        "base",
+        &expected,
+        "title",
+    ));
+    assert_eq!(
+        ready(poll(future.as_mut())).unwrap_err().code,
+        "neodb_catalog_rate_limited"
+    );
+    assert_eq!(transport.search_args.lock().unwrap().len(), 1);
 }

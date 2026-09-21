@@ -46,7 +46,41 @@ async fn chunked_body_without_content_length_is_still_bounded() {
 }
 
 #[tokio::test]
-async fn detail_timeout_and_connection_failure_are_sanitized() {
+async fn search_chunked_body_without_content_length_is_still_bounded() {
+    use std::io::{Read, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let task = tokio::task::spawn_blocking(move || {
+        let (mut socket, _) = listener.accept().unwrap();
+        socket
+            .set_read_timeout(Some(Duration::from_secs(3)))
+            .unwrap();
+        socket
+            .set_write_timeout(Some(Duration::from_secs(3)))
+            .unwrap();
+        let mut request = [0; 4096];
+        assert!(socket.read(&mut request).unwrap() > 0);
+        let body = "x".repeat(RESPONSE_LIMIT + 1);
+        let wire = format!(
+            "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n{:x}\r\n{body}\r\n0\r\n\r\n",
+            body.len()
+        );
+        let _ = socket.write_all(wire.as_bytes());
+    });
+    assert_eq!(
+        NeoDbClient::new()
+            .unwrap()
+            .search(base, "title".into(), "movie".into())
+            .await
+            .unwrap_err()
+            .code,
+        "neodb_catalog_unavailable"
+    );
+    task.await.unwrap();
+}
+
+#[tokio::test]
+async fn detail_and_search_timeouts_and_connection_failure_are_sanitized() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}", listener.local_addr().unwrap());
     let router = Router::new().fallback(any(|| async {
@@ -61,6 +95,16 @@ async fn detail_timeout_and_connection_failure_are_sanitized() {
     assert_eq!(
         client
             .detail(base.clone(), DETAIL.into())
+            .await
+            .unwrap_err()
+            .code,
+        "neodb_catalog_unavailable"
+    );
+    assert!(start.elapsed() < Duration::from_secs(15));
+    let start = Instant::now();
+    assert_eq!(
+        client
+            .search(base.clone(), "title".into(), "movie".into())
             .await
             .unwrap_err()
             .code,
@@ -152,6 +196,14 @@ fn detail(base: &str, path: &str) -> serde_json::Value {
     })
 }
 
+fn search_reply(base: &str, paths: &[&str], pages: i64, count: i64) -> serde_json::Value {
+    serde_json::json!({
+        "data": paths.iter().map(|path| detail(base, path)).collect::<Vec<_>>(),
+        "pages": pages,
+        "count": count
+    })
+}
+
 #[tokio::test]
 async fn fetch_is_single_attempt_public_and_has_no_refetch_parameter() {
     let (base, mock, task) = server().await;
@@ -183,6 +235,207 @@ async fn fetch_is_single_attempt_public_and_has_no_refetch_parameter() {
             [("url".into(), SOURCE.into())]
         );
     }
+    task.abort();
+}
+
+#[tokio::test]
+async fn search_is_one_public_first_page_request_and_normalizes_review_evidence() {
+    let (base, mock, task) = server().await;
+    let client = NeoDbClient::new().unwrap();
+    let mut body = search_reply(&base, &["/api/tv/abc", "/api/tv/season/def"], 2, 9);
+    body["data"][0]["title"] = "  Show title  ".into();
+    body["data"][1]["title"] = "Season title".into();
+    enqueue(&mock, 200, None, body.to_string());
+    let page = client
+        .search(base.clone(), "  Search title  ".into(), "tv".into())
+        .await
+        .unwrap();
+    assert!(page.more_available);
+    assert_eq!(page.candidates.len(), 2);
+    assert_eq!(page.candidates[0].title, "Show title");
+    assert_eq!(page.candidates[0].item.model, "TVShow");
+    assert_eq!(page.candidates[1].item.model, "TVSeason");
+    assert_eq!(
+        page.candidates[0].item.external_ids,
+        [
+            ("imdb:title".into(), "tt1234567".into()),
+            ("imdb:title".into(), "tt7654321".into())
+        ]
+    );
+    let seen = mock.seen.lock().unwrap();
+    assert_eq!(seen.len(), 1);
+    let url = Url::parse(&format!("{base}{}", seen[0])).unwrap();
+    assert_eq!(url.path(), "/api/catalog/search");
+    assert_eq!(
+        url.query_pairs().collect::<Vec<_>>(),
+        [
+            ("query".into(), "Search title".into()),
+            ("category".into(), "tv".into()),
+            ("page".into(), "1".into())
+        ]
+    );
+    task.abort();
+}
+
+#[tokio::test]
+async fn search_validates_query_and_category_before_io() {
+    let (base, mock, task) = server().await;
+    let client = NeoDbClient::new().unwrap();
+    for (query, category, code) in [
+        ("", "movie", "catalog_search_query_invalid"),
+        ("\ntitle", "movie", "catalog_search_query_invalid"),
+        ("title", "book", "neodb_catalog_category_invalid"),
+    ] {
+        assert_eq!(
+            client
+                .search(base.clone(), query.into(), category.into())
+                .await
+                .unwrap_err()
+                .code,
+            code
+        );
+    }
+    assert_eq!(
+        client
+            .search(base, format!("{}x", " ".repeat(512)), "movie".into())
+            .await
+            .unwrap_err()
+            .code,
+        "catalog_search_query_invalid"
+    );
+    assert!(mock.seen.lock().unwrap().is_empty());
+    task.abort();
+}
+
+#[tokio::test]
+async fn search_rejects_malformed_or_unsafe_pages_atomically() {
+    let (base, mock, task) = server().await;
+    let client = NeoDbClient::new().unwrap();
+    let mut cases = vec![
+        serde_json::json!({}),
+        serde_json::json!({"data": [], "pages": -1, "count": 0}),
+        serde_json::json!({"data": [], "pages": 0, "count": -1}),
+        serde_json::json!({"data": [], "pages": 1.5, "count": 0}),
+        serde_json::json!({"data": [], "pages": 1, "count": "0"}),
+        serde_json::json!({
+            "data": (0..21).map(|index| {
+                let path = format!("/api/movie/Cap{index}");
+                detail(&base, &path)
+            }).collect::<Vec<_>>(),
+            "pages": 1,
+            "count": 21
+        }),
+    ];
+    let mut duplicate = search_reply(&base, &[DETAIL, DETAIL], 1, 2);
+    duplicate["data"][0]["title"] = "One".into();
+    duplicate["data"][1]["title"] = "Two".into();
+    cases.push(duplicate);
+    let mut partial = search_reply(&base, &[DETAIL, "/api/movie/def"], 1, 2);
+    partial["data"][0]["title"] = "Valid first".into();
+    partial["data"][1]["title"] = "".into();
+    cases.push(partial);
+    for (key, value) in [
+        ("title", serde_json::json!("")),
+        ("title", serde_json::json!("bad\ntitle")),
+        ("title", serde_json::json!("x".repeat(1025))),
+        (
+            "api_url",
+            serde_json::json!("https://evil.example/api/movie/abc"),
+        ),
+        ("uuid", serde_json::json!("wrong")),
+        ("category", serde_json::json!("tv")),
+        ("type", serde_json::json!("TVShow")),
+        ("id", serde_json::json!("https://evil.example/movie/abc")),
+    ] {
+        let mut body = search_reply(&base, &[DETAIL], 1, 1);
+        body["data"][0]["title"] = "Title".into();
+        body["data"][0][key] = value;
+        cases.push(body);
+    }
+    cases.push(serde_json::json!({
+        "data": [], "pages": 1, "count": 0, "padding": "x".repeat(RESPONSE_LIMIT)
+    }));
+    for body in cases {
+        enqueue(&mock, 200, None, body.to_string());
+        assert!(
+            client
+                .search(base.clone(), "title".into(), "movie".into())
+                .await
+                .is_err()
+        );
+    }
+    task.abort();
+}
+
+#[tokio::test]
+async fn search_estimates_empty_pages_without_claiming_absence() {
+    let (base, mock, task) = server().await;
+    let client = NeoDbClient::new().unwrap();
+    for (pages, count, expected_more) in [(0, 0, false), (1, 0, false), (1, 3, true)] {
+        enqueue(
+            &mock,
+            200,
+            None,
+            search_reply(&base, &[], pages, count).to_string(),
+        );
+        let page = client
+            .search(base.clone(), "title".into(), "movie".into())
+            .await
+            .unwrap();
+        assert!(page.candidates.is_empty());
+        assert_eq!(page.more_available, expected_more);
+    }
+    task.abort();
+}
+
+#[tokio::test]
+async fn search_accepts_exactly_twenty_unique_candidates() {
+    let (base, mock, task) = server().await;
+    let client = NeoDbClient::new().unwrap();
+    let data = (0..20)
+        .map(|index| {
+            let path = format!("/api/movie/Item{index}");
+            detail(&base, &path)
+        })
+        .collect::<Vec<_>>();
+    enqueue(
+        &mock,
+        200,
+        None,
+        serde_json::json!({"data": data, "pages": 1, "count": 20}).to_string(),
+    );
+    let page = client
+        .search(base, "title".into(), "movie".into())
+        .await
+        .unwrap();
+    assert_eq!(page.candidates.len(), 20);
+    assert!(!page.more_available);
+    task.abort();
+}
+
+#[tokio::test]
+async fn search_does_not_follow_redirect_retry_or_expose_bodies() {
+    let (base, mock, task) = server().await;
+    let client = NeoDbClient::new().unwrap();
+    for (status, expected_code) in [
+        (302, "neodb_catalog_unavailable"),
+        (429, "neodb_catalog_rate_limited"),
+        (500, "neodb_catalog_unavailable"),
+    ] {
+        enqueue(
+            &mock,
+            status,
+            Some("/api/catalog/search?query=stolen&category=movie&page=1"),
+            "private-upstream-body".into(),
+        );
+        let error = client
+            .search(base.clone(), "title".into(), "movie".into())
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, expected_code);
+        assert!(!error.message.contains("private-upstream-body"));
+    }
+    assert_eq!(mock.seen.lock().unwrap().len(), 3);
     task.abort();
 }
 

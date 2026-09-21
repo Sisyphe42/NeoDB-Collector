@@ -9,6 +9,7 @@ The runnable foundation, local session/pairing, NeoDB OAuth HTTP/UI and CLI pair
 | [IMDb CSV Adapter](./imdb-csv.md) | Internal bounded ratings parser and normalized observations |
 | [NeoDB Catalog Transport](./neodb-catalog.md) | Internal native fetch and restrictive catalog-detail evidence reads |
 | [Catalog Identity Resolvers](./catalog-resolver.md) | Bounded native polling, explicit manual selection and identity/granularity checks |
+| [Bounded Catalog Search](./catalog-search.md) | Unsupported-only first-page fallback and review-only candidates |
 | [Mapping and Conflict](./mapping-and-conflict-contract.md) | Mapping validation, dry-run, activation, and review |
 | [Mapping Evaluator](./mapping-evaluator.md) | Implemented pure suggestions and bounded YAML/JSON configuration |
 | [Mapping Storage](./mapping-storage.md) | Immutable disabled profile revisions and atomic version checks |

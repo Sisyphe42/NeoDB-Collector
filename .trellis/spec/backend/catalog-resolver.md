@@ -6,7 +6,8 @@ Implemented in `collector-core/src/catalog_resolver.rs`; runtime adapter in
 `collector-server/src/resolution_control.rs`; IMDb expectation validation in
 `collector-connectors/src/imdb.rs`. These are internal components, not HTTP routes
 or a running job service. Explicit manual selection validation shares this module;
-search fallback, saved manual mappings and user-facing selection remain pending.
+[bounded search fallback](./catalog-search.md) returns review-only candidates.
+Saved manual mappings and user-facing selection remain pending.
 
 ## 2. Signatures
 
@@ -26,8 +27,8 @@ search fallback, saved manual mappings and user-facing selection remain pending.
 CatalogIdentity contains source_url, media_type, model, scheme and external_id.
 It is trusted adapter output, not an externally deserializable authorization DTO.
 Resolution is Matched(item), ManuallySelected(item), NeedsReview(item, reason),
-Unsupported, RateLimited or Unavailable. None authorizes a personal-state write or
-activates a mapping. ManuallySelected records selection provenance, not verified
+Unsupported, RateLimited, Unavailable or SearchCandidates(page). None authorizes
+a personal-state write or activates a mapping. ManuallySelected records selection provenance, not verified
 external-ID equivalence or permission to execute.
 
 ## 3. Contracts
@@ -83,7 +84,8 @@ external-ID equivalence or permission to execute.
 | Model/media mismatch | NeedsReview: item_granularity_mismatch |
 | Expected scheme has contradictory IDs | NeedsReview: item_identity_conflict |
 | Native resolution: expected scheme has no matching ID | NeedsReview: item_identity_missing |
-| Terminal fetch outcome or adapter error | Preserve outcome/error; no retry/fallback |
+| Native entrypoint terminal outcome or adapter error | Preserve outcome/error; no retry/fallback |
+| Opt-in resolve_with_search receives Unsupported | One search under the existing deadline; see search contract |
 | Empty/blank manual reference | neodb_catalog_reference_invalid before I/O |
 | Manual reference rejected by transport | Preserve sanitized adapter error; no fallback |
 | Manual exact/missing ID with compatible media/model | ManuallySelected, not Matched |

@@ -87,7 +87,25 @@ expected-scheme IDs and media/model mismatches remain `NeedsReview`. Manual sele
 must never be reported as an automatic `Matched` result. The entire normalized
 CatalogItem is retained as evidence. No UI action, stored manual mapping, public
 route or canonical-page-URL conversion is claimed in this checkpoint; those belong
-to later integration. Search fallback remains separately pending.
+to later integration. Bounded search fallback is defined below.
+
+### Bounded search refinement
+
+The official catalog API searches the local index without URL fetching or external
+results. Request only page 1 with the expected movie/TV category and a nonblank,
+control-free query of at most 512 UTF-8 bytes. A separate search port returns at
+most 20 normalized candidates (title hint plus validated CatalogItem evidence),
+and an advisory more-available flag from estimated pagination. No pagination loop.
+Reuse same-instance detail validation and the 64 KiB / ten-second transport caps;
+reject malformed/oversized pages rather than silently accepting partial evidence.
+
+An opt-in `resolve_with_search` composition shares a single 120-second budget
+across native polling/detail and fallback. Only Unsupported permits one search;
+rate limits, unavailable, errors and NeedsReview never silently trigger it.
+All candidates, even an exact-ID singleton, remain review-only in this slice.
+An empty page is not proof of catalog or personal-mark absence. Explicit selection
+still calls `resolve_manual` for fresh evidence. Existing native/manual calls keep
+their semantics. No public API or persistence is introduced.
 
 ## 3. Comparison and snapshots
 

@@ -45,7 +45,7 @@ passed. Catalog transport has no public route; checkpoints B-E remain pending.
 - [x] Enforce >=15-second poll spacing and <=120-second overall budget, including
   slow requests; cancellation produces no subsequent poll.
 - [x] Normalize and compare exact IDs, canonical links and media granularity.
-- [ ] Add bounded search fallback; title-only/contradictory
+- [x] Add bounded search fallback; title-only/contradictory
   candidates remain review-required, unavailable is not absent.
 - [x] Validate explicit manual selection with fresh evidence and distinct provenance;
   user-facing selection and saved mapping integration remain pending.
@@ -114,6 +114,32 @@ code/spec diff and resolved dependency features. `pnpm verify` passed with
 Clippy, generated contracts, dependency boundaries, lint/typecheck, WebUI/CLI
 builds and actual CLI/local HTTP/desktop-mobile browser smoke. No real keychain
 or NeoDB account operation. Public API DTOs and database schemas are unchanged.
+
+### B3. Bounded search fallback
+
+- [x] Add a separate internal catalog-search port and first-page candidate result.
+- [x] Compose native resolution with search only after Unsupported, sharing the
+  same 120-second deadline; preserve all other native outcomes/errors unchanged.
+- [x] Request one movie/TV search page only; cap query at 512 UTF-8 bytes, response
+  at 64 KiB and candidates at 20. Validate references/evidence using detail rules.
+- [x] Return review-only candidates (including an empty list), never automatic
+  identity or personal-mark absence from search. Manual selection re-reads detail.
+- [x] Mock success/limits/unsafe replies, no retry/redirect/fetch from search,
+  cancellation/timeout and native outcome gating; run full verification and commit.
+
+Sol/medium owns Core and connector code/tests; main owns specs and acceptance.
+No new dependency, HTTP/UI surface, persistent mapping or job is included.
+
+Verification (2026-09-22): Sol/medium implemented Core and adapter code/tests;
+main reviewed production logic and strengthened outcome-preservation, byte bounds,
+atomic-page rejection and distinct 20/21-candidate tests. Scoped Core 36 unit + 2
+compile-fail doctests and catalog 17 tests passed. Final `pnpm verify`, rerun after
+the last test refinement with `CARGO_BUILD_JOBS=1`, passed: 98 Rust unit tests,
+2 doctests, 25 TS/UI tests, fmt/Clippy, contracts, dependency boundaries,
+lint/typecheck, builds and actual CLI/local HTTP/desktop-mobile browser smoke.
+Product YAML/evidence references and `git diff --check` passed. B is complete;
+comparison, persisted jobs and public client integration (C-E) remain pending.
+Do not archive the preview child.
 
 ### C. Personal-state reads and pure comparison
 

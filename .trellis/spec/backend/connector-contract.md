@@ -59,7 +59,8 @@ interface PlannedOperation {
 - Native NeoDB catalog fetching is approved for preview resolution (2026-09-17),
   with internal single-attempt transport now implemented in [NeoDB Catalog Transport](./neodb-catalog.md);
   internal [bounded polling, identity checks and manual selection validation](./catalog-resolver.md) are implemented,
-  while search fallback, saved manual mappings and job/client integration remain pending. For supported external links, API `fetch_item` and
+  with [bounded review-only search fallback](./catalog-search.md).
+  Saved manual mappings and job/client integration remain pending. For supported external links, API `fetch_item` and
   web `fetch` share SiteManager/get_item and enqueue_fetch(..., False, user).
   The web confirmation flow is not identical to the API endpoint. See pinned
   `neodb_native_fetch_api` / `neodb_native_fetch_web` product evidence.

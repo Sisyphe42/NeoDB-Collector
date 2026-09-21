@@ -1,7 +1,10 @@
 //! Native catalog resolution, independent of HTTP and any async runtime.
 use crate::{
     access::PortFuture,
-    catalog::{CatalogFetch, CatalogItem, NeoDbCatalogTransport},
+    catalog::{
+        CatalogFetch, CatalogItem, CatalogSearchPage, NeoDbCatalogSearchTransport,
+        NeoDbCatalogTransport,
+    },
 };
 use collector_domain::ApiError;
 use std::time::Duration;
@@ -45,6 +48,8 @@ pub enum Resolution {
     Unsupported,
     RateLimited,
     Unavailable,
+    /// Search is discovery evidence only; even an exact singleton needs review.
+    SearchCandidates(CatalogSearchPage),
 }
 
 fn timeout() -> ApiError {
@@ -71,6 +76,24 @@ fn validate_expected(expected: &CatalogIdentity) -> Result<(), ApiError> {
         ))
     } else {
         Ok(())
+    }
+}
+
+pub fn validate_catalog_search_query(query: &str) -> Result<&str, ApiError> {
+    fn invalid_query() -> ApiError {
+        ApiError::new(
+            "catalog_search_query_invalid",
+            "Expected a nonblank search query of at most 512 UTF-8 bytes without controls.",
+        )
+    }
+    if query.len() > 512 || query.chars().any(char::is_control) {
+        return Err(invalid_query());
+    }
+    let query = query.trim();
+    if query.is_empty() {
+        Err(invalid_query())
+    } else {
+        Ok(query)
     }
 }
 
@@ -107,17 +130,13 @@ fn classify(expected: &CatalogIdentity, item: CatalogItem) -> Resolution {
     }
 }
 
-pub async fn resolve_native(
+async fn resolve_native_at_deadline(
     transport: &dyn NeoDbCatalogTransport,
     control: &impl ResolutionControl,
     base: &str,
     expected: &CatalogIdentity,
+    deadline: Duration,
 ) -> Result<Resolution, ApiError> {
-    validate_expected(expected)?;
-    let deadline = control
-        .now()
-        .checked_add(RESOLUTION_BUDGET)
-        .ok_or_else(timeout)?;
     loop {
         match control
             .run(
@@ -146,6 +165,50 @@ pub async fn resolve_native(
             CatalogFetch::Unavailable => return Ok(Resolution::Unavailable),
         }
     }
+}
+
+pub async fn resolve_native(
+    transport: &dyn NeoDbCatalogTransport,
+    control: &impl ResolutionControl,
+    base: &str,
+    expected: &CatalogIdentity,
+) -> Result<Resolution, ApiError> {
+    validate_expected(expected)?;
+    let deadline = control
+        .now()
+        .checked_add(RESOLUTION_BUDGET)
+        .ok_or_else(timeout)?;
+    resolve_native_at_deadline(transport, control, base, expected, deadline).await
+}
+
+pub async fn resolve_with_search<T>(
+    transport: &T,
+    control: &impl ResolutionControl,
+    base: &str,
+    expected: &CatalogIdentity,
+    query: &str,
+) -> Result<Resolution, ApiError>
+where
+    T: NeoDbCatalogTransport + NeoDbCatalogSearchTransport,
+{
+    validate_expected(expected)?;
+    // Validate before native I/O so trimming cannot launder control bytes.
+    let query = validate_catalog_search_query(query)?.to_owned();
+    let deadline = control
+        .now()
+        .checked_add(RESOLUTION_BUDGET)
+        .ok_or_else(timeout)?;
+    let native = resolve_native_at_deadline(transport, control, base, expected, deadline).await?;
+    if native != Resolution::Unsupported {
+        return Ok(native);
+    }
+    let page = control
+        .run(
+            deadline,
+            transport.search(base.into(), query, expected.media_type.clone()),
+        )
+        .await?;
+    Ok(Resolution::SearchCandidates(page))
 }
 
 /// Validate one explicit user selection against fresh detail evidence.

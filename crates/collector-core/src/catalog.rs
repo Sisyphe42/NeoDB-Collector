@@ -22,9 +22,33 @@ pub struct CatalogItem {
     pub external_ids: Vec<(String, String)>,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub struct CatalogSearchCandidate {
+    pub title: String,
+    pub item: CatalogItem,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct CatalogSearchPage {
+    pub candidates: Vec<CatalogSearchCandidate>,
+    /// Advisory only. Estimated upstream counts must never prove absence.
+    pub more_available: bool,
+}
+
 pub trait NeoDbCatalogTransport: Send + Sync {
     /// One attempt only. Callers must space pending polls >=15s and stop at 120s.
     fn fetch(&self, base: String, source_url: String) -> PortFuture<'_, CatalogFetch>;
     /// Revalidate references before I/O; this is not an arbitrary URL proxy.
     fn detail(&self, base: String, reference: String) -> PortFuture<'_, CatalogItem>;
+}
+
+pub trait NeoDbCatalogSearchTransport: Send + Sync {
+    /// One first-page local-index search only. The adapter validates category,
+    /// query, response bounds and every candidate before returning evidence.
+    fn search(
+        &self,
+        base: String,
+        query: String,
+        category: String,
+    ) -> PortFuture<'_, CatalogSearchPage>;
 }

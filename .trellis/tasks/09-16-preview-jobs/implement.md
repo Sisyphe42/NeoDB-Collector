@@ -9,7 +9,7 @@ The main agent owns planning, boundaries, acceptance and checkpoint commits.
 Delegate bounded local/mechanical implementation to `gpt-5.6-luna` / `max`, and
 cross-module or authentication work to `gpt-5.6-sol` / `medium`. Supply the active
 task path and exact scope/specs explicitly, split file ownership and prohibit
-recursive delegation. The current secret-value review/test completion uses Sol.
+recursive delegation. Secret-value and manual-resolution checkpoints use Sol.
 Sub-agents report evidence and do not commit; the main agent reviews the integrated
 diff and verification results. Model availability failures must be reported rather
 than silently substituting a different model. This does not remove review gates.
@@ -45,8 +45,10 @@ passed. Catalog transport has no public route; checkpoints B-E remain pending.
 - [x] Enforce >=15-second poll spacing and <=120-second overall budget, including
   slow requests; cancellation produces no subsequent poll.
 - [x] Normalize and compare exact IDs, canonical links and media granularity.
-- [ ] Add bounded search fallback/manual resolution; title-only/contradictory
+- [ ] Add bounded search fallback; title-only/contradictory
   candidates remain review-required, unavailable is not absent.
+- [x] Validate explicit manual selection with fresh evidence and distinct provenance;
+  user-facing selection and saved mapping integration remain pending.
 - [x] Test movie/show/season distinctions, pending exhaustion, cancellation,
   rate-limit behavior and identity mismatches; verify and commit.
 
@@ -55,6 +57,29 @@ validation and Tokio/CancellationToken adapter passed `pnpm verify`: 76 Rust
 tests, 25 TS/UI tests, Clippy, contracts, boundaries, builds and browser smoke.
 No live catalog fetch or personal-state write. Search/manual fallback is still
 unchecked above; B is not complete and the child remains active.
+
+### B2. Explicit manual selection validation
+
+- [x] Add an internal `resolve_manual` operation with a distinct manual result.
+- [x] Re-read the selected detail reference through existing restrictive transport;
+  reuse identity/granularity rules, timeout/cancellation and sanitized failures.
+- [x] Allow absent identity evidence only through explicit manual selection;
+  contradictory IDs and type/granularity mismatch remain review-required.
+- [x] Prove zero native-fetch/search calls, evidence preservation, invalid-input
+  rejection, cancellation/timeout including hung I/O, and unchanged native matching.
+- [x] Run full verification and update owning specs/status for a separate checkpoint.
+
+Implementation: Sol/medium owns Core code/tests; main owns planning/specs, integration
+review and commit. Search, manual mapping persistence and HTTP/UI integration stay pending.
+
+Verification (2026-09-21): Sol/medium implemented B2 and the main agent reviewed
+the code, tests and aligned specs. Scoped Core 30 unit + 2 compile-fail doctests
+and catalog transport 10 tests passed. Full `pnpm verify` with `CARGO_BUILD_JOBS=1`
+passed: 85 Rust unit tests, 2 doctests, 25 TS/UI tests, fmt/Clippy, contracts,
+dependency boundaries, lint/typecheck, builds and CLI/HTTP/browser smoke.
+Product YAML parsing and `git diff --check` passed. No public schema, migration,
+new dependency or personal-state write was added. B remains incomplete until search
+fallback is delivered; do not archive the preview child.
 
 ### Library reuse follow-up (approved 2026-09-18)
 

@@ -78,6 +78,17 @@ crawler. A title-only hit remains unconfirmed. Explicit manual selection must
 validate the target on the same instance, retain its evidence and identify the
 decision as manual; it cannot bypass supported media/field constraints.
 
+Internal manual-selection checkpoint: `resolve_manual` accepts a validated source identity and
+an explicitly selected same-instance catalog **API detail reference**, never cached
+candidate metadata. It reads fresh detail under the existing cancellation/deadline
+control and does not call fetch/search. Reuse the native classifier: exact identity
+or missing expected-scheme identity can become `ManuallySelected`, but contradictory
+expected-scheme IDs and media/model mismatches remain `NeedsReview`. Manual selection
+must never be reported as an automatic `Matched` result. The entire normalized
+CatalogItem is retained as evidence. No UI action, stored manual mapping, public
+route or canonical-page-URL conversion is claimed in this checkpoint; those belong
+to later integration. Search fallback remains separately pending.
+
 ## 3. Comparison and snapshots
 
 After resolution, read current personal state using the connected account's

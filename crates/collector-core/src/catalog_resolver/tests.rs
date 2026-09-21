@@ -69,6 +69,9 @@ struct Transport {
     calls: Mutex<Vec<(String, u64)>>,
     item: Mutex<Option<CatalogItem>>,
     hang_detail: bool,
+    detail_elapsed: u64,
+    detail_error: Option<ApiError>,
+    detail_args: Mutex<Vec<(String, String)>>,
     dropped: AtomicBool,
 }
 struct DropGuard<'a>(&'a AtomicBool);
@@ -98,8 +101,9 @@ impl NeoDbCatalogTransport for Transport {
             }
         })
     }
-    fn detail(&self, _: String, _: String) -> PortFuture<'_, CatalogItem> {
+    fn detail(&self, base: String, reference: String) -> PortFuture<'_, CatalogItem> {
         Box::pin(async move {
+            self.detail_args.lock().unwrap().push((base, reference));
             self.calls
                 .lock()
                 .unwrap()
@@ -107,6 +111,12 @@ impl NeoDbCatalogTransport for Transport {
             if self.hang_detail {
                 let _guard = DropGuard(&self.dropped);
                 return pending().await;
+            }
+            self.control
+                .now
+                .fetch_add(self.detail_elapsed, Ordering::SeqCst);
+            if let Some(error) = &self.detail_error {
+                return Err(error.clone());
             }
             Ok(self.item.lock().unwrap().take().unwrap())
         })
@@ -140,6 +150,9 @@ fn setup(fetches: Vec<Fetch>) -> (Arc<Control>, Transport) {
         calls: Mutex::new(vec![]),
         item: Mutex::new(Some(item())),
         hang_detail: false,
+        detail_elapsed: 0,
+        detail_error: None,
+        detail_args: Mutex::new(vec![]),
         dropped: AtomicBool::new(false),
     };
     (control, transport)
@@ -371,4 +384,253 @@ fn invalid_expectations_fail_before_io() {
         "catalog_identity_invalid"
     );
     assert!(transport.calls.lock().unwrap().is_empty());
+}
+
+#[test]
+fn manual_exact_or_missing_identity_is_distinct_and_preserves_full_evidence() {
+    for ids in [
+        vec![("imdb:title".into(), "tt1234567".into())],
+        vec![],
+        vec![("tmdb:tv".into(), "987".into())],
+    ] {
+        let (clock, transport) = setup(vec![]);
+        let mut evidence = item();
+        evidence.uuid = "FullEvidence".into();
+        evidence.canonical_url = "https://neodb.example/tv/FullEvidence".into();
+        evidence.detail_url = "https://neodb.example/api/tv/FullEvidence".into();
+        evidence.parent_uuid = Some("parent".into());
+        evidence.external_ids = ids.clone();
+        *transport.item.lock().unwrap() = Some(evidence);
+        let expected = identity();
+        let mut future = Box::pin(resolve_manual(
+            &transport,
+            clock.as_ref(),
+            "https://neodb.example",
+            &expected,
+            "/api/tv/FullEvidence",
+        ));
+        let result = ready(poll(future.as_mut())).unwrap();
+        let Resolution::ManuallySelected(actual) = result else {
+            panic!("manual choice must have a distinct outcome");
+        };
+        assert_eq!(
+            actual,
+            CatalogItem {
+                uuid: "FullEvidence".into(),
+                canonical_url: "https://neodb.example/tv/FullEvidence".into(),
+                detail_url: "https://neodb.example/api/tv/FullEvidence".into(),
+                media_type: "tv".into(),
+                model: "TVShow".into(),
+                parent_uuid: Some("parent".into()),
+                external_ids: ids,
+            }
+        );
+        assert_eq!(
+            *transport.detail_args.lock().unwrap(),
+            [(
+                "https://neodb.example".into(),
+                "/api/tv/FullEvidence".into()
+            )]
+        );
+        assert_eq!(*transport.calls.lock().unwrap(), [("detail".into(), 0)]);
+    }
+}
+
+#[test]
+fn manual_conflicts_and_granularity_are_refused_without_fetch() {
+    for (media_type, model, ids, expected_reason) in [
+        (
+            "tv",
+            "TVShow",
+            vec![("imdb:title".into(), "tt7654321".into())],
+            "item_identity_conflict",
+        ),
+        (
+            "tv",
+            "TVShow",
+            vec![
+                ("imdb:title".into(), "tt1234567".into()),
+                ("imdb:title".into(), "tt7654321".into()),
+            ],
+            "item_identity_conflict",
+        ),
+        (
+            "tv",
+            "TVSeason",
+            vec![("imdb:title".into(), "tt1234567".into())],
+            "item_granularity_mismatch",
+        ),
+        (
+            "movie",
+            "TVShow",
+            vec![("imdb:title".into(), "tt1234567".into())],
+            "item_granularity_mismatch",
+        ),
+    ] {
+        let (clock, transport) = setup(vec![]);
+        let mut evidence = item();
+        evidence.media_type = media_type.into();
+        evidence.model = model.into();
+        evidence.external_ids = ids;
+        *transport.item.lock().unwrap() = Some(evidence);
+        let expected = identity();
+        let mut future = Box::pin(resolve_manual(
+            &transport,
+            clock.as_ref(),
+            "base",
+            &expected,
+            "/api/tv/abc",
+        ));
+        assert!(matches!(
+            ready(poll(future.as_mut())).unwrap(),
+            Resolution::NeedsReview { reason, .. } if reason == expected_reason
+        ));
+        assert_eq!(*transport.calls.lock().unwrap(), [("detail".into(), 0)]);
+    }
+}
+
+#[test]
+fn manual_invalid_inputs_fail_before_io() {
+    for reference in ["", "   "] {
+        let (clock, transport) = setup(vec![]);
+        let expected = identity();
+        let mut future = Box::pin(resolve_manual(
+            &transport,
+            clock.as_ref(),
+            "base",
+            &expected,
+            reference,
+        ));
+        let error = ready(poll(future.as_mut())).unwrap_err();
+        assert_eq!(error.code, "neodb_catalog_reference_invalid");
+        assert_eq!(
+            error.message,
+            "Expected a supported NeoDB catalog detail reference."
+        );
+        assert!(transport.calls.lock().unwrap().is_empty());
+    }
+
+    let (clock, transport) = setup(vec![]);
+    let mut expected = identity();
+    expected.external_id.clear();
+    let mut future = Box::pin(resolve_manual(
+        &transport,
+        clock.as_ref(),
+        "base",
+        &expected,
+        "/api/tv/abc",
+    ));
+    assert_eq!(
+        ready(poll(future.as_mut())).unwrap_err().code,
+        "catalog_identity_invalid"
+    );
+    assert!(transport.calls.lock().unwrap().is_empty());
+
+    let (clock, transport) = setup(vec![]);
+    clock.now.store(u64::MAX, Ordering::SeqCst);
+    let expected = identity();
+    let mut future = Box::pin(resolve_manual(
+        &transport,
+        clock.as_ref(),
+        "base",
+        &expected,
+        "/api/tv/abc",
+    ));
+    assert_eq!(
+        ready(poll(future.as_mut())).unwrap_err().code,
+        "catalog_resolution_timeout"
+    );
+    assert!(transport.calls.lock().unwrap().is_empty());
+}
+
+#[test]
+fn manual_propagates_sanitized_detail_error_once() {
+    for (code, message) in [
+        (
+            "neodb_catalog_reference_invalid",
+            "Catalog detail reference is invalid.",
+        ),
+        (
+            "neodb_catalog_rate_limited",
+            "Catalog detail is rate limited.",
+        ),
+        (
+            "neodb_catalog_unavailable",
+            "Catalog detail is unavailable.",
+        ),
+    ] {
+        let (clock, mut transport) = setup(vec![]);
+        transport.detail_error = Some(ApiError::new(code, message));
+        let expected = identity();
+        let mut future = Box::pin(resolve_manual(
+            &transport,
+            clock.as_ref(),
+            "base",
+            &expected,
+            "/api/tv/abc",
+        ));
+        let error = ready(poll(future.as_mut())).unwrap_err();
+        assert_eq!(error.code, code);
+        assert_eq!(error.message, message);
+        assert_eq!(*transport.calls.lock().unwrap(), [("detail".into(), 0)]);
+    }
+}
+
+#[test]
+fn manual_cancellation_before_or_during_detail_drops_work() {
+    for cancel_before in [true, false] {
+        let (clock, mut transport) = setup(vec![]);
+        transport.hang_detail = true;
+        if cancel_before {
+            clock.cancelled.store(true, Ordering::SeqCst);
+        }
+        let expected = identity();
+        let mut future = Box::pin(resolve_manual(
+            &transport,
+            clock.as_ref(),
+            "base",
+            &expected,
+            "/api/tv/abc",
+        ));
+        if !cancel_before {
+            assert!(poll(future.as_mut()).is_pending());
+            clock.cancelled.store(true, Ordering::SeqCst);
+        }
+        assert_eq!(
+            ready(poll(future.as_mut())).unwrap_err().code,
+            "catalog_resolution_cancelled"
+        );
+        assert_eq!(
+            transport.calls.lock().unwrap().len(),
+            usize::from(!cancel_before)
+        );
+        assert_eq!(transport.dropped.load(Ordering::SeqCst), !cancel_before);
+    }
+}
+
+#[test]
+fn manual_deadline_drops_hung_detail_and_rejects_late_result() {
+    for late in [false, true] {
+        let (clock, mut transport) = setup(vec![]);
+        transport.hang_detail = !late;
+        transport.detail_elapsed = if late { 120 } else { 0 };
+        let expected = identity();
+        let mut future = Box::pin(resolve_manual(
+            &transport,
+            clock.as_ref(),
+            "base",
+            &expected,
+            "/api/tv/abc",
+        ));
+        if !late {
+            assert!(poll(future.as_mut()).is_pending());
+            clock.now.store(120, Ordering::SeqCst);
+        }
+        assert_eq!(
+            ready(poll(future.as_mut())).unwrap_err().code,
+            "catalog_resolution_timeout"
+        );
+        assert_eq!(transport.dropped.load(Ordering::SeqCst), !late);
+        assert_eq!(*transport.calls.lock().unwrap(), [("detail".into(), 0)]);
+    }
 }

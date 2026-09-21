@@ -37,6 +37,7 @@ pub trait ResolutionControl: Send + Sync {
 #[derive(Debug, PartialEq, Eq)]
 pub enum Resolution {
     Matched(CatalogItem),
+    ManuallySelected(CatalogItem),
     NeedsReview {
         item: CatalogItem,
         reason: &'static str,
@@ -50,6 +51,33 @@ fn timeout() -> ApiError {
     ApiError::new(
         "catalog_resolution_timeout",
         "Catalog resolution exceeded its time budget.",
+    )
+}
+
+fn validate_expected(expected: &CatalogIdentity) -> Result<(), ApiError> {
+    if [
+        &expected.source_url,
+        &expected.media_type,
+        &expected.model,
+        &expected.scheme,
+        &expected.external_id,
+    ]
+    .iter()
+    .any(|s| s.is_empty())
+    {
+        Err(ApiError::new(
+            "catalog_identity_invalid",
+            "Expected a validated source identity.",
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+fn invalid_reference() -> ApiError {
+    ApiError::new(
+        "neodb_catalog_reference_invalid",
+        "Expected a supported NeoDB catalog detail reference.",
     )
 }
 
@@ -85,21 +113,7 @@ pub async fn resolve_native(
     base: &str,
     expected: &CatalogIdentity,
 ) -> Result<Resolution, ApiError> {
-    if [
-        &expected.source_url,
-        &expected.media_type,
-        &expected.model,
-        &expected.scheme,
-        &expected.external_id,
-    ]
-    .iter()
-    .any(|s| s.is_empty())
-    {
-        return Err(ApiError::new(
-            "catalog_identity_invalid",
-            "Expected a validated source identity.",
-        ));
-    }
+    validate_expected(expected)?;
     let deadline = control
         .now()
         .checked_add(RESOLUTION_BUDGET)
@@ -132,6 +146,39 @@ pub async fn resolve_native(
             CatalogFetch::Unavailable => return Ok(Resolution::Unavailable),
         }
     }
+}
+
+/// Validate one explicit user selection against fresh detail evidence.
+///
+/// The caller must be trusted to invoke this only after an explicit user choice.
+/// `reference` is an existing relative or same-origin API detail URL; the
+/// restrictive transport remains the sole authority that parses and validates it.
+pub async fn resolve_manual(
+    transport: &dyn NeoDbCatalogTransport,
+    control: &impl ResolutionControl,
+    base: &str,
+    expected: &CatalogIdentity,
+    reference: &str,
+) -> Result<Resolution, ApiError> {
+    validate_expected(expected)?;
+    if reference.trim().is_empty() {
+        return Err(invalid_reference());
+    }
+    let deadline = control
+        .now()
+        .checked_add(RESOLUTION_BUDGET)
+        .ok_or_else(timeout)?;
+    let item = control
+        .run(deadline, transport.detail(base.into(), reference.into()))
+        .await?;
+    Ok(match classify(expected, item) {
+        Resolution::Matched(item)
+        | Resolution::NeedsReview {
+            item,
+            reason: "item_identity_missing",
+        } => Resolution::ManuallySelected(item),
+        other => other,
+    })
 }
 
 #[cfg(test)]

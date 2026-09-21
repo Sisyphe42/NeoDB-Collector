@@ -325,8 +325,8 @@ core_pipeline:
     - existing_manual_mapping
   fuzzy_match_action: needs_review
   neodb_native_fetch:
-    status: internal_transport_and_native_resolver_implemented
-    pending_implementation: [search_fallback, manual_resolution, preview_job_integration]
+    status: internal_transport_native_and_manual_resolvers_implemented
+    pending_implementation: [search_fallback, manual_mapping_persistence, preview_job_and_client_integration]
     approved_at: 2026-09-17
     operation: GET_/api/catalog/fetch
     purpose: resolve_supported_external_item_url_using_neodb_native_catalog

@@ -12,6 +12,7 @@ use url::Url;
 const RESPONSE_LIMIT: usize = 64 * 1024;
 
 mod catalog;
+mod marks;
 
 pub struct NeoDbClient {
     http: Client,
@@ -71,22 +72,31 @@ fn canonical(input: &str) -> Result<Url, ApiError> {
 fn endpoint(base: &str, path: &str) -> Result<Url, ApiError> {
     canonical(base)?.join(path).map_err(|_| invalid_base())
 }
-async fn limited<T: DeserializeOwned>(mut response: Response) -> Result<T, ApiError> {
-    if !response.status().is_success()
-        || response
-            .content_length()
-            .is_some_and(|length| length > RESPONSE_LIMIT as u64)
+async fn read_bounded_json<T: DeserializeOwned>(
+    mut response: Response,
+    error: fn() -> ApiError,
+) -> Result<T, ApiError> {
+    if response
+        .content_length()
+        .is_some_and(|length| length > RESPONSE_LIMIT as u64)
     {
-        return Err(upstream());
+        return Err(error());
     }
     let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await.map_err(|_| upstream())? {
+    while let Some(chunk) = response.chunk().await.map_err(|_| error())? {
         if bytes.len().saturating_add(chunk.len()) > RESPONSE_LIMIT {
-            return Err(upstream());
+            return Err(error());
         }
         bytes.extend_from_slice(&chunk);
     }
-    serde_json::from_slice(&bytes).map_err(|_| upstream())
+    serde_json::from_slice(&bytes).map_err(|_| error())
+}
+
+async fn limited<T: DeserializeOwned>(response: Response) -> Result<T, ApiError> {
+    if !response.status().is_success() {
+        return Err(upstream());
+    }
+    read_bounded_json(response, upstream).await
 }
 
 #[derive(Deserialize)]

@@ -351,6 +351,16 @@ core_pipeline:
     result: review_only_never_personal_state_absence
     evidence: [neodb_catalog_search_api, neodb_catalog_item_schema]
   current_conflict_default: keep_existing_sink_value_and_needs_review
+  neodb_mark_read:
+    reviewed_at: 2026-09-22
+    implementation: internal_transport_only
+    account_bound_snapshots_and_comparison: pending
+    operation: GET_/api/me/shelf/item/{uuid}
+    scope: read
+    missing_shelf: exact_404_Mark_not_found_only
+    missing_shelf_implies_empty_rating: false
+    merged_item: stop_and_require_identity_reresolution
+    evidence: [neodb_mark_read_api, neodb_item_read_resolution, neodb_independent_rating, neodb_identity_schema]
   idempotency_key: connector_instance_record_updated_at_or_hash
   deletion_by_absence: never
   provenance_granularity: field
@@ -642,6 +652,10 @@ open_decisions:
 evidence:
   - {id: neodb_native_fetch_api, kind: official_source, url: "https://github.com/neodb-social/neodb/blob/496e68811f730a333f1166440d2dbff24134b176/neodb/catalog/apis.py"}
   - {id: neodb_catalog_search_api, kind: official_source, url: "https://github.com/neodb-social/neodb/blob/496e68811f730a333f1166440d2dbff24134b176/neodb/catalog/apis.py#L204-L248"}
+  - {id: neodb_mark_read_api, kind: official_source, url: "https://github.com/neodb-social/neodb/blob/496e68811f730a333f1166440d2dbff24134b176/neodb/journal/apis/shelf.py#L215-L239"}
+  - {id: neodb_item_read_resolution, kind: official_source, url: "https://github.com/neodb-social/neodb/blob/496e68811f730a333f1166440d2dbff24134b176/neodb/common/api.py#L156-L177"}
+  - {id: neodb_independent_rating, kind: official_source, url: "https://github.com/neodb-social/neodb/blob/496e68811f730a333f1166440d2dbff24134b176/neodb/journal/models/mark.py#L173-L179"}
+  - {id: neodb_identity_schema, kind: official_source, url: "https://github.com/neodb-social/neodb/blob/496e68811f730a333f1166440d2dbff24134b176/neodb/users/apis.py#L28-L42"}
   - {id: neodb_native_fetch_web, kind: official_source, url: "https://github.com/neodb-social/neodb/blob/496e68811f730a333f1166440d2dbff24134b176/neodb/catalog/views/search.py"}
   - {id: neodb_catalog_item_schema, kind: official_source, url: "https://github.com/neodb-social/neodb/blob/496e68811f730a333f1166440d2dbff24134b176/neodb/catalog/models/item.py"}
   - {id: neodb_catalog_movie_schema, kind: official_source, url: "https://github.com/neodb-social/neodb/blob/496e68811f730a333f1166440d2dbff24134b176/neodb/catalog/models/movie.py"}

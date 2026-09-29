@@ -6,6 +6,7 @@ pub mod access;
 pub mod catalog;
 pub mod catalog_resolver;
 pub mod mapping;
+pub mod marks;
 pub mod oauth;
 #[cfg(test)]
 mod oauth_tests;

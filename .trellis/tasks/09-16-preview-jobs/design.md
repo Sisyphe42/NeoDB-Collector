@@ -126,6 +126,26 @@ profile ID/version. Never expose secret references to clients. Endpoint/account
 replacement invalidates current work before results can be treated as current.
 Snapshot timestamps explicitly distinguish historical review data from live state.
 
+### Personal-state read refinement (C1 before comparison)
+
+Use authenticated GET `/api/me/shelf/item/{uuid}` only, never batch omission as
+absence evidence. A 200 result must have matching normalized catalog identity,
+owner username equal to the expected connected account, one supported shelf type,
+and a required nullable integer rating (null or 1..10). Retain only those normalized
+fields. Borrow SecretString; validate the expected same-instance movie/TV detail
+identity and nonempty account/token before sending. Reuse existing URL, catalog
+normalization, HTTP client and bounded parsing mechanisms. No redirect following,
+retry or secondary requests: 302 indicates changed identity requiring re-resolution.
+
+Only a bounded, valid 404 JSON result whose message is exactly `Mark not found`
+returns MissingShelf. Item not found, unknown 404s, auth failures, rate limits,
+timeouts and malformed replies remain distinct sanitized errors. MissingShelf is
+not an empty rating: upstream models store ratings separately from shelf members.
+Thus C2 must preserve unknown field state rather than invent an empty sink value.
+Transport has a ten-second request/body budget and 64 KiB response cap. C1 adds
+only an internal read port/adapter and mocks, not credential lookup/account-replace
+orchestration, comparison, persistence or HTTP/UI; those remain later checkpoints.
+
 ## 4. Jobs and minimal persistence
 
 Proposed lifecycle: queued -> running -> completed/failed/cancelled; startup marks

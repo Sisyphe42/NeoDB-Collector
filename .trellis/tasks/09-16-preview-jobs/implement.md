@@ -143,12 +143,35 @@ Do not archive the preview child.
 
 ### C. Personal-state reads and pure comparison
 
-- [ ] Verify mark-read API and absence semantics with primary evidence; persist
+Deliver C1 (authenticated single-item transport) before C2 (account-bound snapshot
+orchestration and pure mapping comparison). This keeps absence semantics separately
+verifiable; neither checkpoint enables writes. C1 uses Sol/medium for code/tests,
+main for upstream evidence, contracts, review and commit.
+
+- [x] C1: Add borrowed-secret mark-read port, normalized present/MissingShelf outcomes,
+  strict item/owner binding, status/size/timeout/redirect tests and full verification.
+- [ ] C2: Obtain credentials through existing ports, detect replaced endpoint/account,
+  produce timestamped snapshots and compare mapped fields without treating unknown
+  rating as absent. MissingShelf confirms only shelf absence, not rating emptiness.
+  Verify token identity with `/api/me` before binding owner-less MissingShelf to
+  the expected account; a stored reference alone is not response-owner evidence.
+
+- [x] Verify mark-read API and absence semantics with primary evidence; persist
   references in canonical specs before relying on platform behavior.
-- [ ] Implement restrictive authenticated read port/adapter and normalized snapshots.
+- [x] Implement restrictive authenticated read port/adapter and normalized transport snapshots.
 - [ ] Reuse mapping evaluator; test equal, empty, conflict, missing shelf, stale
   account and unreachable state. No writer or activation path.
 - [ ] Verify and commit the complete internal comparison slice.
+
+C1 verification (2026-09-30): Sol/medium implemented code/tests; main reviewed
+the integrated diff, shared parser/identity reuse, owner binding and absence semantics.
+Main reran full `pnpm verify` after the interrupted verification session, with
+`CARGO_BUILD_JOBS=1`: 108 Rust unit tests, 2 compile-fail doctests, 25 TS/UI tests,
+fmt/Clippy, generated contracts, dependency boundaries, lint/typecheck, builds and
+actual CLI/local HTTP/desktop-mobile browser smoke passed. Product YAML/evidence
+references and `git diff --check` passed. Only loopback mocks were used; no live
+NeoDB account, credential store, public API or persistence change. Account-bound
+snapshots and pure comparison remain C2; C-E and the preview child remain unfinished.
 
 ### D. Persistent resumable jobs
 

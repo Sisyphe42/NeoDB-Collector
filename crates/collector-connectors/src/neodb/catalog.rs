@@ -1,4 +1,4 @@
-use super::{NeoDbClient, RESPONSE_LIMIT, canonical};
+use super::{NeoDbClient, canonical, read_bounded_json};
 use crate::imdb::valid_title_id;
 use collector_core::{
     access::PortFuture,
@@ -10,7 +10,7 @@ use collector_core::{
 };
 use collector_domain::ApiError;
 use reqwest::{Response, StatusCode};
-use serde::{Deserialize, de::DeserializeOwned};
+use serde::Deserialize;
 use std::{
     collections::BTreeSet,
     time::{Duration, Instant},
@@ -98,7 +98,7 @@ fn location(base: &Url, response: &Response) -> Result<Url, ApiError> {
 }
 
 #[derive(Deserialize)]
-struct DetailReply {
+pub(super) struct DetailReply {
     id: String,
     uuid: String,
     api_url: String,
@@ -114,21 +114,8 @@ struct Resource {
     url: String,
 }
 
-async fn read_reply<T: DeserializeOwned>(mut response: Response) -> Result<T, ApiError> {
-    if response
-        .content_length()
-        .is_some_and(|n| n > RESPONSE_LIMIT as u64)
-    {
-        return Err(unavailable());
-    }
-    let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await.map_err(|_| unavailable())? {
-        if bytes.len().saturating_add(chunk.len()) > RESPONSE_LIMIT {
-            return Err(unavailable());
-        }
-        bytes.extend_from_slice(&chunk);
-    }
-    serde_json::from_slice(&bytes).map_err(|_| unavailable())
+async fn read_reply<T: serde::de::DeserializeOwned>(response: Response) -> Result<T, ApiError> {
+    read_bounded_json(response, unavailable).await
 }
 
 async fn read_detail(
@@ -140,31 +127,23 @@ async fn read_detail(
     normalize_detail(reply, base, requested)
 }
 
-fn normalize_detail(
+pub(super) fn normalize_detail(
     reply: DetailReply,
     base: &Url,
     requested: &Url,
 ) -> Result<CatalogItem, ApiError> {
-    let (media, model, uuid) = item_path(requested.path()).ok_or_else(unavailable)?;
-    let canonical_url = base
-        .join(
-            requested
-                .path()
-                .strip_prefix("/api")
-                .ok_or_else(unavailable)?,
-        )
-        .map_err(|_| unavailable())?;
-    if reply.uuid != uuid
-        || reply.category != media
-        || reply.model != model
-        || reply.id != canonical_url.as_str()
-        || detail_url(base, &reply.api_url)? != *requested
-        || reply.parent_uuid.as_ref().is_some_and(|id| {
-            id.is_empty() || id.len() > 22 || !id.bytes().all(|b| b.is_ascii_alphanumeric())
-        })
-    {
+    if detail_url(base, &reply.api_url)? != *requested {
         return Err(unavailable());
     }
+    let canonical_url = validate_item_identity(
+        base,
+        requested,
+        &reply.uuid,
+        &reply.id,
+        &reply.category,
+        &reply.model,
+        reply.parent_uuid.as_deref(),
+    )?;
     let mut ids = BTreeSet::new();
     if let Some(id) = reply.imdb {
         if !valid_title_id(&id) {
@@ -186,6 +165,52 @@ fn normalize_detail(
         parent_uuid: reply.parent_uuid,
         external_ids: ids.into_iter().collect(),
     })
+}
+
+pub(super) fn validate_expected_item(base: &Url, item: &CatalogItem) -> Result<Url, ApiError> {
+    let requested = detail_url(base, &item.detail_url).map_err(|_| unavailable())?;
+    validate_item_identity(
+        base,
+        &requested,
+        &item.uuid,
+        &item.canonical_url,
+        &item.media_type,
+        &item.model,
+        item.parent_uuid.as_deref(),
+    )?;
+    Ok(requested)
+}
+
+fn validate_item_identity(
+    base: &Url,
+    requested: &Url,
+    uuid: &str,
+    canonical: &str,
+    media: &str,
+    model: &str,
+    parent_uuid: Option<&str>,
+) -> Result<Url, ApiError> {
+    let (expected_media, expected_model, expected_uuid) =
+        item_path(requested.path()).ok_or_else(unavailable)?;
+    let expected_canonical = base
+        .join(
+            requested
+                .path()
+                .strip_prefix("/api")
+                .ok_or_else(unavailable)?,
+        )
+        .map_err(|_| unavailable())?;
+    if uuid != expected_uuid
+        || media != expected_media
+        || model != expected_model
+        || canonical != expected_canonical.as_str()
+        || parent_uuid.is_some_and(|id| {
+            id.is_empty() || id.len() > 22 || !id.bytes().all(|b| b.is_ascii_alphanumeric())
+        })
+    {
+        return Err(unavailable());
+    }
+    Ok(expected_canonical)
 }
 
 #[derive(Deserialize)]

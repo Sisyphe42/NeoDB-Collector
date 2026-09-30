@@ -190,15 +190,15 @@ fn job_and_transition_metadata_fail_closed() {
 }
 
 #[test]
-fn lifecycle_values_round_trip_without_completed_in_d1() {
+fn lifecycle_values_round_trip_including_result_completion() {
     for status in [
         PreviewJobStatus::Queued,
         PreviewJobStatus::Running,
         PreviewJobStatus::Interrupted,
         PreviewJobStatus::Failed,
         PreviewJobStatus::Cancelled,
+        PreviewJobStatus::Completed,
     ] {
         assert_eq!(PreviewJobStatus::parse(status.as_str()).unwrap(), status);
     }
-    assert!(PreviewJobStatus::parse("completed").is_err());
 }

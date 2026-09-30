@@ -39,7 +39,10 @@ async fn current_binding(
         .map_err(|_| database_error())
 }
 
-async fn current_job_binding(conn: &mut SqliteConnection, id: &str) -> Result<bool, ApiError> {
+pub(crate) async fn current_job_binding(
+    conn: &mut SqliteConnection,
+    id: &str,
+) -> Result<bool, ApiError> {
     sqlx::query_scalar::<_, i64>("SELECT EXISTS(SELECT 1 FROM preview_jobs j JOIN neodb_endpoint e ON e.singleton=1 AND e.base_url=j.base_url AND e.account=j.account AND e.credential_ref=j.credential_ref WHERE j.id=?)")
         .bind(id)
         .fetch_one(conn)
@@ -48,7 +51,7 @@ async fn current_job_binding(conn: &mut SqliteConnection, id: &str) -> Result<bo
         .map_err(|_| database_error())
 }
 
-async fn load_profile(
+pub(crate) async fn load_profile(
     conn: &mut SqliteConnection,
     id: &str,
     version: u32,
@@ -72,7 +75,10 @@ async fn load_profile(
     Ok(Some(profile))
 }
 
-async fn load_job(conn: &mut SqliteConnection, id: &str) -> Result<Option<PreviewJob>, ApiError> {
+pub(crate) async fn load_job(
+    conn: &mut SqliteConnection,
+    id: &str,
+) -> Result<Option<PreviewJob>, ApiError> {
     let row = sqlx::query("SELECT id,profile_id,profile_version,base_url,account,credential_ref,status,attempt,created_at,updated_at,expires_at,observation_count FROM preview_jobs WHERE id=?")
         .bind(id)
         .fetch_optional(&mut *conn)
@@ -381,6 +387,13 @@ impl PreviewJobRepository for Storage {
             let result = sqlx::query("UPDATE preview_jobs SET status='queued',attempt=?,updated_at=? WHERE id=? AND attempt=? AND status IN ('interrupted','failed','cancelled') AND created_at<=? AND updated_at<=? AND expires_at>? AND EXISTS(SELECT 1 FROM neodb_endpoint e WHERE e.singleton=1 AND e.base_url=preview_jobs.base_url AND e.account=preview_jobs.account AND e.credential_ref=preview_jobs.credential_ref) AND EXISTS(SELECT 1 FROM mapping_profiles p WHERE p.id=preview_jobs.profile_id AND p.version=preview_jobs.profile_version)")
                 .bind(next).bind(now).bind(&id).bind(attempt).bind(now).bind(now).bind(now)
                 .execute(&mut *tx).await.map_err(|_| database_error())?;
+            if result.rows_affected() == 1 {
+                sqlx::query("DELETE FROM preview_results WHERE job_id=?")
+                    .bind(&id)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(|_| database_error())?;
+            }
             tx.commit().await.map_err(|_| database_error())?;
             Ok((result.rows_affected() == 1).then_some(next))
         })
@@ -391,6 +404,11 @@ impl PreviewJobRepository for Storage {
             let mut tx = self
                 .pool
                 .begin_with("BEGIN IMMEDIATE")
+                .await
+                .map_err(|_| database_error())?;
+            sqlx::query("DELETE FROM preview_results WHERE job_id=?")
+                .bind(&id)
+                .execute(&mut *tx)
                 .await
                 .map_err(|_| database_error())?;
             sqlx::query("DELETE FROM preview_observations WHERE job_id=?")
@@ -421,6 +439,8 @@ impl PreviewJobRepository for Storage {
                 .begin_with("BEGIN IMMEDIATE")
                 .await
                 .map_err(|_| database_error())?;
+            sqlx::query("DELETE FROM preview_results WHERE job_id IN (SELECT id FROM preview_jobs WHERE expires_at<=?)")
+                .bind(now).execute(&mut *tx).await.map_err(|_| database_error())?;
             sqlx::query("DELETE FROM preview_observations WHERE job_id IN (SELECT id FROM preview_jobs WHERE expires_at<=?)")
                 .bind(now).execute(&mut *tx).await.map_err(|_| database_error())?;
             let deleted = sqlx::query("DELETE FROM preview_jobs WHERE expires_at<=?")

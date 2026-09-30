@@ -557,7 +557,7 @@ async fn concurrent_reads_and_delete_observe_whole_job_or_absence() {
 async fn audit_schema_has_no_raw_or_token_columns() {
     let (_dir, storage, _profile) = setup().await;
     let columns: Vec<String> = sqlx::query_scalar(
-        "SELECT name FROM pragma_table_info('preview_jobs') UNION ALL SELECT name FROM pragma_table_info('preview_observations')",
+        "SELECT name FROM pragma_table_info('preview_jobs') UNION ALL SELECT name FROM pragma_table_info('preview_observations') UNION ALL SELECT name FROM pragma_table_info('preview_results')",
     )
     .fetch_all(&storage.pool)
     .await

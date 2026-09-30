@@ -280,6 +280,69 @@ credential-reference accessor on the record. Publication is historical evidence,
 not job completion or write/activation authority. This slice adds no migration,
 worker, HTTP/client contract, dependency, actual account access or source write.
 
+### D2b1 result repository before runtime composition
+
+Ship `0005_preview_results.sql` together with compatible Core/Storage operations.
+Add `completed` to the job lifecycle by rebuilding the v4 jobs/observations tables
+transactionally while preserving all rows, bindings and foreign keys. Never edit
+the committed v4 migration or disable foreign keys opportunistically. Add a result
+table keyed by job/ordinal, storing current attempt, commit time and strict bounded
+normalized review JSON; it references the original observation. No worker or route
+is enabled by this repository slice.
+
+The write port consumes a service-produced PreviewRecord, not deserialized review
+data. Bind it to the exact normalized observation and full disabled profile used
+by the producer, not merely an ID/version or user-supplied fingerprint. An internal
+private input proof may retain bounded normalized inputs in memory for equality;
+never serialize that proof or persist a second profile/observation payload per
+result. Keep historical decoded review types separate from service snapshots and
+records: loading saved evidence must not recreate fresh-read or write authority.
+
+Result insertion uses SQLx-managed BEGIN IMMEDIATE and checks, in that transaction:
+existing running job, exact positive attempt, non-regressing now before expiry,
+current full endpoint tuple, selected valid immutable profile and exact observation
+at the ordinal, agreeing with the producer's inputs. Reject stale/late work without
+insertion; duplicate ordinal writes never overwrite existing evidence. Only a
+validated normalized result may be encoded. Keep identity, automatic/manual
+provenance, account/profile metadata, snapshot time and comparison's source/sink
+Known/Empty/Unknown/status/reason; unresolved outcomes never acquire invented sink
+values. Permit at most 64 KiB per result and 32 MiB aggregate result JSON per job,
+independent of the existing observation byte limits; reject without truncation.
+
+Completion is conditional on the same running attempt/time/account/profile guard
+and one valid result for every original zero-based ordinal. Zero-row jobs can
+complete only after claim. Completed means preview processing finished, not that
+every item matched or any write is ready. Partial failed/cancelled/interrupted
+attempts may retain historical review rows. Explicit successful resume deletes
+those rows in the same transaction as incrementing/requeuing the attempt: no old
+comparison is reused. Delete/expiry removes observations/results/job atomically
+and preserves profiles/account/auth/credentials. Late writes cannot recreate rows.
+
+Read current-attempt results in stable ordinal pages (1..100) within a single read
+transaction. Revalidate normalized encoding, bounded values, metadata, profile and
+observation agreement; corrupted rows fail closed rather than returning a partial
+page. Missing jobs or an obsolete requested attempt return no rows. Historical
+reads remain possible after an account replacement but are never labeled fresh.
+Encoding stays in Storage using existing serde/serde_json; Core gains no serializer,
+database/runtime or connector dependency and no general persistence framework.
+
+Library reuse review (2026-10-01): reuse the already locked serde 1.0.229 and its
+workspace-enabled derive/std features directly in Storage. The local registry
+manifest declares MIT OR Apache-2.0, Rust 1.56 and serde_core/optional serde_derive;
+this does not change the workspace's supported Rust version or prove other OSes.
+Strict private DTO derives replace hand-written JSON field/variant decoding;
+serde_json remains the bounded codec. No new version, feature set, transitive
+capability or Core dependency is required. Record the direct Cargo/lock metadata
+change with implementation and tests, not a broader dependency-policy relaxation.
+
+Tests produce records using the real Core producer with fake transports/secrets.
+Cover each resolution/comparison variant, reopen, current-attempt ordering,
+same-ID altered profile/observation rejection, duplicate writers, every late-write
+boundary (cancel/fail/recovery/resume/delete/expiry/rotation), incomplete/empty
+completion, rollback of insertion/resume/delete, malformed/oversized result JSON,
+prior v1-v4 upgrade with populated v4 rows and preservation of unrelated state.
+Do not call real NeoDB or the OS credential store.
+
 ## 5. API and clients (later checkpoints)
 
 Add authenticated import/preview creation, status, paginated results, cancel,

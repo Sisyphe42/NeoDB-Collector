@@ -61,6 +61,10 @@ API capability is advertised. Comparison has no execution/activation operation.
 - Reuse `mapping::evaluate` and preserve its validation/errors and rule ordering.
   Mapping accepted means a typed suggestion, not an executable operation. Preserve
   skipped/rejected reasons without inventing source values.
+  `compare_mapped_field` is the shared crate-private pure decision helper for
+  snapshot comparison and [historical result validation](./preview-results.md).
+  Historical validation must not reimplement conflict policy or recreate a fresh
+  AccountMarkSnapshot from persisted data.
 - Sink state has three cases: known value, confirmed empty and unknown. Equal
   mapped/sink values skip; unequal nonempty values need review with sink preserved;
   confirmed empty permits a suggestion; unknown always needs review.

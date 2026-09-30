@@ -22,6 +22,7 @@ pub enum PreviewJobStatus {
     Interrupted,
     Failed,
     Cancelled,
+    Completed,
 }
 
 impl PreviewJobStatus {
@@ -32,6 +33,7 @@ impl PreviewJobStatus {
             Self::Interrupted => "interrupted",
             Self::Failed => "failed",
             Self::Cancelled => "cancelled",
+            Self::Completed => "completed",
         }
     }
 
@@ -42,6 +44,7 @@ impl PreviewJobStatus {
             "interrupted" => Ok(Self::Interrupted),
             "failed" => Ok(Self::Failed),
             "cancelled" => Ok(Self::Cancelled),
+            "completed" => Ok(Self::Completed),
             _ => Err(invalid_stored()),
         }
     }
@@ -301,7 +304,7 @@ fn valid_idempotency_key(value: &str) -> bool {
     })
 }
 
-fn valid_id(value: &str) -> bool {
+pub(crate) fn valid_id(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 128
         && value

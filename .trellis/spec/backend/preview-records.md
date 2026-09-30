@@ -4,8 +4,9 @@
 
 D2a under `09-16-preview-jobs` composes the existing catalog resolvers,
 account-bound snapshot service and pure field comparison in Core. This is the
-internal record producer for later job/result integration, not a running worker
-or completed job. No migration, HTTP/client shape, activation or new dependency.
+internal record producer consumed by the [result repository](./preview-results.md),
+not a running worker or completed job. D2a itself has no migration, HTTP/client
+shape, activation or new dependency.
 Source owners: `crates/collector-core/src/preview_records.rs` and its `tests.rs`.
 
 ## 2. Signatures
@@ -69,7 +70,9 @@ no execution operation or credential-reference accessor.
   automatic external-ID equivalence.
 - Records are immutable historical evidence for one source fingerprint/profile
   revision/account generation. No raw payload, token, completed-job state or write
-  authority is produced. Later result transactions must recheck live job attempt,
+  authority is produced. D2b1 adds a private in-memory proof of the exact normalized
+  observation/full profile for result insertion; that proof is never serialized.
+  The result write exposes it only to trusted storage adapters. Result transactions must recheck live job attempt,
   account/profile and expiry; this service cannot make those future checks atomic.
 
 ## 4. Validation & Error Matrix
@@ -111,5 +114,5 @@ resolver owns identity classification, and only confirmed/manual resolution read
 personal state.
 
 Wrong: publish a row and treat it as a completed persistent job. Correct: keep
-publication historical and non-executable; job/result commits are a separate
-conditional repository boundary with their own compatible migration and tests.
+publication historical and non-executable; job/result commits use the separate
+conditional repository boundary with its compatible migration and tests.

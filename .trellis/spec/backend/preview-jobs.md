@@ -4,11 +4,12 @@
 
 Checkpoint D1 owns the internal Core repository and SQLite migration/adapter.
 Submission, ordered reads and guarded lifecycle changes work without a worker.
-Runtime scheduling, normalized result persistence, completion, configuration and
-HTTP/client delivery remain D2/E. No completed job can be produced by D1 alone.
+Runtime scheduling, configuration and HTTP/client delivery remain D2b2/E.
+No completed job can be produced by D1 alone; the compatible
+[D2b1 result repository](./preview-results.md) owns insertion and completion.
 [D2a single-record production](./preview-records.md) composes resolution and
 comparison without changing this repository or completing jobs. Persistent result
-transactions, runtime worker and startup/configuration composition remain D2b.
+transactions are owned by D2b1; runtime worker/startup/configuration remain pending.
 
 ## 2. Signatures
 
@@ -29,7 +30,8 @@ implements them in `crates/collector-storage/src/preview_jobs.rs`.
 `PreviewJob` has read-only metadata getters and `is_bound_to(&Endpoint)` for exact
 base/account/credential-reference comparison without exposing its stored reference;
 it has no Debug/serde implementation. Status is queued/running/
-interrupted/failed/cancelled. D1 has no completed transition. Timestamps are Unix
+interrupted/failed/cancelled/completed. D1 has no completed transition; D2b1 adds
+conditional completion only after every result exists. Timestamps are Unix
 seconds except the existing trusted observation ingestion metadata.
 
 `0004_preview_jobs.sql` adds:
@@ -39,6 +41,9 @@ preview_jobs(id, profile_id, profile_version, base_url, account, credential_ref,
              status, attempt, created_at, updated_at, expires_at, observation_count)
 preview_observations(job_id, ordinal, observation_json)
 ```
+
+`0005_preview_results.sql` transactionally rebuilds the two v4 tables to permit
+completed jobs and adds the normalized result table; see the result contract.
 
 Rows are keyed by `(job_id, ordinal)` with zero-based stable ordering and a job
 foreign key; profile references target `(id, version)`. Observation JSON encodes the
@@ -76,11 +81,13 @@ existing strict Domain schema and is never a raw import/response document.
   not a durable tombstone registry for arbitrary caller-reused identifiers.
 - Worker transitions require both the expected attempt and running status. Cancel
   and recovery invalidate active status; explicit resume from interrupted/failed/
-  cancelled increments attempt and requeues all original observations. Late workers
+  cancelled increments attempt and requeues all original observations, deleting
+  prior results in that same transaction. Late workers
   from prior attempts cannot update the new attempt or recreate deleted data.
 - Preserve the selected immutable profile ID/version. Never rebind to a newer
   latest revision on resume. Selecting a different revision requires a new job.
-  D2 must freshly resolve/read/compare on every attempt; D1 stores no old result.
+  The runtime must freshly resolve/read/compare on every attempt; saved historical
+  results cannot be used as fresh producer records. D1 stores no old result.
 - Recovery marks unfinished queued/running jobs interrupted. Calling recovery is
   a runtime startup responsibility; merely defining the method does not enable
   recovery or scheduling. Even after clock regression recovery interrupts all
@@ -146,5 +153,5 @@ Correct: one conditional write claims only the expected live queued attempt.
 
 Wrong: old worker inserts output after cancellation/deletion/resume.
 Correct: every future D2 result commit must be conditional on live running attempt
-and account/profile binding in the same transaction; this checkpoint has no result
-insertion API to bypass that requirement.
+and account/profile binding in the same transaction; D2b1 provides that guarded
+insertion port, not an unguarded row write.

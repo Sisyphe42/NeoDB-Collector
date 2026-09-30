@@ -185,7 +185,7 @@ mod tests {
             }))
             .await
             .unwrap();
-        sqlx::raw_sql("DROP TABLE preview_observations; DROP TABLE preview_jobs; DROP TABLE mapping_profiles; DELETE FROM _sqlx_migrations WHERE version>=3;")
+        sqlx::raw_sql("DROP TABLE preview_results; DROP TABLE preview_observations; DROP TABLE preview_jobs; DROP TABLE mapping_profiles; DELETE FROM _sqlx_migrations WHERE version>=3;")
             .execute(&store.pool)
             .await
             .unwrap();

@@ -272,8 +272,8 @@ service:
 storage:
   preview_retention:
     status: approved_for_imdb_preview_milestone
-    implementation: internal_job_repository_and_normalized_inputs
-    pending: [result_persistence, runtime_worker, startup_recovery_hooks, retention_configuration_and_scheduling, public_api_and_clients]
+    implementation: internal_job_inputs_lifecycle_and_guarded_result_repository
+    pending: [runtime_worker, startup_recovery_hooks, retention_configuration_and_scheduling, public_api_and_clients]
     default_days: 30
     configurable: true
     manual_delete: true
@@ -291,6 +291,7 @@ storage:
     - manual_item_mappings
     - mapping_profiles
     - normalized_preview_job_inputs_and_lifecycle
+    - bounded_historical_preview_results
     - review_plans
     - idempotency_and_operation_results
     - pairing_challenge_hashes
@@ -359,7 +360,8 @@ core_pipeline:
     resolution_modes: [native, native_with_search, explicit_manual]
     whole_record_deadline_seconds: 120
     publication: historical_non_executable_evidence
-    job_result_persistence_and_runtime: pending
+    job_result_persistence: internal_guarded_repository_only
+    runtime_worker: pending
     public_route: false
     code_contract: .trellis/spec/backend/preview-records.md
   neodb_mark_read:

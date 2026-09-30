@@ -210,6 +210,9 @@ pending. Keep the preview child active rather than archiving it.
     explicit provenance, whole-record cancellation/deadline and binding checks.
   - [ ] D2b: Compatible result persistence and conditional completion, followed by
     runtime worker/startup/configuration composition; do not mark D2 complete at D2a.
+    - [x] D2b1: Consume produced records through an atomic bounded result repository,
+      current-attempt pagination and conditional completion; compatible v5 migration.
+    - [ ] D2b2: Compose bounded worker, startup recovery and retention configuration.
 
 Main owns design/contracts/acceptance/commit; Sol/medium implements Core repository
 types and SQLite adapter/tests. Do not create migration-only commits, public DTOs,
@@ -251,6 +254,35 @@ and references plus `git diff --check` passed. Tests used fake ports or loopback
 mocks, without live NeoDB or OS credential access. No dependency, migration,
 public DTO/route, worker or persistent result completion was added. D2a is complete;
 D2/D2b/E remain pending, so keep the preview child active.
+
+D2b1 ownership: Sol/medium owns Core/Storage implementation, migration and tests.
+Main owns the persisted design/specs, independent review, full gate and commit.
+Read the D2b1 design and existing preview-jobs/records/comparison, mapping-storage,
+state-and-pairing and repository-layout contracts. No Server/client/API or new
+library version; Storage may directly reuse workspace serde derives for strict
+private persistence DTOs. Core's dependency allowlist remains unchanged.
+Verify the migration with a populated v4 database and every older fixture;
+prove that decoded historical evidence cannot be used as a fresh producer record.
+
+D2b1 verification (2026-10-01): Sol/medium implemented the Core contracts,
+Storage adapter, compatible v5 migration and fake-port tests; main reviewed the
+full diff and aligned the owning specs. Review refinements cover exact producer
+inputs, current endpoint generation, atomic timestamp updates, structural extent
+audits, shared comparison-policy reuse, consistent sink states, late terminal
+writes before deletion, sparse pages, rollback and JSON-escaped byte bounds.
+Scoped Core 68 unit + 2 compile-fail doctests and Storage 36 unit tests passed.
+Main reran full `pnpm verify` after the final test additions with
+`CARGO_BUILD_JOBS=1`: 164 Rust unit tests, 2 doctests, 25 TS/UI tests, fmt/Clippy,
+generated contracts, dependency boundaries, lint/typecheck, WebUI/CLI builds and
+actual CLI/local HTTP/desktop-mobile browser smoke passed. Product YAML/34
+evidence IDs and references plus `git diff --check` passed. Populated exact-v4
+and prior-v1-v3 fixtures upgrade without losing operational state; result data
+contains no input proof, raw payload or token. Storage directly reuses existing
+locked workspace serde without new versions/features or a Core dependency.
+Tests use fake ports or loopback mocks, not live NeoDB or OS credential access.
+D2b1 is complete; worker/startup/retention composition (D2b2), D2/D2b and E remain
+pending. No public capability/API or actual scheduled preview was enabled; keep
+the preview child active.
 
 - [ ] Implement repositories, ordered migration, atomic bounded submission,
   version/account binding and conditional worker transitions.

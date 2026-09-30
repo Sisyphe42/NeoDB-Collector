@@ -11,7 +11,7 @@ use crate::{
 };
 use collector_domain::{
     ApiError,
-    mapping::{FieldStatus, MappingProfile},
+    mapping::{FieldStatus, MappedField, MappingProfile},
     observation::{Observation, ScalarValue},
 };
 use std::sync::Arc;
@@ -256,42 +256,7 @@ pub fn compare(
         .into_iter()
         .map(|field| {
             let sink = snapshot.sink(&field.target);
-            let suggestion = field.value;
-            let (status, reason) = match field.status {
-                FieldStatus::Skipped => (ComparisonStatus::Skipped, field.reason),
-                FieldStatus::Rejected => (ComparisonStatus::Rejected, field.reason),
-                FieldStatus::Accepted if field.target == "rating_grade" && !shelf_ready => (
-                    ComparisonStatus::NeedsReview,
-                    "rating_requires_shelf".into(),
-                ),
-                FieldStatus::Accepted => match (&suggestion, &sink) {
-                    (Some(source), SinkValue::Known(current)) if source == current => {
-                        (ComparisonStatus::Skipped, "already_equal".into())
-                    }
-                    (Some(_), SinkValue::Known(_)) => (
-                        ComparisonStatus::NeedsReview,
-                        "sink_conflict_needs_review".into(),
-                    ),
-                    (Some(_), SinkValue::Empty) => (
-                        ComparisonStatus::Accepted,
-                        "sink_empty_accepts_suggestion".into(),
-                    ),
-                    (Some(_), SinkValue::Unknown) => {
-                        (ComparisonStatus::NeedsReview, "sink_state_unknown".into())
-                    }
-                    // evaluate guarantees a value for Accepted; fail closed if that
-                    // invariant ever changes rather than inventing a source value.
-                    (None, _) => (ComparisonStatus::Rejected, "mapped_value_missing".into()),
-                },
-            };
-            ComparedField {
-                rule_id: field.rule_id,
-                field: field.target,
-                suggestion,
-                sink,
-                status,
-                reason,
-            }
+            compare_mapped_field(field, sink, shelf_ready)
         })
         .collect();
 
@@ -300,6 +265,47 @@ pub fn compare(
         profile_version: profile.version,
         fields,
     })
+}
+
+pub(crate) fn compare_mapped_field(
+    field: MappedField,
+    sink: SinkValue,
+    shelf_ready: bool,
+) -> ComparedField {
+    let suggestion = field.value;
+    let (status, reason) = match field.status {
+        FieldStatus::Skipped => (ComparisonStatus::Skipped, field.reason),
+        FieldStatus::Rejected => (ComparisonStatus::Rejected, field.reason),
+        FieldStatus::Accepted if field.target == "rating_grade" && !shelf_ready => (
+            ComparisonStatus::NeedsReview,
+            "rating_requires_shelf".into(),
+        ),
+        FieldStatus::Accepted => match (&suggestion, &sink) {
+            (Some(source), SinkValue::Known(current)) if source == current => {
+                (ComparisonStatus::Skipped, "already_equal".into())
+            }
+            (Some(_), SinkValue::Known(_)) => (
+                ComparisonStatus::NeedsReview,
+                "sink_conflict_needs_review".into(),
+            ),
+            (Some(_), SinkValue::Empty) => (
+                ComparisonStatus::Accepted,
+                "sink_empty_accepts_suggestion".into(),
+            ),
+            (Some(_), SinkValue::Unknown) => {
+                (ComparisonStatus::NeedsReview, "sink_state_unknown".into())
+            }
+            (None, _) => (ComparisonStatus::Rejected, "mapped_value_missing".into()),
+        },
+    };
+    ComparedField {
+        rule_id: field.rule_id,
+        field: field.target,
+        suggestion,
+        sink,
+        status,
+        reason,
+    }
 }
 
 impl AccountMarkSnapshot {

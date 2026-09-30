@@ -59,6 +59,12 @@ pub struct PreviewRecord {
     profile_version: u32,
     binding: Endpoint,
     outcome: PreviewRecordOutcome,
+    proof: PreviewRecordProof,
+}
+
+struct PreviewRecordProof {
+    profile: MappingProfile,
+    observation: Observation,
 }
 
 impl PreviewRecord {
@@ -98,6 +104,18 @@ impl PreviewRecord {
 
     pub fn outcome(&self) -> &PreviewRecordOutcome {
         &self.outcome
+    }
+
+    pub(crate) fn binding_proof(&self) -> &Endpoint {
+        &self.binding
+    }
+
+    pub(crate) fn profile_proof(&self) -> &MappingProfile {
+        &self.proof.profile
+    }
+
+    pub(crate) fn observation_proof(&self) -> &Observation {
+        &self.proof.observation
     }
 }
 
@@ -212,6 +230,10 @@ impl PreviewRecordService {
                         profile_version: request.profile.version,
                         binding: request.expected.clone(),
                         outcome,
+                        proof: PreviewRecordProof {
+                            profile: request.profile.clone(),
+                            observation: request.observation.clone(),
+                        },
                     })
                 }),
             )

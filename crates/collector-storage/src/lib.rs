@@ -12,6 +12,7 @@ mod access;
 pub mod credentials;
 mod mapping;
 mod preview_jobs;
+mod preview_results;
 
 #[derive(Clone)]
 pub struct Storage {
@@ -120,7 +121,8 @@ mod tests {
                     "mapping_profiles",
                     "neodb_endpoint",
                     "preview_jobs",
-                    "preview_observations"
+                    "preview_observations",
+                    "preview_results"
                 ]
             );
             storage.close().await;
@@ -133,7 +135,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let storage = Storage::open(dir.path()).await.unwrap();
         // Recreate the exact committed v1 shape and ledger in an isolated fixture.
-        sqlx::raw_sql("DROP TABLE preview_observations; DROP TABLE preview_jobs; DROP TABLE mapping_profiles; DROP TABLE access_credentials; DROP TABLE neodb_endpoint; DELETE FROM _sqlx_migrations WHERE version>=2;")
+        sqlx::raw_sql("DROP TABLE preview_results; DROP TABLE preview_observations; DROP TABLE preview_jobs; DROP TABLE mapping_profiles; DROP TABLE access_credentials; DROP TABLE neodb_endpoint; DELETE FROM _sqlx_migrations WHERE version>=2;")
             .execute(&storage.pool).await.unwrap();
         storage.close().await;
         let upgraded = Storage::open(dir.path()).await.unwrap();
@@ -141,7 +143,7 @@ mod tests {
             .fetch_one(&upgraded.pool)
             .await
             .unwrap();
-        assert_eq!(latest, 4);
+        assert_eq!(latest, 5);
         assert!(upgraded.is_ready().await);
         upgraded.close().await;
     }
@@ -152,10 +154,10 @@ mod tests {
             let dir = tempfile::tempdir().unwrap();
             let storage = Storage::open(dir.path()).await.unwrap();
             if prior == 2 {
-                sqlx::raw_sql("DROP TABLE preview_observations; DROP TABLE preview_jobs; DROP TABLE mapping_profiles; DELETE FROM _sqlx_migrations WHERE version>=3;")
+                sqlx::raw_sql("DROP TABLE preview_results; DROP TABLE preview_observations; DROP TABLE preview_jobs; DROP TABLE mapping_profiles; DELETE FROM _sqlx_migrations WHERE version>=3;")
                     .execute(&storage.pool).await.unwrap();
             } else {
-                sqlx::raw_sql("DROP TABLE preview_observations; DROP TABLE preview_jobs; DELETE FROM _sqlx_migrations WHERE version>=4;")
+                sqlx::raw_sql("DROP TABLE preview_results; DROP TABLE preview_observations; DROP TABLE preview_jobs; DELETE FROM _sqlx_migrations WHERE version>=4;")
                     .execute(&storage.pool).await.unwrap();
             }
             storage.close().await;
@@ -164,8 +166,8 @@ mod tests {
                 .fetch_one(&upgraded.pool)
                 .await
                 .unwrap();
-            assert_eq!(latest, 4);
-            for table in ["preview_jobs", "preview_observations"] {
+            assert_eq!(latest, 5);
+            for table in ["preview_jobs", "preview_observations", "preview_results"] {
                 let exists: i64 = sqlx::query_scalar(
                     "SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?",
                 )

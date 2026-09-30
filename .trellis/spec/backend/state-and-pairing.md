@@ -23,8 +23,11 @@ configuration revisions: `mapping_profiles(id, version, profile_json)`; see
 [Mapping Storage](./mapping-storage.md). Migration `0004_preview_jobs.sql` stores
 bounded normalized IMDb preview observations and account/profile-bound lifecycle
 metadata in `preview_jobs` and `preview_observations`; see
-[Persistent Preview Jobs](./preview-jobs.md). Its repository is internal: worker,
-result persistence, startup recovery hooks and public import routes remain pending.
+[Persistent Preview Jobs](./preview-jobs.md). Migration `0005_preview_results.sql`
+preserves v4 inputs/lifecycle, permits completed preview jobs and adds bounded
+normalized historical evidence in `preview_results`; see
+[Persistent Preview Results](./preview-results.md). Repositories remain internal:
+worker, startup recovery hooks and public import routes remain pending.
 No raw files or payloads are stored. Later schema ownership (not implemented):
 
 ```sql
@@ -123,7 +126,7 @@ Content-Type: application/json
 
 ## 6. Tests Required
 
-- Implemented tests: `crates/collector-storage/src/access.rs` covers hash-only rows, expiry, replay, client/origin binding, concurrent exchange, rollback and revoked-token restart. `src/lib.rs` covers empty/v1/v2/v3 upgrade/reopen and byte-preserving newer-schema rejection. `src/preview_jobs/tests.rs` covers normalized input persistence, attempt guards, transactional reads/writes and job-only deletion/expiry.
+- Implemented tests: `crates/collector-storage/src/access.rs` covers hash-only rows, expiry, replay, client/origin binding, concurrent exchange, rollback and revoked-token restart. `src/lib.rs` covers empty/v1-v3 upgrade/reopen and byte-preserving newer-schema rejection. `src/preview_jobs/tests.rs` covers normalized input persistence, attempt guards, transactional reads/writes and job-only deletion/expiry. `src/preview_results/tests.rs` covers populated exact-v4 upgrade and guarded evidence persistence/completion, history, races and rollback without live account/keychain use.
 - `crates/collector-server/src/access_tests.rs` covers real router lifecycle, Origin/CSRF, Bearer non-escalation, caps/redaction/rate limit and revoke. `packages/core-client-ts/src/access.test.ts` covers validators, mutation-only CSRF and sanitized failures.
 - `csrf_rejects_missing_length_and_equal_length_mismatches` tests missing/empty,
   short/long, first/last-byte mismatch and another session's CSRF, then confirms

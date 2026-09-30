@@ -146,6 +146,39 @@ Transport has a ten-second request/body budget and 64 KiB response cap. C1 adds
 only an internal read port/adapter and mocks, not credential lookup/account-replace
 orchestration, comparison, persistence or HTTP/UI; those remain later checkpoints.
 
+### Account-bound snapshots and pure comparison (C2)
+
+Compose existing endpoint, secret, clock, OAuth identity and mark-read ports in
+Core. Callers supply the expected endpoint tuple (base/account/credential reference)
+from their resolved-item work. Check that tuple before credential lookup, after
+lookup before remote I/O, and after remote I/O before returning a snapshot. A new
+OAuth token has a fresh random reference even for the same account, so reference
+equality is the existing generation boundary; do not add a schema migration here.
+Mismatch, disconnection or read failure returns no snapshot. Verify `/api/me`
+identity for owner-less MissingShelf; successful marks must match the expected owner.
+
+Keep credential binding private and non-serializable. Expose normalized evidence,
+base/account and observation time, never a credential reference in a client DTO or
+diagnostic. Provide a current-binding check for later consumers. These are
+point-in-time checks, not a transaction across network and SQLite or authorization
+to execute later. Dropping the read future stops subsequent local operations;
+bounded runtime worker cancellation/commit checks remain checkpoint D.
+
+Pure comparison reuses `mapping::evaluate`; it does not reimplement transformations.
+Preserve skipped/rejected mapping reasons and bind results to profile ID/version.
+Model sink values as known value, confirmed empty or unknown: equal is skipped,
+unequal nonempty needs review preserving the sink, empty permits a suggestion,
+and unknown always needs review. MissingShelf confirms only empty shelf and unknown
+rating, even when an explicit completion suggestion exists. Without a valid existing
+or accepted suggested shelf, rating is not ready. Mapping numeric semantics remain
+unchanged (no implicit rounding or write encoding). No result is executable, enables
+a profile or proves identity matching; callers still own prior resolution binding.
+
+Use private snapshot construction so comparison receives service-normalized state,
+not caller-supplied JSON. Tests use fake repositories, credentials, clocks and
+transports and cover errors, replacement races, unknown/empty distinction, mapping
+validation and field-order independence. No new dependency or public contract.
+
 ## 4. Jobs and minimal persistence
 
 Proposed lifecycle: queued -> running -> completed/failed/cancelled; startup marks

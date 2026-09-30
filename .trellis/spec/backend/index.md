@@ -11,6 +11,7 @@ The runnable foundation, local session/pairing, NeoDB OAuth HTTP/UI and CLI pair
 | [Catalog Identity Resolvers](./catalog-resolver.md) | Bounded native polling, explicit manual selection and identity/granularity checks |
 | [Bounded Catalog Search](./catalog-search.md) | Unsupported-only first-page fallback and review-only candidates |
 | [NeoDB Personal Mark Reads](./neodb-mark-read.md) | Restrictive authenticated single-item reads and narrow missing-shelf semantics |
+| [Preview Snapshots and Comparison](./preview-comparison.md) | Account-bound snapshots, unknown/empty distinction and pure non-executable field comparison |
 | [Mapping and Conflict](./mapping-and-conflict-contract.md) | Mapping validation, dry-run, activation, and review |
 | [Mapping Evaluator](./mapping-evaluator.md) | Implemented pure suggestions and bounded YAML/JSON configuration |
 | [Mapping Storage](./mapping-storage.md) | Immutable disabled profile revisions and atomic version checks |

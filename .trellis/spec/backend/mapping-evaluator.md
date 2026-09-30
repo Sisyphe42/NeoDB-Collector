@@ -7,7 +7,8 @@ validation/evaluation, Server owns configuration decoding. The separate
 [Mapping Storage](./mapping-storage.md) adapter persists validated revisions.
 [Mapping HTTP](./mapping-http.md) now exposes configuration validation/read/save.
 The [WebUI editor](../frontend/mapping-editor.md) consumes the same configuration
-contracts. No activation, matching, sink comparison or media writes yet.
+contracts. [Preview comparison](./preview-comparison.md) now consumes the evaluator's
+suggestions. The evaluator itself owns no matching, sink reads, activation or media writes.
 The wider conflict/activation contract remains in mapping-and-conflict-contract.md.
 
 ## 2. Signatures
@@ -92,5 +93,5 @@ Wrong: decode JSON directly to a BTreeMap and silently keep a duplicate enum key
 Correct: apply duplicate-aware bounded parsing, JSON syntax checks when selected,
 then the same Core validator used for programmatic profiles.
 
-Wrong: `accepted` means execute. Correct: pass suggestions into the future
-comparison/policy planner; this evaluator has no writer dependency.
+Wrong: `accepted` means execute. Correct: pass suggestions into the
+comparison layer and future policy planner; this evaluator has no writer dependency.

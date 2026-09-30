@@ -5,8 +5,8 @@
 Internal C1 transport checkpoint: Core owns the port in
 `crates/collector-core/src/marks.rs`; NeoDB implements it in
 `crates/collector-connectors/src/neodb/marks.rs`. This is not a public route or
-comparison service. Credential lookup, endpoint-generation binding, timestamped
-snapshots, pure field comparison and jobs remain C2 or later. No write capability.
+comparison service. [C2 snapshot/comparison](./preview-comparison.md) composes this
+port with credential lookup and endpoint binding. Jobs remain pending. No write capability.
 
 ## 2. Signatures
 
@@ -49,10 +49,10 @@ this result. Supporting those fields later requires their own mapping/read contr
   64 KiB declared and streamed response caps, and sanitized static diagnostics.
   Reuse catalog normalization and bounded JSON parsing rather than copying them.
 - This low-level port does not read the credential store or prove that an endpoint
-  remained current during I/O. C2 must bind/check endpoint, account and credential
+  remained current during I/O. C2 binds/checks endpoint, account and credential
   reference before accepting snapshots. A transport result alone is not freshness.
   A missing-shelf reply has no owner field to corroborate the supplied account;
-  C2 must verify the token's `/api/me` identity before treating it as an account-bound
+  C2 verifies the token's `/api/me` identity before treating it as an account-bound
   observation. C1 checks owner equality only when a successful mark supplies it.
 
 Evidence: product `neodb_mark_read_api`, `neodb_item_read_resolution`,

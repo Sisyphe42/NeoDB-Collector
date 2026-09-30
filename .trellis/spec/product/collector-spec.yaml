@@ -353,8 +353,11 @@ core_pipeline:
   current_conflict_default: keep_existing_sink_value_and_needs_review
   neodb_mark_read:
     reviewed_at: 2026-09-22
-    implementation: internal_transport_only
-    account_bound_snapshots_and_comparison: pending
+    implementation: internal_transport_and_account_bound_comparison
+    account_bound_snapshots_and_comparison: internal_only
+    snapshot_binding: endpoint_account_and_unique_credential_reference
+    unknown_sink_field: needs_review_never_inferred_empty
+    public_preview_jobs: pending
     operation: GET_/api/me/shelf/item/{uuid}
     scope: read
     missing_shelf: exact_404_Mark_not_found_only

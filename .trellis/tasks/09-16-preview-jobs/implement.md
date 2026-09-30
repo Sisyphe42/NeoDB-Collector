@@ -150,7 +150,7 @@ main for upstream evidence, contracts, review and commit.
 
 - [x] C1: Add borrowed-secret mark-read port, normalized present/MissingShelf outcomes,
   strict item/owner binding, status/size/timeout/redirect tests and full verification.
-- [ ] C2: Obtain credentials through existing ports, detect replaced endpoint/account,
+- [x] C2: Obtain credentials through existing ports, detect replaced endpoint/account,
   produce timestamped snapshots and compare mapped fields without treating unknown
   rating as absent. MissingShelf confirms only shelf absence, not rating emptiness.
   Verify token identity with `/api/me` before binding owner-less MissingShelf to
@@ -159,9 +159,21 @@ main for upstream evidence, contracts, review and commit.
 - [x] Verify mark-read API and absence semantics with primary evidence; persist
   references in canonical specs before relying on platform behavior.
 - [x] Implement restrictive authenticated read port/adapter and normalized transport snapshots.
-- [ ] Reuse mapping evaluator; test equal, empty, conflict, missing shelf, stale
+- [x] Reuse mapping evaluator; test equal, empty, conflict, missing shelf, stale
   account and unreachable state. No writer or activation path.
-- [ ] Verify and commit the complete internal comparison slice.
+- [x] Verify and commit the complete internal comparison slice.
+
+C2 implementation ownership: Sol/medium implements Core service/comparison and
+fake-port tests; main owns contract updates, independent review, full verification
+and commit. Reuse existing ports without a new dependency, schema or public route.
+The full endpoint tuple is checked before/after secret lookup and after remote
+reads; tests replace the base, account and same-account credential reference at
+each boundary. MissingShelf requires matching `/api/me`; Present avoids that extra
+read. Test snapshot time, retained resolution evidence, later stale-binding checks,
+credential/repository/transport failures and dropped-future short-circuiting.
+Comparison tests cover equal/empty/conflicting/unknown values, existing shelves,
+explicit shelf suggestions independent of rule order, disabled/missing/rejected
+mapping outputs and preserved mapping validation. No test uses a real account.
 
 C1 verification (2026-09-30): Sol/medium implemented code/tests; main reviewed
 the integrated diff, shared parser/identity reuse, owner binding and absence semantics.
@@ -172,6 +184,19 @@ actual CLI/local HTTP/desktop-mobile browser smoke passed. Product YAML/evidence
 references and `git diff --check` passed. Only loopback mocks were used; no live
 NeoDB account, credential store, public API or persistence change. Account-bound
 snapshots and pure comparison remain C2; C-E and the preview child remain unfinished.
+
+C2 verification (2026-09-30): Sol/medium implemented the internal snapshot service,
+pure comparison and 14 fake-port tests. Main reviewed the integrated code and
+strengthened exact error assertions, valid identity fixtures, preserved sink/evidence,
+numeric behavior and rule-order checks. Scoped Core 50 unit + 2 doctests passed.
+Main's full `pnpm verify` with `CARGO_BUILD_JOBS=1` passed: 122 Rust unit tests,
+2 compile-fail doctests, 25 TS/UI tests, fmt/Clippy, generated contract drift,
+dependency boundaries, lint/typecheck, builds and actual CLI/local HTTP/desktop-mobile
+browser smoke. Product YAML/evidence references and `git diff --check` passed.
+Snapshot/comparison remains internal and historical, not execution authority; no
+public DTO, migration, new dependency, real account or OS credential access.
+Checkpoint C is complete; persistent jobs and public integration (D-E) remain
+pending. Keep the preview child active rather than archiving it.
 
 ### D. Persistent resumable jobs
 

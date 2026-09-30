@@ -206,6 +206,10 @@ pending. Keep the preview child active rather than archiving it.
 - [ ] D2: Persist validated identity/snapshot/comparison results with conditional
   completion, connect the bounded runtime worker, startup recovery and retention
   configuration/scheduling. Run fresh comparison after explicit resume.
+  - [x] D2a: Internal single-record producer joining resolution/snapshot/comparison,
+    explicit provenance, whole-record cancellation/deadline and binding checks.
+  - [ ] D2b: Compatible result persistence and conditional completion, followed by
+    runtime worker/startup/configuration composition; do not mark D2 complete at D2a.
 
 Main owns design/contracts/acceptance/commit; Sol/medium implements Core repository
 types and SQLite adapter/tests. Do not create migration-only commits, public DTOs,
@@ -224,6 +228,29 @@ boundaries, lint/typecheck, builds and actual CLI/local HTTP/desktop-mobile brow
 smoke. Product YAML/evidence references and `git diff --check` passed. No new
 dependency, public DTO/route, worker, result completion or real-account/keychain
 operation. D2/E remain pending and this child remains active.
+
+D2a ownership: Sol/medium owns `collector-core/src/preview_records.rs`, its tests,
+module registration and the minimal reusable expected-binding method in `preview.rs`.
+Main owns design/contracts, review, full verification and checkpoint commit.
+Use fake ports/clock/control; cover matched/manual comparison and preserved
+evidence, unknown/empty/conflict, unsupported-only search, unresolved outcomes with
+zero secret/mark reads, validation before I/O, stale/disconnected tuple across
+stages, port failures and cancellation/hung work/outer deadline in every I/O phase.
+Use existing library mechanisms and ports, not custom production polling/racing.
+No Storage/Server/client or public-schema changes belong to D2a.
+
+D2a verification (2026-10-01): Sol/medium implemented the Core producer and 11
+fake-port tests; main reviewed the full code/tests and aligned the owning contracts.
+Review additions cover hung opt-in search under cancellation/expiry and endpoint
+rotation/disconnection before publication of unresolved results. Scoped Core 66
+unit + 2 compile-fail doctests and fmt passed. Main's full `pnpm verify` with
+`CARGO_BUILD_JOBS=1` passed: 152 Rust unit tests, 2 doctests, 25 TS/UI tests,
+fmt/Clippy, generated contracts, dependency boundaries, lint/typecheck, builds and
+actual CLI/local HTTP/desktop-mobile browser smoke. Product YAML/34 evidence IDs
+and references plus `git diff --check` passed. Tests used fake ports or loopback
+mocks, without live NeoDB or OS credential access. No dependency, migration,
+public DTO/route, worker or persistent result completion was added. D2a is complete;
+D2/D2b/E remain pending, so keep the preview child active.
 
 - [ ] Implement repositories, ordered migration, atomic bounded submission,
   version/account binding and conditional worker transitions.

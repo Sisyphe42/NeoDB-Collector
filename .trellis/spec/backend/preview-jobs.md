@@ -6,6 +6,9 @@ Checkpoint D1 owns the internal Core repository and SQLite migration/adapter.
 Submission, ordered reads and guarded lifecycle changes work without a worker.
 Runtime scheduling, normalized result persistence, completion, configuration and
 HTTP/client delivery remain D2/E. No completed job can be produced by D1 alone.
+[D2a single-record production](./preview-records.md) composes resolution and
+comparison without changing this repository or completing jobs. Persistent result
+transactions, runtime worker and startup/configuration composition remain D2b.
 
 ## 2. Signatures
 

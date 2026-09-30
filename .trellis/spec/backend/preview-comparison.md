@@ -16,6 +16,9 @@ activation or new dependency. Transport evidence remains in `neodb-mark-read.md`
 - `async read(expected: Endpoint, resolved_item: CatalogItem)` returns
   `Result<AccountMarkSnapshot, ApiError>` and takes ownership of resolved evidence.
 - `async ensure_current_binding(&AccountMarkSnapshot) -> Result<(), ApiError>`.
+- `async ensure_expected_binding(&Endpoint) -> Result<(), ApiError>` exposes the
+  same point-in-time guard for [single-record composition](./preview-records.md),
+  without a secret lookup or endpoint mutation.
 - Snapshot read-only accessors: `base_url()`, `account()`, `observed_at()` (Unix
   seconds), `item()`. State and credential binding have no public constructor.
 - `compare(&MappingProfile, &Observation, &AccountMarkSnapshot)` returns

@@ -82,13 +82,13 @@ impl PreviewSnapshotService {
         expected: Endpoint,
         resolved_item: CatalogItem,
     ) -> Result<AccountMarkSnapshot, ApiError> {
-        self.require_binding(&expected).await?;
+        self.ensure_expected_binding(&expected).await?;
         let token = self
             .secrets
             .get(expected.credential_ref.clone())
             .await
             .map_err(|_| credential_unavailable())?;
-        self.require_binding(&expected).await?;
+        self.ensure_expected_binding(&expected).await?;
 
         let mark = self
             .marks
@@ -113,7 +113,7 @@ impl PreviewSnapshotService {
             MarkRead::MissingShelf => {
                 // Do not send a second request after learning that this credential
                 // generation is stale. MissingShelf itself has no response owner.
-                self.require_binding(&expected).await?;
+                self.ensure_expected_binding(&expected).await?;
                 let owner = self
                     .identity
                     .identity(expected.base_url.clone(), &token)
@@ -125,7 +125,7 @@ impl PreviewSnapshotService {
             }
         };
 
-        self.require_binding(&expected).await?;
+        self.ensure_expected_binding(&expected).await?;
         Ok(AccountMarkSnapshot {
             base_url: expected.base_url.clone(),
             account: expected.account.clone(),
@@ -142,10 +142,12 @@ impl PreviewSnapshotService {
         &self,
         snapshot: &AccountMarkSnapshot,
     ) -> Result<(), ApiError> {
-        self.require_binding(&snapshot.binding).await
+        self.ensure_expected_binding(&snapshot.binding).await
     }
 
-    async fn require_binding(&self, expected: &Endpoint) -> Result<(), ApiError> {
+    /// Checks the complete expected endpoint/account/credential generation at
+    /// this instant without reading the credential or mutating connection state.
+    pub async fn ensure_expected_binding(&self, expected: &Endpoint) -> Result<(), ApiError> {
         let current = self
             .repository
             .endpoint()

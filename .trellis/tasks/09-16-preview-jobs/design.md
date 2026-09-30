@@ -238,6 +238,48 @@ resume. Manual deletion and expiry cleanup remove observations and job atomicall
 late transitions update zero rows and cannot recreate a deleted job. Keep profiles,
 endpoint metadata and credentials. No HTTP/UI or source/NeoDB operation is added.
 
+### D2a single-record producer before persistence/runtime composition
+
+First compose a usable internal Core record-preview service. Reuse the existing
+native/manual/search resolvers, account-bound snapshot service and pure comparison;
+do not introduce a second matcher, comparison implementation or future-racing loop.
+Result storage and conditional job completion follow with their compatible adapter;
+the worker/startup/configuration integration remains a subsequent slice of D2.
+
+Input binds one validated IMDb Observation, disabled MappingProfile, expected
+Endpoint and trusted adapter CatalogIdentity. Before I/O, apply the existing
+normalized-observation validator and mapping evaluator, and require the expectation
+to agree with the observation's canonical URL, media type and scheme/ID. The model
+is trusted built-in adapter output, not a client-supplied matching override.
+Resolution choice is explicit: native, native-with-search(query), or manual(detail
+reference). Do not auto-select a candidate or fabricate a search query from a
+multiline/oversized title hint. Manual mode requires a later caller's explicit user
+selection; this internal method is not a new UI action or saved manual mapping.
+
+Use the existing ResolutionControl for one outer 120-second deadline covering
+binding reads, catalog resolution, credential lookup, mark/identity reads and final
+publication. Existing inner resolver budgets and 15-second polling still apply,
+but cannot extend the outer deadline. Cancellation/expiry drops pending work and
+prevents later calls; it cannot undo remotely queued catalog creation or an OS
+credential operation already running in a blocking adapter.
+
+Expose the snapshot service's existing expected-binding check for reuse. Require
+the exact base/account/credential reference before catalog I/O, after resolution
+before account reads, and before returning any record result (including unresolved
+outcomes). No mutex/SQLite transaction is held across I/O. Only Matched and
+ManuallySelected can read marks and compare; NeedsReview, SearchCandidates,
+Unsupported, RateLimited and Unavailable retain their evidence/outcomes without
+credential or personal-state reads. Errors return no partial record or empty sink.
+
+The output has private construction, read-only source fingerprint/profile/base/
+account metadata, an exact-binding predicate and an immutable outcome accessor.
+Compared output owns the original AccountMarkSnapshot and Comparison, recording
+automatic versus manual provenance separately. Do not flatten away evidence,
+unknown/empty distinctions, snapshot time or field reasons. No Debug/serde or
+credential-reference accessor on the record. Publication is historical evidence,
+not job completion or write/activation authority. This slice adds no migration,
+worker, HTTP/client contract, dependency, actual account access or source write.
+
 ## 5. API and clients (later checkpoints)
 
 Add authenticated import/preview creation, status, paginated results, cancel,

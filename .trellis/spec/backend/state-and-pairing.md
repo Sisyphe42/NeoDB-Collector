@@ -20,7 +20,12 @@ neodb_endpoint(singleton, base_url, account, credential_ref)
 Kinds are bootstrap/session/pairing/client; hashes are unique. `singleton=1` constrains endpoint metadata exposed through authenticated GET /api/v1/settings/neodb.
 Migration `0003_mapping_profiles.sql` now stores immutable validated disabled
 configuration revisions: `mapping_profiles(id, version, profile_json)`; see
-[Mapping Storage](./mapping-storage.md). Later schema ownership (not implemented):
+[Mapping Storage](./mapping-storage.md). Migration `0004_preview_jobs.sql` stores
+bounded normalized IMDb preview observations and account/profile-bound lifecycle
+metadata in `preview_jobs` and `preview_observations`; see
+[Persistent Preview Jobs](./preview-jobs.md). Its repository is internal: worker,
+result persistence, startup recovery hooks and public import routes remain pending.
+No raw files or payloads are stored. Later schema ownership (not implemented):
 
 ```sql
 sync_checkpoints(connector_instance_id, stream, cursor_json, updated_at)
@@ -118,7 +123,7 @@ Content-Type: application/json
 
 ## 6. Tests Required
 
-- Implemented tests: `crates/collector-storage/src/access.rs` covers hash-only rows, expiry, replay, client/origin binding, concurrent exchange, rollback and revoked-token restart. `src/lib.rs` covers empty/v1 upgrade/reopen and byte-preserving newer-schema rejection.
+- Implemented tests: `crates/collector-storage/src/access.rs` covers hash-only rows, expiry, replay, client/origin binding, concurrent exchange, rollback and revoked-token restart. `src/lib.rs` covers empty/v1/v2/v3 upgrade/reopen and byte-preserving newer-schema rejection. `src/preview_jobs/tests.rs` covers normalized input persistence, attempt guards, transactional reads/writes and job-only deletion/expiry.
 - `crates/collector-server/src/access_tests.rs` covers real router lifecycle, Origin/CSRF, Bearer non-escalation, caps/redaction/rate limit and revoke. `packages/core-client-ts/src/access.test.ts` covers validators, mutation-only CSRF and sanitized failures.
 - `csrf_rejects_missing_length_and_equal_length_mismatches` tests missing/empty,
   short/long, first/last-byte mismatch and another session's CSRF, then confirms

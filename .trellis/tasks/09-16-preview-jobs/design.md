@@ -202,6 +202,42 @@ pagination. Deletion cancels local work before removing job data and prevents a
 late worker from recreating it. Startup/periodic/manual cleanup removes expired
 preview rows/jobs (default 30 days, configurable), never profiles or credentials.
 
+### D1 job repository before D2 runtime/results
+
+Implement the internal job repository and `0004_preview_jobs.sql` together before
+adding the runtime worker. Core owns job metadata, lifecycle values, bounds and
+repository ports; Storage owns SQL and encoding of existing normalized Observation
+values. No serde/runtime dependency is added to Core. D1 has no result-commit or
+completed-job operation: normalized identity/snapshot/comparison result persistence
+and completion belong to D2 with their producer and validation.
+
+Submission is atomic: insert job and ordered observations only if the singleton
+endpoint still equals the supplied base/account/credential-reference tuple and the
+exact disabled profile revision exists. Reject unsupported raw-like observation
+state rather than persisting it. This checkpoint accepts the implemented IMDb CSV
+subset only; future connectors extend explicit normalized-record validation behind
+the same open-string connector boundary. Keep source/media IDs as strings.
+Bound submissions at 10,000 observations, 16 KiB per encoded observation and
+32 MiB total normalized observation bytes; pagination is at most 100 records.
+Records retain only validated supported fields and display/identity metadata.
+
+Each job has a positive attempt number. Claim changes queued to running once using
+an atomic conditional write for ID/attempt/current binding/unexpired retention.
+Cancel/interrupt/fail transitions cannot update a different attempt. Explicit resume
+from interrupted/failed/cancelled increments attempt and requeues all observations;
+no old worker result can be accepted under the new attempt. There is no implicit
+startup resume. Later D2 results must additionally check endpoint/profile binding
+in the result transaction. Repository recovery/cleanup methods are internal here;
+startup scheduling and configurable retention stay D2.
+
+Profiles are immutable revisions: preserve the selected exact ID/version and
+never load a different latest revision on resume. Adding another revision does
+not silently change which revision an existing historical job selected; callers
+choosing a different revision must create a new job. Expired jobs cannot claim or
+resume. Manual deletion and expiry cleanup remove observations and job atomically;
+late transitions update zero rows and cannot recreate a deleted job. Keep profiles,
+endpoint metadata and credentials. No HTTP/UI or source/NeoDB operation is added.
+
 ## 5. API and clients (later checkpoints)
 
 Add authenticated import/preview creation, status, paginated results, cancel,

@@ -200,6 +200,31 @@ pending. Keep the preview child active rather than archiving it.
 
 ### D. Persistent resumable jobs
 
+- [x] D1: Internal repository + migration, normalized bounded submission, ordered
+  reads, atomic claim/attempt guards, cancellation/interruption/explicit resume,
+  deletion/expiry primitives and prior-schema migration/rollback/reopen tests.
+- [ ] D2: Persist validated identity/snapshot/comparison results with conditional
+  completion, connect the bounded runtime worker, startup recovery and retention
+  configuration/scheduling. Run fresh comparison after explicit resume.
+
+Main owns design/contracts/acceptance/commit; Sol/medium implements Core repository
+types and SQLite adapter/tests. Do not create migration-only commits, public DTOs,
+general workflow infrastructure or completion without produced comparison results.
+
+D1 verification (2026-09-30): Sol/medium implemented the Core repository and
+SQLite v4 adapter/tests; main reviewed input boundaries, exact account/profile
+binding, read/write transactions, attempt guards and migration fixtures. Review
+refinements cover snapshot-consistent pagination/delete races, rollback, queued
+and running recovery after clock regression, fixed retention, JSON-escaped byte
+limits, attempt overflow and preservation of profiles/account/auth rows. Scoped
+Core 55 unit + 2 doctests, Storage 26 tests, IMDb 6 focused tests and Clippy passed.
+Main's full `pnpm verify` with `CARGO_BUILD_JOBS=1` passed: 141 Rust unit tests,
+2 compile-fail doctests, 25 TS/UI tests, fmt/Clippy, generated contracts, dependency
+boundaries, lint/typecheck, builds and actual CLI/local HTTP/desktop-mobile browser
+smoke. Product YAML/evidence references and `git diff --check` passed. No new
+dependency, public DTO/route, worker, result completion or real-account/keychain
+operation. D2/E remain pending and this child remains active.
+
 - [ ] Implement repositories, ordered migration, atomic bounded submission,
   version/account binding and conditional worker transitions.
 - [ ] Add bounded runtime worker, startup interruption, explicit fresh resume,

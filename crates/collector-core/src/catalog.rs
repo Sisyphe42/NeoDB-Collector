@@ -1,6 +1,13 @@
 //! Internal evidence port. Fetch may create public catalog entries, never marks.
 use crate::access::PortFuture;
 
+/// Shared built-in IMDb identity predicate. Connector IDs remain open strings;
+/// callers opt into this rule only for the explicit `imdb:title` scheme.
+pub fn valid_imdb_title_id(value: &str) -> bool {
+    let digits = value.strip_prefix("tt").unwrap_or("");
+    (7..=16).contains(&digits.len()) && digits.bytes().all(|b| b.is_ascii_digit())
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum CatalogFetch {
     Pending,

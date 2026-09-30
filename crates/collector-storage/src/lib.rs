@@ -11,6 +11,7 @@ static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 mod access;
 pub mod credentials;
 mod mapping;
+mod preview_jobs;
 
 #[derive(Clone)]
 pub struct Storage {
@@ -117,7 +118,9 @@ mod tests {
                     "_sqlx_migrations",
                     "access_credentials",
                     "mapping_profiles",
-                    "neodb_endpoint"
+                    "neodb_endpoint",
+                    "preview_jobs",
+                    "preview_observations"
                 ]
             );
             storage.close().await;
@@ -130,7 +133,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let storage = Storage::open(dir.path()).await.unwrap();
         // Recreate the exact committed v1 shape and ledger in an isolated fixture.
-        sqlx::raw_sql("DROP TABLE mapping_profiles; DROP TABLE access_credentials; DROP TABLE neodb_endpoint; DELETE FROM _sqlx_migrations WHERE version>=2;")
+        sqlx::raw_sql("DROP TABLE preview_observations; DROP TABLE preview_jobs; DROP TABLE mapping_profiles; DROP TABLE access_credentials; DROP TABLE neodb_endpoint; DELETE FROM _sqlx_migrations WHERE version>=2;")
             .execute(&storage.pool).await.unwrap();
         storage.close().await;
         let upgraded = Storage::open(dir.path()).await.unwrap();
@@ -138,9 +141,42 @@ mod tests {
             .fetch_one(&upgraded.pool)
             .await
             .unwrap();
-        assert_eq!(latest, 3);
+        assert_eq!(latest, 4);
         assert!(upgraded.is_ready().await);
         upgraded.close().await;
+    }
+
+    #[tokio::test]
+    async fn access_and_mapping_schemas_upgrade_through_preview_jobs() {
+        for prior in [2, 3] {
+            let dir = tempfile::tempdir().unwrap();
+            let storage = Storage::open(dir.path()).await.unwrap();
+            if prior == 2 {
+                sqlx::raw_sql("DROP TABLE preview_observations; DROP TABLE preview_jobs; DROP TABLE mapping_profiles; DELETE FROM _sqlx_migrations WHERE version>=3;")
+                    .execute(&storage.pool).await.unwrap();
+            } else {
+                sqlx::raw_sql("DROP TABLE preview_observations; DROP TABLE preview_jobs; DELETE FROM _sqlx_migrations WHERE version>=4;")
+                    .execute(&storage.pool).await.unwrap();
+            }
+            storage.close().await;
+            let upgraded = Storage::open(dir.path()).await.unwrap();
+            let latest: i64 = sqlx::query_scalar("SELECT max(version) FROM _sqlx_migrations")
+                .fetch_one(&upgraded.pool)
+                .await
+                .unwrap();
+            assert_eq!(latest, 4);
+            for table in ["preview_jobs", "preview_observations"] {
+                let exists: i64 = sqlx::query_scalar(
+                    "SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?",
+                )
+                .bind(table)
+                .fetch_one(&upgraded.pool)
+                .await
+                .unwrap();
+                assert_eq!(exists, 1);
+            }
+            upgraded.close().await;
+        }
     }
 
     #[tokio::test]

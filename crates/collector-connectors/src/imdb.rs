@@ -7,10 +7,7 @@ pub const CONNECTOR_ID: &str = "imdb:ratings_csv";
 pub const MAX_BYTES: usize = 10 * 1024 * 1024;
 pub const MAX_ROWS: usize = 10_000;
 
-pub(crate) fn valid_title_id(id: &str) -> bool {
-    let digits = id.strip_prefix("tt").unwrap_or("");
-    (7..=16).contains(&digits.len()) && digits.bytes().all(|b| b.is_ascii_digit())
-}
+pub(crate) use collector_core::catalog::valid_imdb_title_id as valid_title_id;
 
 /// Validate even in-process observations before preparing resolver expectations.
 pub fn catalog_identity(

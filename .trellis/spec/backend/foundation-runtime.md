@@ -20,7 +20,7 @@ GET /assets/*            -> static bundle assets
 
 `collector_core::StorageHealth::is_ready` returns a boxed Send future without requiring a concrete async runtime in Core. SQLx implements it with a real `SELECT 1`; the server uses that result, not a constant success flag.
 
-SQLite uses `{data_dir}/collector.db`; `0001_baseline.sql` establishes SQLx's migration ledger, and `0002_access.sql` adds hashed local-access credentials and singleton endpoint metadata. No raw payloads or plaintext secrets are stored. Existing databases are checked read-only for newer migration versions before writable migration startup.
+SQLite uses `{data_dir}/collector.db`; `0001_baseline.sql` establishes SQLx's migration ledger, `0002_access.sql` adds hashed local-access credentials and singleton endpoint metadata, `0003_mapping_profiles.sql` adds immutable disabled profile revisions, and `0004_preview_jobs.sql` adds bounded normalized preview inputs and lifecycle metadata. The preview repository is internal; worker/results/public routes are not enabled. No raw payloads or plaintext secrets are stored. Existing databases are checked read-only for newer migration versions before writable migration startup.
 
 ## 3. Contracts
 
@@ -62,7 +62,7 @@ SQLite uses `{data_dir}/collector.db`; `0001_baseline.sql` establishes SQLx's mi
 
 - `crates/collector-cli/src/config.rs`: precedence, YAML-relative paths, explicit overrides, invalid keys/schema/IP/port.
 - `crates/collector-cli/src/main.rs`: doctor checks report missing assets and an occupied port while testing real temporary storage.
-- `crates/collector-storage/src/lib.rs`: empty migration, prior-v1 upgrade, repeat startup, operational tables only, real readiness, byte-preserving newer-DB rejection.
+- `crates/collector-storage/src/lib.rs`: empty migration, prior-v1/v2/v3 upgrade, repeat startup, operational tables only, real readiness, byte-preserving newer-DB rejection. Prior-schema fixtures remove all later tables in foreign-key order and every later migration-ledger entry before reopening.
 - `crates/collector-server/src/lib.rs`: real routes, degraded 503, unknown API 404, method 405, Host/Origin denial, no CORS, injected graceful shutdown releases the port.
 - `packages/core-client-ts/src/index.test.ts`: runtime schema rejection, version mismatch, network errors and valid degraded responses.
 - `apps/webui/src/App.test.tsx`: loading, refresh, empty capabilities and all error states.

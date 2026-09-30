@@ -58,7 +58,10 @@ Bad: overwriting v1 would change the meaning of an existing preview or approval.
 revision reads, concurrent creation/update, disabled-only saves, stale/invalid/
 overflow versions, injected write failure preserving old data, normalized byte
 limits, v2 migration preserving account metadata and corrupt-profile rejection.
-`src/lib.rs` covers empty/v1 migration, reopen tables and newer-schema refusal.
+`src/lib.rs` covers empty/v1/v2/v3 migration, reopen tables and newer-schema refusal.
+Prior-schema fixtures remove all later preview tables and migration-ledger entries,
+not just `mapping_profiles`. Preview jobs retain exact immutable revisions rather
+than selecting latest; see [Persistent Preview Jobs](./preview-jobs.md).
 Run `pnpm verify`; SQLite fixtures do not use live accounts or OS credentials.
 
 ## 7. Wrong vs Correct

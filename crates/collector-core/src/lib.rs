@@ -11,6 +11,7 @@ pub mod oauth;
 #[cfg(test)]
 mod oauth_tests;
 pub mod preview;
+pub mod preview_jobs;
 pub mod secrets;
 
 pub trait StorageHealth: Send + Sync {

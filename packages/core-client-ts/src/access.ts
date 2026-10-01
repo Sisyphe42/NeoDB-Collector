@@ -1,5 +1,5 @@
 import createClient from 'openapi-fetch';
-import { validateSessionView, validatePairingLink, validateClientList, validateActionResult, validateApiError, validateNeoDbStatus, validateNeoDbAuthorization, validateMappingProfile, validateMappingDocument, type paths, type components } from '@neodb-collector/contracts';
+import { validateSessionView, validatePairingLink, validateClientList, validateActionResult, validateApiError, validateNeoDbStatus, validateNeoDbAuthorization, validateMappingProfile, validateMappingDocument, validatePreviewJobView, validatePreviewResultPage, type paths, type components } from '@neodb-collector/contracts';
 
 export type SessionView = components['schemas']['SessionView'];
 export type PairedClient = components['schemas']['PairedClient'];
@@ -8,6 +8,8 @@ export type PairingLink = components['schemas']['PairingLink'];
 export type NeoDbStatus = components['schemas']['NeoDbStatus'];
 export type MappingProfile = components['schemas']['MappingProfile'];
 export type ProfileFormat = components['schemas']['ProfileFormat'];
+export type PreviewJobView = components['schemas']['PreviewJobView'];
+export type PreviewResultPage = components['schemas']['PreviewResultPage'];
 export class AccessClientError extends Error {
   constructor(public readonly code: string, public readonly field?: string) { super('Local access request failed.'); }
 }
@@ -15,7 +17,10 @@ export class AccessClientError extends Error {
 export function createAccessClient(options: { baseUrl?: string; fetch?: typeof fetch; timeoutMs?: number } = {}) {
   const client = createClient<paths>({ ...options, credentials: 'same-origin', redirect: 'error' });
   let csrf: string | undefined;
-  const requestOptions = () => ({ signal: AbortSignal.timeout(options.timeoutMs ?? 5000) });
+  const requestOptions = (callerSignal?: AbortSignal) => {
+    const timeout = AbortSignal.timeout(options.timeoutMs ?? 5000);
+    return { signal: callerSignal ? AbortSignal.any([callerSignal, timeout]) : timeout };
+  };
   const mutationOptions = () => ({ ...requestOptions(), headers: { 'X-CSRF-Token': csrf ?? '' } });
   async function checked<T>(request: Promise<{ data?: unknown; error?: unknown; response: Response }>, validate: (value: unknown) => value is T): Promise<T> {
     try {
@@ -40,6 +45,12 @@ export function createAccessClient(options: { baseUrl?: string; fetch?: typeof f
     },
     async mappingProfile(id: string) {
       return checked(client.GET('/api/v1/mapping-profiles/{id}', { ...requestOptions(), params: { path: { id } } }), validateMappingProfile);
+    },
+    async previewJob(id: string, signal?: AbortSignal) {
+      return checked(client.GET('/api/v1/previews/{id}', { ...requestOptions(signal), params: { path: { id } } }), validatePreviewJobView);
+    },
+    async previewResults(id: string, query: NonNullable<paths['/api/v1/previews/{id}/results']['get']['parameters']['query']>, signal?: AbortSignal) {
+      return checked(client.GET('/api/v1/previews/{id}/results', { ...requestOptions(signal), params: { path: { id }, query } }), validatePreviewResultPage);
     },
     async validateMapping(body: components['schemas']['MappingDocument']) {
       return checked(client.POST('/api/v1/mapping-profiles/validate', { ...requestOptions(), body }), validateMappingProfile);

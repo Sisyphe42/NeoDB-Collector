@@ -11,6 +11,7 @@ function client(): AccessClient {
     neodbStatus: vi.fn().mockResolvedValue({ connected: false, baseUrl: null, account: null, pending: false }),
     startNeoDb: vi.fn(), cancelNeoDb: vi.fn(),
     mappingProfile: vi.fn(), validateMapping: vi.fn(), saveMapping: vi.fn(),
+    previewJob: vi.fn(), previewResults: vi.fn(),
     defaultMapping: vi.fn(), convertMapping: vi.fn(),
     logout: vi.fn().mockResolvedValue(undefined), clients: vi.fn().mockResolvedValue([]),
     createPairing: vi.fn().mockResolvedValue({ uri: 'http://127.0.0.1:19423/pair#key=example', expiresAt: Date.now() / 1000 + 600 }),

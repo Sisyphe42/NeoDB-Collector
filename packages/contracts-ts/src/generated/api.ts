@@ -207,6 +207,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/previews/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["job"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/previews/{id}/results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["results"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/schema": {
         parameters: {
             query?: never;
@@ -427,6 +459,144 @@ export interface components {
             kind: "greater_than";
             /** Format: double */
             value: number;
+        };
+        /** @enum {string} */
+        PreviewBindingState: "current" | "changed" | "disconnected";
+        PreviewCatalogItemView: {
+            canonicalUrl: string;
+            detailUrl: string;
+            /** @description A list preserves distinct, potentially contradictory identity claims. */
+            externalIds: components["schemas"]["PreviewExternalIdClaim"][];
+            mediaType: string;
+            model: string;
+            parentUuid?: string | null;
+            uuid: string;
+        };
+        PreviewComparedFieldView: {
+            field: string;
+            reason: string;
+            ruleId: string;
+            sink: components["schemas"]["PreviewSinkView"];
+            status: components["schemas"]["PreviewComparisonStatusView"];
+            suggestion?: null | components["schemas"]["ScalarValue"];
+        };
+        /** @enum {string} */
+        PreviewComparisonStatusView: "accepted" | "skipped" | "rejected" | "needs_review";
+        PreviewComparisonView: {
+            fields: components["schemas"]["PreviewComparedFieldView"][];
+            profileId: string;
+            /** Format: int32 */
+            profileVersion: number;
+        };
+        PreviewExternalIdClaim: {
+            scheme: string;
+            value: string;
+        };
+        /** @enum {string} */
+        PreviewJobStatusView: "queued" | "running" | "interrupted" | "failed" | "cancelled" | "completed";
+        PreviewJobView: {
+            account: string;
+            /** Format: int32 */
+            attempt: number;
+            baseUrl: string;
+            bindingState: components["schemas"]["PreviewBindingState"];
+            /** Format: int64 */
+            createdAt: number;
+            /** @enum {boolean} */
+            executable: false;
+            /** Format: int64 */
+            expiresAt: number;
+            /** @enum {boolean} */
+            historical: true;
+            id: string;
+            /** Format: int32 */
+            observationCount: number;
+            profileId: string;
+            /** Format: int32 */
+            profileVersion: number;
+            status: components["schemas"]["PreviewJobStatusView"];
+            /** Format: int64 */
+            updatedAt: number;
+        };
+        PreviewOutcomeView: {
+            comparison: components["schemas"]["PreviewComparisonView"];
+            item: components["schemas"]["PreviewCatalogItemView"];
+            /** @enum {string} */
+            kind: "compared";
+            /** Format: int64 */
+            observedAt: number;
+            provenance: components["schemas"]["PreviewProvenanceView"];
+        } | {
+            item: components["schemas"]["PreviewCatalogItemView"];
+            /** @enum {string} */
+            kind: "needs_review";
+            reason: string;
+        } | {
+            candidates: components["schemas"]["PreviewSearchCandidateView"][];
+            /** @enum {string} */
+            kind: "search_candidates";
+            moreAvailable: boolean;
+        } | {
+            /** @enum {string} */
+            kind: "unsupported";
+        } | {
+            /** @enum {string} */
+            kind: "rate_limited";
+        } | {
+            /** @enum {string} */
+            kind: "unavailable";
+        };
+        /** @enum {string} */
+        PreviewProvenanceView: "automatic" | "manual";
+        PreviewResultPage: {
+            /** Format: int32 */
+            attempt: number;
+            /** @enum {boolean} */
+            executable: false;
+            /** @enum {boolean} */
+            historical: true;
+            items: components["schemas"]["PreviewResultView"][];
+            jobId: string;
+            /** Format: int32 */
+            limit: number;
+            /** Format: int32 */
+            offset: number;
+        };
+        PreviewResultView: {
+            account: string;
+            /** Format: int32 */
+            attempt: number;
+            baseUrl: string;
+            /** Format: int64 */
+            committedAt: number;
+            /** @enum {boolean} */
+            executable: false;
+            /** @enum {boolean} */
+            historical: true;
+            /** Format: int32 */
+            ordinal: number;
+            outcome: components["schemas"]["PreviewOutcomeView"];
+            profileId: string;
+            /** Format: int32 */
+            profileVersion: number;
+            sourceConnectorId: string;
+            sourceFingerprint: string;
+            sourceRecordId: string;
+        };
+        PreviewSearchCandidateView: {
+            item: components["schemas"]["PreviewCatalogItemView"];
+            title: string;
+        };
+        PreviewSinkView: {
+            /** @enum {string} */
+            kind: "known";
+            value: components["schemas"]["ScalarValue"];
+        } | {
+            /** @enum {string} */
+            kind: "empty";
+        } | {
+            /** @enum {string} */
+            kind: "unknown";
         };
         /** @enum {string} */
         ProfileFormat: "json" | "yaml";
@@ -1227,6 +1397,140 @@ export interface operations {
                 };
             };
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    job: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreviewJobView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    results: {
+        parameters: {
+            query: {
+                attempt: number;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreviewResultPage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

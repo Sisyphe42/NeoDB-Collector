@@ -17,5 +17,8 @@ export declare function validatePairingExchange(value: unknown): value is compon
 export declare function validatePairingLink(value: unknown): value is components['schemas']['PairingLink'];
 export declare function validatePairingRequest(value: unknown): value is components['schemas']['PairingRequest'];
 export declare function validatePairingToken(value: unknown): value is components['schemas']['PairingToken'];
+export declare function validatePreviewJobView(value: unknown): value is components['schemas']['PreviewJobView'];
+export declare function validatePreviewResultPage(value: unknown): value is components['schemas']['PreviewResultPage'];
+export declare function validatePreviewResultView(value: unknown): value is components['schemas']['PreviewResultView'];
 export declare function validateSaveMappingProfile(value: unknown): value is components['schemas']['SaveMappingProfile'];
 export declare function validateSessionView(value: unknown): value is components['schemas']['SessionView'];

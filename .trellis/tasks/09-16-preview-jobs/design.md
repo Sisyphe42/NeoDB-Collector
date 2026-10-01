@@ -518,6 +518,53 @@ injected shutdown/fakes. Run the full gate and keep public delivery E pending.
 
 ## 5. API and clients (later checkpoints)
 
+### E1 read-only job inspection before submission/client screens
+
+Expose GET `/api/v1/previews/{id}` and GET
+`/api/v1/previews/{id}/results?attempt=N&offset=0&limit=50`. Both require a
+WebUI session or paired Bearer `imports.read`, using existing Host/Origin,
+Authorization-presence precedence and no-store boundaries. GET is nonmutating,
+so no CSRF is required; no credential, catalog or mark read is performed.
+Missing/expired jobs return static 404; an obsolete requested attempt returns
+409, not an empty current page. Query fields are strict, duplicate/unknown or
+invalid positive attempt/page limit are rejected without echo. Limit is 1..100;
+offset is an original zero-based observation ordinal, not a SQL row offset.
+
+Domain owns strict generated wire DTOs (camelCase metadata, snake_case tagged
+outcome/sink/status variants). Job views include ID/status/attempt, fixed expiry,
+observation count, immutable profile revision, base/account and a point-in-time
+binding state `current|changed|disconnected`. This is not snapshot freshness or
+write authority: every returned result is explicitly historical/non-executable.
+No credential reference, source payload or token enters these DTOs. Preserve all
+normalized outcomes, identity evidence including distinct external-ID claims,
+automatic/manual provenance, snapshot/commit times and complete field comparison
+suggestion/sink Known/Empty/Unknown/status/reason. Reuse Domain ScalarValue.
+
+Result pages carry job ID/attempt/offset/limit, historical=true and ordered items.
+There is no fabricated total/remaining count or progress percentage. Empty pages
+while queued/running do not prove completion or absence; clients poll job status
+and reread pages after terminal transitions. Fetch job before and after the result
+repository read; refuse attempt change/deletion/expiry without partial publication.
+Validate returned rows against job metadata/attempt and ordered bounded ordinal
+range. Use one existing strict ten-second ResolutionControl budget for repository
+reads and endpoint inspection, with static 503 errors on corrupt/hung/late ports.
+Serialize bounded pages with existing serde_json; cap encoded response at 8 MiB
+and reject overflow rather than truncate. No new database schema or dependency.
+
+Compose optional inspection job/result ports in AccessState and wire real Storage
+in CLI serve. Advertise only the two delivered read routes, keep connectorIds empty
+and import/resume/cancel/delete/UI capabilities pending. Thin shared TS client uses
+generated paths/validators, bounded/caller-abortable GETs and sanitized errors;
+it does not cast results or implement matching/pagination policy.
+
+Tests use real temporary SQLite plus fake clock/ports: authentication and malformed/
+revoked/duplicate Bearer cannot fall back to cookies, method denial, strict query,
+all statuses/outcomes and unknown/empty/conflicting field evidence, sparse pages,
+current vs rotated/disconnected binding, expiry, attempt/deletion races, corrupt
+storage, hung/late reads and response bounds/redaction. No actual account/keychain
+or native-fetch operation. Full gate before an independent E1 checkpoint; E2
+submission/management and E3 CLI/WebUI remain pending.
+
 Add authenticated import/preview creation, status, paginated results, cancel,
 resume and delete operations under API v1. Reuse `imports.submit` for mutations
 and `imports.read` for inspection, with existing session Origin/CSRF and Bearer

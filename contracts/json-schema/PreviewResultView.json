@@ -1,0 +1,411 @@
+{
+  "$defs": {
+    "PreviewCatalogItemView": {
+      "additionalProperties": false,
+      "properties": {
+        "canonicalUrl": {
+          "type": "string"
+        },
+        "detailUrl": {
+          "type": "string"
+        },
+        "externalIds": {
+          "description": "A list preserves distinct, potentially contradictory identity claims.",
+          "items": {
+            "$ref": "#/$defs/PreviewExternalIdClaim"
+          },
+          "type": "array"
+        },
+        "mediaType": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "parentUuid": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "uuid": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "uuid",
+        "canonicalUrl",
+        "detailUrl",
+        "mediaType",
+        "model",
+        "externalIds"
+      ],
+      "type": "object"
+    },
+    "PreviewComparedFieldView": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "ruleId": {
+          "type": "string"
+        },
+        "sink": {
+          "$ref": "#/$defs/PreviewSinkView"
+        },
+        "status": {
+          "$ref": "#/$defs/PreviewComparisonStatusView"
+        },
+        "suggestion": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ScalarValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "ruleId",
+        "field",
+        "sink",
+        "status",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "PreviewComparisonStatusView": {
+      "enum": [
+        "accepted",
+        "skipped",
+        "rejected",
+        "needs_review"
+      ],
+      "type": "string"
+    },
+    "PreviewComparisonView": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "items": {
+            "$ref": "#/$defs/PreviewComparedFieldView"
+          },
+          "type": "array"
+        },
+        "profileId": {
+          "type": "string"
+        },
+        "profileVersion": {
+          "format": "uint32",
+          "maximum": 4294967295,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "profileId",
+        "profileVersion",
+        "fields"
+      ],
+      "type": "object"
+    },
+    "PreviewExternalIdClaim": {
+      "additionalProperties": false,
+      "properties": {
+        "scheme": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "scheme",
+        "value"
+      ],
+      "type": "object"
+    },
+    "PreviewOutcomeView": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "comparison": {
+              "$ref": "#/$defs/PreviewComparisonView"
+            },
+            "item": {
+              "$ref": "#/$defs/PreviewCatalogItemView"
+            },
+            "kind": {
+              "const": "compared",
+              "type": "string"
+            },
+            "observedAt": {
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "provenance": {
+              "$ref": "#/$defs/PreviewProvenanceView"
+            }
+          },
+          "required": [
+            "kind",
+            "item",
+            "observedAt",
+            "comparison",
+            "provenance"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "item": {
+              "$ref": "#/$defs/PreviewCatalogItemView"
+            },
+            "kind": {
+              "const": "needs_review",
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "item",
+            "reason"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "candidates": {
+              "items": {
+                "$ref": "#/$defs/PreviewSearchCandidateView"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "const": "search_candidates",
+              "type": "string"
+            },
+            "moreAvailable": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "candidates",
+            "moreAvailable"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "unsupported",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "rate_limited",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "unavailable",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PreviewProvenanceView": {
+      "enum": [
+        "automatic",
+        "manual"
+      ],
+      "type": "string"
+    },
+    "PreviewSearchCandidateView": {
+      "additionalProperties": false,
+      "properties": {
+        "item": {
+          "$ref": "#/$defs/PreviewCatalogItemView"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "item"
+      ],
+      "type": "object"
+    },
+    "PreviewSinkView": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "known",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/ScalarValue"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "empty",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "unknown",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ScalarValue": {
+      "anyOf": [
+        {
+          "format": "double",
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "account": {
+      "type": "string"
+    },
+    "attempt": {
+      "format": "uint32",
+      "maximum": 4294967295,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "baseUrl": {
+      "type": "string"
+    },
+    "committedAt": {
+      "format": "int64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "executable": {
+      "const": false,
+      "type": "boolean"
+    },
+    "historical": {
+      "const": true,
+      "type": "boolean"
+    },
+    "ordinal": {
+      "format": "uint32",
+      "maximum": 9999,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "outcome": {
+      "$ref": "#/$defs/PreviewOutcomeView"
+    },
+    "profileId": {
+      "type": "string"
+    },
+    "profileVersion": {
+      "format": "uint32",
+      "maximum": 4294967295,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "sourceConnectorId": {
+      "type": "string"
+    },
+    "sourceFingerprint": {
+      "type": "string"
+    },
+    "sourceRecordId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "ordinal",
+    "attempt",
+    "committedAt",
+    "sourceConnectorId",
+    "sourceRecordId",
+    "sourceFingerprint",
+    "profileId",
+    "profileVersion",
+    "baseUrl",
+    "account",
+    "historical",
+    "executable",
+    "outcome"
+  ],
+  "title": "PreviewResultView",
+  "type": "object"
+}

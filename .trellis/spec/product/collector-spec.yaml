@@ -200,14 +200,14 @@ service:
     milestone: preview_auth
     implemented_hosts: [cli_with_webui]
     implemented_commands: [serve, doctor, pair, status]
-    implemented_routes: [webui, health, capabilities, schema, session_bootstrap, session, pairings, pairing_exchange, clients, client_identity, neodb_settings, neodb_oauth, neodb_oauth_callback, mapping_validate, mapping_get, mapping_save, mapping_default, mapping_convert]
+    implemented_routes: [webui, health, capabilities, schema, session_bootstrap, session, pairings, pairing_exchange, clients, client_identity, neodb_settings, neodb_oauth, neodb_oauth_callback, mapping_validate, mapping_get, mapping_save, mapping_default, mapping_convert, preview_get, preview_results]
     connector_ids: []
     writes_enabled: false
     database: migration_ledger_hashed_access_credentials_singleton_endpoint_metadata
     config: yaml_v1_cli_over_env_over_file_over_defaults
     exposure: loopback_only
     authentication: webui_session_csrf_and_transactional_client_pairing
-    pending: [media_reads, imports, preview_jobs]
+    pending: [imports, preview_submission_and_management, preview_cli_and_webui]
     code_contract: .trellis/spec/backend/foundation-runtime.md
   routes:
     webui: /
@@ -216,6 +216,8 @@ service:
     capabilities: /api/v1/capabilities
     schema: /api/v1/schema
     imports: /api/v1/imports
+    preview_get: /api/v1/previews/{id}
+    preview_results: /api/v1/previews/{id}/results
     mapping_profiles: /api/v1/mapping-profiles
     mapping_validate: /api/v1/mapping-profiles/validate
     mapping_dry_run: /api/v1/mapping-profiles/{profile_id}/dry-run
@@ -273,7 +275,7 @@ storage:
   preview_retention:
     status: approved_for_imdb_preview_milestone
     implementation: internal_job_results_and_owned_runtime_retention
-    pending: [public_api_and_clients]
+    pending: [public_submission_management_and_clients]
     default_days: 30
     configurable: true
     cleanup_interval_seconds: 60
@@ -377,7 +379,8 @@ core_pipeline:
     account_bound_snapshots_and_comparison: internal_only
     snapshot_binding: endpoint_account_and_unique_credential_reference
     unknown_sink_field: needs_review_never_inferred_empty
-    public_preview_jobs: pending
+    public_preview_jobs: historical_read_only_inspection
+    public_preview_contract: .trellis/spec/backend/preview-http.md
     operation: GET_/api/me/shelf/item/{uuid}
     scope: read
     missing_shelf: exact_404_Mark_not_found_only

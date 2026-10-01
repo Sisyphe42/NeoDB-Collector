@@ -18,6 +18,8 @@ pub struct AccessState {
     pub service: Arc<AccessService>,
     pub oauth: Option<Arc<collector_core::oauth::OAuthService>>,
     pub mappings: Option<Arc<dyn collector_core::mapping::MappingRepository>>,
+    pub preview_jobs: Option<Arc<dyn collector_core::preview_jobs::PreviewJobRepository>>,
+    pub preview_results: Option<Arc<dyn collector_core::preview_results::PreviewResultRepository>>,
     limiter: Arc<Mutex<(i64, u32)>>,
 }
 impl AccessState {
@@ -26,6 +28,8 @@ impl AccessState {
             service,
             oauth: None,
             mappings: None,
+            preview_jobs: None,
+            preview_results: None,
             limiter: Arc::new(Mutex::new((0, 0))),
         }
     }
@@ -282,6 +286,7 @@ pub(crate) fn routes(state: AccessState) -> Router {
         .route("/api/v1/oauth/neodb/callback", get(crate::oauth::callback))
         .layer(DefaultBodyLimit::max(4096))
         .merge(crate::mapping_http::routes())
+        .merge(crate::preview_http::routes())
         .with_state(state)
 }
 

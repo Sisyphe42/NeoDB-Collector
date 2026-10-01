@@ -13,10 +13,11 @@ The runnable foundation, local session/pairing, NeoDB OAuth HTTP/UI and CLI pair
 | [NeoDB Personal Mark Reads](./neodb-mark-read.md) | Restrictive authenticated single-item reads and narrow missing-shelf semantics |
 | [Preview Snapshots and Comparison](./preview-comparison.md) | Account-bound snapshots, unknown/empty distinction and pure non-executable field comparison |
 | [Single-record Preview](./preview-records.md) | Internal resolution/snapshot/comparison producer with explicit provenance and whole-record cancellation/deadline; public delivery pending |
-| [Persistent Preview Jobs](./preview-jobs.md) | Internal bounded normalized inputs, transactional lifecycle/attempt guards and retention policy; API pending |
-| [Persistent Preview Results](./preview-results.md) | Guarded normalized historical evidence, current-attempt pages and exhaustive conditional completion; API pending |
+| [Persistent Preview Jobs](./preview-jobs.md) | Bounded normalized inputs, transactional lifecycle/attempt guards and retention policy; read API implemented, submission pending |
+| [Persistent Preview Results](./preview-results.md) | Guarded normalized historical evidence, current-attempt read API pages and exhaustive conditional completion |
 | [Single-attempt Preview Execution](./preview-runner.md) | Internal sequential claim/produce/persist/complete orchestration; public API pending |
 | [Owned Preview Runtime](./preview-runtime.md) | Internal single-job admission, bounded waiters, explicit cancel/delete, startup recovery, retention and shutdown; API pending |
+| [Historical Preview HTTP](./preview-http.md) | Authenticated job/result inspection, strict attempt/ordinal pagination and historical evidence; submission/management/clients pending |
 | [Mapping and Conflict](./mapping-and-conflict-contract.md) | Mapping validation, dry-run, activation, and review |
 | [Mapping Evaluator](./mapping-evaluator.md) | Implemented pure suggestions and bounded YAML/JSON configuration |
 | [Mapping Storage](./mapping-storage.md) | Immutable disabled profile revisions and atomic version checks |

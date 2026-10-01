@@ -5,7 +5,8 @@
 D2b1 of `09-16-preview-jobs` extends the internal job repository with bounded
 normalized review results and conditional completion. The migration and compatible
 repository ship together. Runtime startup/retention is composed in Server/CLI; public
-API/client delivery remains E; a completed preview is not a write approval.
+historical read API is owned by [Preview HTTP](./preview-http.md), while submission/
+management/client screens remain E; a completed preview is not a write approval.
 Owners: `crates/collector-core/src/preview_results.rs`,
 `crates/collector-storage/src/preview_results.rs` and their `tests.rs`.
 [Single-attempt execution](./preview-runner.md) consumes these operations internally;

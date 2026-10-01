@@ -11,6 +11,7 @@ use collector_domain::{
     ApiError, CapabilityDocument, HealthDocument, HealthStatus, MEDIA_TYPES, SCHEMA_VERSION,
     access::*,
     mapping::{ConvertMappingDocument, MappingDocument, MappingProfile, SaveMappingProfile},
+    preview::*,
 };
 use std::{collections::BTreeMap, future::Future, net::SocketAddr, path::PathBuf, sync::Arc};
 use tower_http::services::ServeDir;
@@ -26,6 +27,9 @@ pub mod mapping_profiles;
 mod oauth;
 #[cfg(test)]
 mod oauth_tests;
+mod preview_http;
+#[cfg(test)]
+mod preview_http_tests;
 pub mod preview_runtime;
 pub mod resolution_control;
 
@@ -78,6 +82,11 @@ async fn capabilities() -> Json<CapabilityDocument> {
             ("neodbSettings".into(), "/api/v1/settings/neodb".into()),
             ("neodbOAuth".into(), "/api/v1/oauth/neodb".into()),
             ("mappingProfiles".into(), "/api/v1/mapping-profiles".into()),
+            ("preview".into(), "/api/v1/previews/{id}".into()),
+            (
+                "previewResults".into(),
+                "/api/v1/previews/{id}/results".into(),
+            ),
         ]),
     })
 }
@@ -109,7 +118,9 @@ async fn schema() -> Json<utoipa::openapi::OpenApi> {
         mapping_http::load,
         mapping_http::save,
         mapping_http::default_profile,
-        mapping_http::convert
+        mapping_http::convert,
+        preview_http::job,
+        preview_http::results
     ),
     components(schemas(
         ApiError,
@@ -130,17 +141,53 @@ async fn schema() -> Json<utoipa::openapi::OpenApi> {
         MappingDocument,
         MappingProfile,
         SaveMappingProfile,
-        ConvertMappingDocument
+        ConvertMappingDocument,
+        PreviewJobView,
+        PreviewJobStatusView,
+        PreviewBindingState,
+        PreviewResultPage,
+        PreviewResultView,
+        PreviewOutcomeView,
+        PreviewCatalogItemView,
+        PreviewExternalIdClaim,
+        PreviewSearchCandidateView,
+        PreviewComparisonView,
+        PreviewComparedFieldView,
+        PreviewSinkView,
+        PreviewComparisonStatusView,
+        PreviewProvenanceView
     ))
 )]
 struct ApiDoc;
 
 pub fn openapi() -> utoipa::openapi::OpenApi {
     let mut doc = ApiDoc::openapi();
+    for name in ["PreviewOutcomeView", "PreviewSinkView"] {
+        strict_preview_tagged_variants(&mut doc, name);
+    }
     doc.info.title = "NeoDB Collector Core".into();
     doc.info.version = env!("CARGO_PKG_VERSION").into();
     doc.info.license = None;
     doc
+}
+
+fn strict_preview_tagged_variants(doc: &mut utoipa::openapi::OpenApi, name: &str) {
+    use utoipa::openapi::{
+        RefOr,
+        schema::{AdditionalProperties, Schema},
+    };
+    let Some(RefOr::T(Schema::OneOf(one_of))) = doc
+        .components
+        .as_mut()
+        .and_then(|components| components.schemas.get_mut(name))
+    else {
+        return;
+    };
+    for item in &mut one_of.items {
+        if let RefOr::T(Schema::Object(object)) = item {
+            object.additional_properties = Some(Box::new(AdditionalProperties::FreeForm(false)));
+        }
+    }
 }
 
 pub fn contract_documents() -> serde_json::Value {
@@ -167,7 +214,10 @@ pub fn contract_documents() -> serde_json::Value {
             "MappingDocument": schemars::schema_for!(MappingDocument),
             "MappingProfile": schemars::schema_for!(MappingProfile),
             "SaveMappingProfile": schemars::schema_for!(SaveMappingProfile),
-            "ConvertMappingDocument": schemars::schema_for!(ConvertMappingDocument)
+            "ConvertMappingDocument": schemars::schema_for!(ConvertMappingDocument),
+            "PreviewJobView": schemars::schema_for!(PreviewJobView),
+            "PreviewResultPage": schemars::schema_for!(PreviewResultPage),
+            "PreviewResultView": schemars::schema_for!(PreviewResultView)
         }
     })
 }
@@ -386,5 +436,22 @@ mod tests {
         .unwrap();
         assert!(tokio::net::TcpListener::bind(address).await.is_ok());
         storage.close().await;
+    }
+
+    #[test]
+    fn preview_tagged_openapi_variants_are_closed() {
+        let document = serde_json::to_value(openapi()).unwrap();
+        for name in ["PreviewOutcomeView", "PreviewSinkView"] {
+            let variants = document["components"]["schemas"][name]["oneOf"]
+                .as_array()
+                .unwrap();
+            assert!(!variants.is_empty());
+            assert!(
+                variants
+                    .iter()
+                    .all(|variant| variant["additionalProperties"] == false),
+                "{name} must reject unknown fields in every tagged variant"
+            );
+        }
     }
 }

@@ -276,6 +276,8 @@ async fn serve_until(
     let mut access_state = collector_server::access::AccessState::new(access);
     access_state.oauth = Some(oauth);
     access_state.mappings = Some(Arc::new(storage.clone()));
+    access_state.preview_jobs = Some(Arc::new(storage.clone()));
+    access_state.preview_results = Some(Arc::new(storage.clone()));
     eprintln!("Core listening on http://{address}");
     // Intentional local delivery of a single-use key; never an HTTP request log.
     eprintln!("Open WebUI (one use, 10 minutes): http://{address}/#key={bootstrap}");

@@ -2,7 +2,7 @@
 
 ## 1. Scope / Trigger
 
-Applies to configuration, startup/doctor, SQLite baseline, health/capabilities/schema, generated contracts and status WebUI. Implemented sessions/pairing and read-only OAuth are specified in [Operational State and Pairing](./state-and-pairing.md). Internal preview startup/retention is implemented, but public import/preview delivery, synchronization, scheduling, desktop and external integrations remain deferred.
+Applies to configuration, startup/doctor, SQLite baseline, health/capabilities/schema, generated contracts and status WebUI. Implemented sessions/pairing and read-only OAuth are specified in [Operational State and Pairing](./state-and-pairing.md). Internal preview startup/retention and [historical inspection API](./preview-http.md) are implemented; submission/management/client screens, synchronization, scheduling, desktop and external integrations remain deferred.
 
 Source owners: `crates/collector-domain`, `collector-core`, `collector-storage`, `collector-server`, `collector-cli`; `packages/contracts-ts`, `core-client-ts`; `apps/webui`.
 

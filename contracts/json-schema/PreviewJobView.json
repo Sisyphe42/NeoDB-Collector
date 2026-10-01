@@ -1,0 +1,104 @@
+{
+  "$defs": {
+    "PreviewBindingState": {
+      "enum": [
+        "current",
+        "changed",
+        "disconnected"
+      ],
+      "type": "string"
+    },
+    "PreviewJobStatusView": {
+      "enum": [
+        "queued",
+        "running",
+        "interrupted",
+        "failed",
+        "cancelled",
+        "completed"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "account": {
+      "type": "string"
+    },
+    "attempt": {
+      "format": "uint32",
+      "maximum": 4294967295,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "baseUrl": {
+      "type": "string"
+    },
+    "bindingState": {
+      "$ref": "#/$defs/PreviewBindingState"
+    },
+    "createdAt": {
+      "format": "int64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "executable": {
+      "const": false,
+      "type": "boolean"
+    },
+    "expiresAt": {
+      "format": "int64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "historical": {
+      "const": true,
+      "type": "boolean"
+    },
+    "id": {
+      "type": "string"
+    },
+    "observationCount": {
+      "format": "uint32",
+      "maximum": 10000,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "profileId": {
+      "type": "string"
+    },
+    "profileVersion": {
+      "format": "uint32",
+      "maximum": 4294967295,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "status": {
+      "$ref": "#/$defs/PreviewJobStatusView"
+    },
+    "updatedAt": {
+      "format": "int64",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "id",
+    "status",
+    "attempt",
+    "createdAt",
+    "updatedAt",
+    "expiresAt",
+    "observationCount",
+    "profileId",
+    "profileVersion",
+    "baseUrl",
+    "account",
+    "bindingState",
+    "historical",
+    "executable"
+  ],
+  "title": "PreviewJobView",
+  "type": "object"
+}

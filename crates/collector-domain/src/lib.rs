@@ -8,6 +8,7 @@ use utoipa::ToSchema;
 pub mod access;
 pub mod mapping;
 pub mod observation;
+pub mod preview;
 
 pub const API_VERSION: &str = "v1";
 pub const SCHEMA_VERSION: u32 = 1;

@@ -400,6 +400,53 @@ client/end-to-end PRD acceptance remain pending. Keep this child active, not arc
 
 ### E. Shared API and client delivery
 
+- [x] E1: Authenticated historical job/status/result inspection DTOs/routes and
+  generated validators; optional read ports composed with Storage in CLI serve.
+  Preserve identity/field evidence, strict attempt/ordinal pagination, binding
+  state, retention and read races under a bounded management budget.
+- [x] E1: Thin shared TS GET client and wire/auth/redaction/timeout regression tests.
+- [ ] E2: Bounded CSV submission and explicit cancel/resume/delete through the
+  single owned runtime, without source or personal-state writes.
+- [ ] E3: CLI/WebUI import/progress/diff controls and mock end-to-end acceptance.
+
+E1 ownership: Sol/medium owns Domain `preview.rs`, Server inspection routes and
+tests, module/OpenAPI/AccessState registration, and the minimal CLI read-port
+composition. Main owns persisted contracts, independent review and full gate/
+commit; generated artifacts are regenerated after Rust settles. Luna/max owns
+only thin shared TS client/test additions after DTO names are finalized. No
+recursive delegation or sub-agent commits. Read E1 design plus foundation-runtime,
+preview-jobs/results/runtime, state-and-pairing, mapping-http/storage,
+repository-layout and guides. Keep broader E/PRD acceptance unchecked.
+
+E1 verification (2026-10-01): Sol/medium implemented Domain inspection DTOs,
+Server read routes and temporary-SQLite/fake-port tests plus minimal CLI port
+composition; Luna/max implemented only the generated-contract shared TS GET
+client and tests. Main independently reviewed source/tests, rejected duplicated
+schema mirror models, aligned product/backend/frontend/README contracts and
+extended actual-process auth/capability smoke. A focused typed OpenAPI adjustment
+closes tagged enum variants missing from locked utoipa's serde handling; generated
+fixed historical/non-executable flags and variant closure were independently
+checked. No dependencies, migrations or API version bump were needed.
+
+Scoped inspection tests passed 14/14. A real PreviewRecordService-produced
+Unsupported record is persisted and inspected after credential rotation without
+using credentials or remote transport. Existing real-SQLite malformed JSON
+pagination regression passed; HTTP errors remain static/redacted without partial
+pages. Notify-synchronized paused-time tests prove the shared ten-second budget,
+exact-deadline rejection and hung-result timeout. Other cases cover sparse
+ordinals, malformed rows/query, optional ports, retention/read races, binding
+rotation/disconnection and Bearer precedence/revocation. Shared client scoped
+tests passed 18/18; its new GET methods preserve caller abort and response checks.
+
+Final main `pnpm verify` with `CARGO_BUILD_JOBS=1` passed: 222 Rust unit tests,
+2 compile-fail doctests, 31 TS/UI tests, workspace fmt/Clippy, generated contract
+drift, dependency boundaries, lint/typecheck, WebUI/CLI builds and actual CLI/local
+HTTP/session/pairing/revocation/desktop-mobile Chromium smoke. Product YAML/34
+evidence IDs and references plus `git diff --check` passed. No live NeoDB/native
+fetch, real account or OS credential operation. E1 is complete; E2 mutations and
+E3 client screens/end-to-end acceptance remain pending, connectorIds stays empty,
+and historical evidence is never executable. Keep this child active, not archived.
+
 - [ ] Define domain DTOs and executable API contract; regenerate schemas/TS validators.
 - [ ] Add guarded import/status/results/cancel/resume/delete routes, body and
   pagination caps; test session CSRF, Bearer scopes, invalid input and redaction.

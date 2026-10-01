@@ -604,6 +604,580 @@
           }
         ]
       },
+      "PreviewBindingState": {
+        "enum": [
+          "current",
+          "changed",
+          "disconnected"
+        ],
+        "type": "string"
+      },
+      "PreviewCatalogItemView": {
+        "additionalProperties": false,
+        "properties": {
+          "canonicalUrl": {
+            "type": "string"
+          },
+          "detailUrl": {
+            "type": "string"
+          },
+          "externalIds": {
+            "description": "A list preserves distinct, potentially contradictory identity claims.",
+            "items": {
+              "$ref": "#/components/schemas/PreviewExternalIdClaim"
+            },
+            "type": "array"
+          },
+          "mediaType": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "parentUuid": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "uuid": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "uuid",
+          "canonicalUrl",
+          "detailUrl",
+          "mediaType",
+          "model",
+          "externalIds"
+        ],
+        "type": "object"
+      },
+      "PreviewComparedFieldView": {
+        "additionalProperties": false,
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "ruleId": {
+            "type": "string"
+          },
+          "sink": {
+            "$ref": "#/components/schemas/PreviewSinkView"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PreviewComparisonStatusView"
+          },
+          "suggestion": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ScalarValue"
+              }
+            ]
+          }
+        },
+        "required": [
+          "ruleId",
+          "field",
+          "sink",
+          "status",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "PreviewComparisonStatusView": {
+        "enum": [
+          "accepted",
+          "skipped",
+          "rejected",
+          "needs_review"
+        ],
+        "type": "string"
+      },
+      "PreviewComparisonView": {
+        "additionalProperties": false,
+        "properties": {
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/PreviewComparedFieldView"
+            },
+            "type": "array"
+          },
+          "profileId": {
+            "type": "string"
+          },
+          "profileVersion": {
+            "format": "int32",
+            "maximum": 4294967295,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "profileId",
+          "profileVersion",
+          "fields"
+        ],
+        "type": "object"
+      },
+      "PreviewExternalIdClaim": {
+        "additionalProperties": false,
+        "properties": {
+          "scheme": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "scheme",
+          "value"
+        ],
+        "type": "object"
+      },
+      "PreviewJobStatusView": {
+        "enum": [
+          "queued",
+          "running",
+          "interrupted",
+          "failed",
+          "cancelled",
+          "completed"
+        ],
+        "type": "string"
+      },
+      "PreviewJobView": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "attempt": {
+            "format": "int32",
+            "maximum": 4294967295,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "baseUrl": {
+            "type": "string"
+          },
+          "bindingState": {
+            "$ref": "#/components/schemas/PreviewBindingState"
+          },
+          "createdAt": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "executable": {
+            "enum": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "expiresAt": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "historical": {
+            "enum": [
+              true
+            ],
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "observationCount": {
+            "format": "int32",
+            "maximum": 10000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "profileId": {
+            "type": "string"
+          },
+          "profileVersion": {
+            "format": "int32",
+            "maximum": 4294967295,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PreviewJobStatusView"
+          },
+          "updatedAt": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "attempt",
+          "createdAt",
+          "updatedAt",
+          "expiresAt",
+          "observationCount",
+          "profileId",
+          "profileVersion",
+          "baseUrl",
+          "account",
+          "bindingState",
+          "historical",
+          "executable"
+        ],
+        "type": "object"
+      },
+      "PreviewOutcomeView": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "comparison": {
+                "$ref": "#/components/schemas/PreviewComparisonView"
+              },
+              "item": {
+                "$ref": "#/components/schemas/PreviewCatalogItemView"
+              },
+              "kind": {
+                "enum": [
+                  "compared"
+                ],
+                "type": "string"
+              },
+              "observedAt": {
+                "format": "int64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "provenance": {
+                "$ref": "#/components/schemas/PreviewProvenanceView"
+              }
+            },
+            "required": [
+              "item",
+              "observedAt",
+              "comparison",
+              "provenance",
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "item": {
+                "$ref": "#/components/schemas/PreviewCatalogItemView"
+              },
+              "kind": {
+                "enum": [
+                  "needs_review"
+                ],
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "item",
+              "reason",
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "candidates": {
+                "items": {
+                  "$ref": "#/components/schemas/PreviewSearchCandidateView"
+                },
+                "type": "array"
+              },
+              "kind": {
+                "enum": [
+                  "search_candidates"
+                ],
+                "type": "string"
+              },
+              "moreAvailable": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "candidates",
+              "moreAvailable",
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "unsupported"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "rate_limited"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "unavailable"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "PreviewProvenanceView": {
+        "enum": [
+          "automatic",
+          "manual"
+        ],
+        "type": "string"
+      },
+      "PreviewResultPage": {
+        "additionalProperties": false,
+        "properties": {
+          "attempt": {
+            "format": "int32",
+            "maximum": 4294967295,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "executable": {
+            "enum": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "historical": {
+            "enum": [
+              true
+            ],
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PreviewResultView"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "limit": {
+            "format": "int32",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "offset": {
+            "format": "int32",
+            "maximum": 4294967295,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "jobId",
+          "attempt",
+          "offset",
+          "limit",
+          "historical",
+          "executable",
+          "items"
+        ],
+        "type": "object"
+      },
+      "PreviewResultView": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "attempt": {
+            "format": "int32",
+            "maximum": 4294967295,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "baseUrl": {
+            "type": "string"
+          },
+          "committedAt": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "executable": {
+            "enum": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "historical": {
+            "enum": [
+              true
+            ],
+            "type": "boolean"
+          },
+          "ordinal": {
+            "format": "int32",
+            "maximum": 9999,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/PreviewOutcomeView"
+          },
+          "profileId": {
+            "type": "string"
+          },
+          "profileVersion": {
+            "format": "int32",
+            "maximum": 4294967295,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "sourceConnectorId": {
+            "type": "string"
+          },
+          "sourceFingerprint": {
+            "type": "string"
+          },
+          "sourceRecordId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ordinal",
+          "attempt",
+          "committedAt",
+          "sourceConnectorId",
+          "sourceRecordId",
+          "sourceFingerprint",
+          "profileId",
+          "profileVersion",
+          "baseUrl",
+          "account",
+          "historical",
+          "executable",
+          "outcome"
+        ],
+        "type": "object"
+      },
+      "PreviewSearchCandidateView": {
+        "additionalProperties": false,
+        "properties": {
+          "item": {
+            "$ref": "#/components/schemas/PreviewCatalogItemView"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "item"
+        ],
+        "type": "object"
+      },
+      "PreviewSinkView": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "known"
+                ],
+                "type": "string"
+              },
+              "value": {
+                "$ref": "#/components/schemas/ScalarValue"
+              }
+            },
+            "required": [
+              "value",
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "empty"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "unknown"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          }
+        ]
+      },
       "ProfileFormat": {
         "enum": [
           "json",
@@ -1668,6 +2242,209 @@
         },
         "tags": [
           "access"
+        ]
+      }
+    },
+    "/api/v1/previews/{id}": {
+      "get": {
+        "operationId": "job",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewJobView"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "preview_http"
+        ]
+      }
+    },
+    "/api/v1/previews/{id}/results": {
+      "get": {
+        "operationId": "results",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "attempt",
+            "required": true,
+            "schema": {
+              "format": "int32",
+              "maximum": 4294967295,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "maximum": 4294967295,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewResultPage"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "preview_http"
         ]
       }
     },

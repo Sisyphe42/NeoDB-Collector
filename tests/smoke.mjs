@@ -44,7 +44,15 @@ try {
   assert.equal(health.status, 'ok');
   const capabilities = await fetch(`${address}/api/v1/capabilities`).then(r => r.json());
   assert.deepEqual(capabilities.connectorIds, []);
+  assert.equal(capabilities.routes.preview, '/api/v1/previews/{id}');
+  assert.equal(capabilities.routes.previewResults, '/api/v1/previews/{id}/results');
   assert.equal((await fetch(`${address}/api/v1/imports`)).status, 404);
+  for (const path of ['/api/v1/previews/missing', '/api/v1/previews/missing/results?attempt=1']) {
+    const response = await fetch(`${address}${path}`);
+    assert.equal(response.status, 401);
+    assert.equal((await response.json()).code, 'authentication_required');
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+  }
   assert.equal((await fetch(`${address}/api/v1/health`, { headers: { Origin: 'https://example.com' } })).status, 403);
   const conflict = spawnSync(binary, ['serve', ...args.slice(0, -2), '--port', new URL(address).port], { env, encoding: 'utf8', timeout: 5000 });
   assert.equal(conflict.status, 1);
@@ -75,6 +83,9 @@ try {
   assert.equal(await page.evaluate(() => document.cookie), '');
   const cookies = await page.context().cookies();
   assert(cookies.some(cookie => cookie.name === 'collector_session' && cookie.httpOnly && cookie.sameSite === 'Strict'));
+  const missingPreview = await page.request.get(`${address}/api/v1/previews/missing`);
+  assert.equal(missingPreview.status(), 404);
+  assert.equal((await missingPreview.json()).code, 'preview_job_not_found');
   // Real local mapping API/UI and SQLite only; no remote catalog requests.
   await page.getByRole('button', { name: '使用 IMDb 默认规则' }).click();
   const complete = page.getByLabel('评分即看完（需主动开启）');
@@ -111,6 +122,12 @@ try {
   const identity = await fetch(`${address}/api/v1/client`, { headers: { Authorization: `Bearer ${pairedToken.token}` } });
   assert.equal(identity.status, 200);
   assert.equal((await identity.json()).id, pairedToken.client_id);
+  for (const path of ['/api/v1/previews/missing', '/api/v1/previews/missing/results?attempt=1']) {
+    const response = await fetch(`${address}${path}`, { headers: { Authorization: `Bearer ${pairedToken.token}` } });
+    assert.equal(response.status, 404);
+    assert.equal((await response.json()).code, 'preview_job_not_found');
+  }
+  assert.equal((await fetch(`${address}/api/v1/previews/missing`, { method: 'DELETE', headers: { Authorization: `Bearer ${pairedToken.token}` } })).status, 405);
   assert.equal((await fetch(`${address}/api/v1/clients`, { headers: { Authorization: `Bearer ${pairedToken.token}` } })).status, 403);
   await page.getByRole('button', { name: '隐藏链接' }).click();
   await page.getByRole('button', { name: '刷新列表' }).click();

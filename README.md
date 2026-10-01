@@ -41,7 +41,7 @@ cargo run --locked -p collector-cli -- serve --port 19424 --data-dir ./local-dat
 
 YAML 使用 `schema_version: 1`，其中相对路径相对 YAML 文件目录；CLI/环境变量相对路径相对工作目录。只允许 loopback IP（含 `::1`）；不接受公网/LAN 地址或主机名。端口 `0` 表示系统分配空闲端口，实际地址输出在 stderr。
 
-预览保留期为正整数天数，仅用于新任务，不改变已有任务的到期时间。内部预览运行时已接入启动恢复和每分钟清理，但导入/预览接口尚未开放；重启不会自动重跑任务。清理失败会明确报错并停止服务。`doctor` 不恢复或清理预览任务。
+预览保留期为正整数天数，仅用于新任务，不改变已有任务的到期时间。内部预览运行时已接入启动恢复和每分钟清理，历史任务/结果读取 API 已开放；导入、取消、恢复、删除及预览 UI 尚未开放。重启不会自动重跑任务。清理失败会明确报错并停止服务。`doctor` 不恢复或清理预览任务。
 
 同一数据目录只能由一个 `serve` 进程使用，即使选择不同端口。服务通过 `collector.serve.lock` 文件持有系统锁，退出后自动释放；不要在运行期间删除该文件。
 
@@ -62,8 +62,12 @@ YAML 使用 `schema_version: 1`，其中相对路径相对 YAML 文件目录；C
 | `GET /api/v1/client` | Bearer 客户端查看自身身份，检测撤销 |
 | `GET /api/v1/settings/neodb` | WebUI 查看 NeoDB 连接状态 |
 | `POST /api/v1/oauth/neodb` / `DELETE /api/v1/oauth/neodb` | WebUI 开始 / 取消只读 OAuth |
+| `GET /api/v1/previews/{id}` | 已授权会话或 Bearer 查看历史任务状态、账号绑定及保留期 |
+| `GET /api/v1/previews/{id}/results?attempt=N&offset=0&limit=50` | 历史条目证据及字段差异，limit 为 1–100，offset 为原始记录序号 |
 
 健康、能力和契约端点公开；本地管理接口要求 8 小时有效的 HttpOnly / SameSite=Strict 会话，修改操作还要求同源 Origin 与 CSRF 令牌。浏览器请求须同源，Host 仅允许实际监听地址或相同端口的 localhost。不开放 CORS。配对、CLI 认证状态与 NeoDB 只读 OAuth 已可用；WebUI 支持授权、账户状态及取消。令牌仅保存在系统凭据库中。媒体导入/同步尚未接入；配对客户端不能管理 OAuth 或其他客户端。
+
+预览读取要求会话或带 `imports.read` 权限的 Bearer。结果为历史证据，不是当前 NeoDB 状态或写入许可；账号绑定为 current 也不表示旧快照仍新鲜。过期/不存在任务返回 404，attempt 不匹配返回 409；运行中空结果页不表示完成。此阶段没有公开创建任务的入口，连接器能力列表仍为空。
 
 ## CLI 配对
 
@@ -101,7 +105,7 @@ Linux 构建还需要 `libdbus-1-dev` 和 `pkg-config`，用于系统凭据库�
 ```text
 crates/collector-domain      Rust DTO 与版本常量，无 I/O
 crates/collector-core        用例与端口，不依赖具体运行时
-crates/collector-connectors  内置平台网络适配器；当前仅有尚未接入路由的 NeoDB 只读 OAuth 传输
+crates/collector-connectors  内置适配器：IMDb CSV 解析、NeoDB OAuth/目录/标记读取传输
 crates/collector-storage     SQLx / SQLite 适配器
 crates/collector-server      Axum HTTP 与静态 WebUI
 crates/collector-cli         配置、诊断、进程生命周期

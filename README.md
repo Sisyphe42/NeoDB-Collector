@@ -37,10 +37,15 @@ cargo run --locked -p collector-cli -- serve --port 19424 --data-dir ./local-dat
 | `--port` | `NEODB_COLLECTOR_PORT` | `server.port` | `19423` |
 | `--data-dir` | `NEODB_COLLECTOR_DATA_DIR` | `storage.data_dir` | 系统应用数据目录 |
 | `--assets-dir` | `NEODB_COLLECTOR_ASSETS_DIR` | `webui.assets_dir` | `apps/webui/dist` |
+| `--preview-retention-days` | `NEODB_COLLECTOR_PREVIEW_RETENTION_DAYS` | `preview.retention_days` | `30` |
 
 YAML 使用 `schema_version: 1`，其中相对路径相对 YAML 文件目录；CLI/环境变量相对路径相对工作目录。只允许 loopback IP（含 `::1`）；不接受公网/LAN 地址或主机名。端口 `0` 表示系统分配空闲端口，实际地址输出在 stderr。
 
-系统数据目录由 `directories::ProjectDirs` 解析（Windows 本地应用数据、macOS Application Support、Linux XDG 数据目录）。可用 `--data-dir` 显式控制位置。SQLite 保存迁移账本、授权散列与撤销状态，以及预留的单一 NeoDB 端点元数据；不保存明文令牌或源平台数据。配对绑定服务地址，更换端口后需重新配对。
+预览保留期为正整数天数，仅用于新任务，不改变已有任务的到期时间。内部预览运行时已接入启动恢复和每分钟清理，但导入/预览接口尚未开放；重启不会自动重跑任务。清理失败会明确报错并停止服务。`doctor` 不恢复或清理预览任务。
+
+同一数据目录只能由一个 `serve` 进程使用，即使选择不同端口。服务通过 `collector.serve.lock` 文件持有系统锁，退出后自动释放；不要在运行期间删除该文件。
+
+系统数据目录由 `directories::ProjectDirs` 解析（Windows 本地应用数据、macOS Application Support、Linux XDG 数据目录）。可用 `--data-dir` 显式控制位置。SQLite 仅保存操作状态，包括授权散列、撤销状态、单一 NeoDB 端点元数据、映射版本及有保留期的规范化预览记录；不保存明文令牌、原始文件或源 API/页面载荷。配对绑定服务地址，更换端口后需重新配对。
 
 ## 当前 API
 

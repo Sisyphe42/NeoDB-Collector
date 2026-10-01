@@ -49,6 +49,16 @@ try {
   const conflict = spawnSync(binary, ['serve', ...args.slice(0, -2), '--port', new URL(address).port], { env, encoding: 'utf8', timeout: 5000 });
   assert.equal(conflict.status, 1);
   assert.match(conflict.stderr, /port_unavailable/);
+  // An ephemeral/different port must not recover another live host's database.
+  const sameDatabase = spawnSync(binary, ['serve', ...args], { env, encoding: 'utf8', timeout: 5000 });
+  assert.equal(sameDatabase.status, 1);
+  assert.match(sameDatabase.stderr, /core_data_directory_in_use/);
+  assert(!sameDatabase.stderr.includes('Open WebUI'));
+  assert.equal((await fetch(`${address}/api/v1/health`).then(r => r.json())).status, 'ok');
+  // doctor remains usable without taking ownership of preview recovery.
+  const liveDoctor = spawnSync(binary, ['doctor', '--format', 'json', ...args], { env, encoding: 'utf8', timeout: 5000 });
+  assert.equal(liveDoctor.status, 0);
+  assert.equal(JSON.parse(liveDoctor.stdout).ok, true);
   browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const errors = [];

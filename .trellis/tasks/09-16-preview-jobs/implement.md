@@ -203,20 +203,20 @@ pending. Keep the preview child active rather than archiving it.
 - [x] D1: Internal repository + migration, normalized bounded submission, ordered
   reads, atomic claim/attempt guards, cancellation/interruption/explicit resume,
   deletion/expiry primitives and prior-schema migration/rollback/reopen tests.
-- [ ] D2: Persist validated identity/snapshot/comparison results with conditional
+- [x] D2: Persist validated identity/snapshot/comparison results with conditional
   completion, connect the bounded runtime worker, startup recovery and retention
   configuration/scheduling. Run fresh comparison after explicit resume.
   - [x] D2a: Internal single-record producer joining resolution/snapshot/comparison,
     explicit provenance, whole-record cancellation/deadline and binding checks.
-  - [ ] D2b: Compatible result persistence and conditional completion, followed by
+  - [x] D2b: Compatible result persistence and conditional completion, followed by
     runtime worker/startup/configuration composition; do not mark D2 complete at D2a.
     - [x] D2b1: Consume produced records through an atomic bounded result repository,
       current-attempt pagination and conditional completion; compatible v5 migration.
-    - [ ] D2b2: Compose bounded worker, startup recovery and retention configuration.
+    - [x] D2b2: Compose bounded worker, startup recovery and retention configuration.
       - [x] D2b2a: Internal sequential single-attempt runner using existing ports
         and real record production; no automatic runtime/startup/public surface.
       - [x] D2b2b: Server-owned single-job admission/cancellation and lifecycle.
-      - [ ] D2b2c: Startup recovery and retention configuration/periodic cleanup.
+      - [x] D2b2c: Startup recovery and retention configuration/periodic cleanup.
 
 Main owns design/contracts/acceptance/commit; Sol/medium implements Core repository
 types and SQLite adapter/tests. Do not create migration-only commits, public DTOs,
@@ -352,13 +352,51 @@ does not fabricate persisted user cancellation. D2b2b is complete; startup/recov
 retention (D2b2c), D2/D2b/D2b2 and public delivery E remain pending. Keep this
 preview child active; do not archive it at this checkpoint.
 
-- [ ] Implement repositories, ordered migration, atomic bounded submission,
+D2b2c ownership: Sol/medium implements Core's pure PreviewRetention in the existing
+preview-jobs owner/tests, Server runtime start/maintenance and tests, CLI configuration
+and real serve composition/tests. Main owns the persisted design, owning-spec
+updates, independent review, full gate and checkpoint commit. No recursive
+delegation or sub-agent commit. Read D2b2c design, preview-runtime/jobs/results/
+runner/comparison, foundation-runtime, internal-secrets, repository-layout and
+connector/IMDb contracts. Reuse existing primitives; no HTTP/schema, migration,
+new dependency/version, automatic preview resume or real account/keychain call.
+Scoped Core/Server/CLI tests, fmt/Clippy first; stop edits/builds before main's gate.
+Separate Sol/medium lease implementation owns only CLI `serve_lease.rs` and its
+tests; startup agent owns module registration/acquisition in main.rs. Lease agent
+must not run Cargo while startup agent is building. Main reviews both and owns
+the real-process smoke assertions where appropriate.
+
+D2b2c verification (2026-10-01): Sol/medium implemented Core retention policy,
+Server startup/maintenance, CLI composition/configuration and the separate
+serve-only standard-library lease. Main independently reviewed code/tests, aligned
+product/engineering/README/example contracts and added real-process same-database
+exclusion/doctor smoke checks. Review corrections include default-policy reuse,
+pre-I/O executor rejection, root-token-confirmed shutdown classification, prompt
+drain on signal and maintenance-error precedence. Main regression tests prove
+the shared recovery/cleanup deadline, late/hung initial cleanup, fake repository
+cancellation versus real shutdown, maintenance observer/owner drop and retained
+hashed client authentication. Scoped Server runtime 20 tests passed after review.
+Final main `pnpm verify` with `CARGO_BUILD_JOBS=1` passed: 207 Rust unit tests,
+2 compile-fail doctests, 25 TS/UI tests, fmt/workspace Clippy, generated contract
+drift, dependency boundaries, lint/typecheck, WebUI/CLI builds and actual CLI/local
+HTTP/session/pairing/revocation/desktop-mobile Chromium smoke. Product YAML/34
+evidence IDs and references plus `git diff --check` passed. No migration,
+dependency/version or public DTO/route changed; no live NeoDB/native fetch,
+real account or OS credential access. Retention is default 30 days, configured by
+CLI/env/YAML, fixed for saved jobs; recovery never automatically resumes work.
+One owned 60-second Skip maintenance task stops the host truthfully on failure.
+Same-data-directory hosts on any port are excluded before DB mutation. Runtime
+drain precedes pool close and lease release; doctor remains nonrecovering.
+D2b2c/D2b2/D2b/D2 are complete internally; public delivery E and all broader
+client/end-to-end PRD acceptance remain pending. Keep this child active, not archived.
+
+- [x] Implement repositories, ordered migration, atomic bounded submission,
   version/account binding and conditional worker transitions.
-- [ ] Add bounded runtime worker, startup interruption, explicit fresh resume,
+- [x] Add bounded runtime worker, startup interruption, explicit fresh resume,
   cancellation/deletion race handling and configurable retention cleanup.
-- [ ] Test migration/reopen from prior schemas, crash/restart, duplicate workers,
+- [x] Test migration/reopen from prior schemas, crash/restart, duplicate workers,
   failed transactions, late completion, expiry and preservation of credentials/profiles.
-- [ ] Audit persisted columns/values against the no-raw-payload rule; verify and commit.
+- [x] Audit persisted columns/values against the no-raw-payload rule; verify and commit.
 
 ### E. Shared API and client delivery
 

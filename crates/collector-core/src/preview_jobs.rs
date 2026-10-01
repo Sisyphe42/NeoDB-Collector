@@ -14,6 +14,46 @@ pub const MAX_PREVIEW_OBSERVATIONS: usize = 10_000;
 pub const MAX_PREVIEW_OBSERVATION_BYTES: usize = 16 * 1024;
 pub const MAX_PREVIEW_TOTAL_BYTES: usize = 32 * 1024 * 1024;
 pub const MAX_PREVIEW_PAGE: u32 = 100;
+pub const DEFAULT_PREVIEW_RETENTION_DAYS: u32 = 30;
+const SECONDS_PER_DAY: i64 = 24 * 60 * 60;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PreviewRetention {
+    days: u32,
+}
+
+impl PreviewRetention {
+    pub fn new(days: u32) -> Result<Self, ApiError> {
+        if days == 0 {
+            return Err(invalid_retention());
+        }
+        Ok(Self { days })
+    }
+
+    pub fn days(self) -> u32 {
+        self.days
+    }
+
+    pub fn expires_at(self, created_at: i64) -> Result<i64, ApiError> {
+        if created_at < 0 {
+            return Err(invalid_retention());
+        }
+        let seconds = i64::from(self.days)
+            .checked_mul(SECONDS_PER_DAY)
+            .ok_or_else(invalid_retention)?;
+        created_at
+            .checked_add(seconds)
+            .ok_or_else(invalid_retention)
+    }
+}
+
+impl Default for PreviewRetention {
+    fn default() -> Self {
+        Self {
+            days: DEFAULT_PREVIEW_RETENTION_DAYS,
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PreviewJobStatus {
@@ -326,6 +366,13 @@ fn invalid_stored() -> ApiError {
     ApiError::new(
         "database_unavailable",
         "Stored preview job data is invalid.",
+    )
+}
+
+fn invalid_retention() -> ApiError {
+    ApiError::new(
+        "preview_retention_invalid",
+        "Preview retention must be a positive whole number of days with a valid expiry.",
     )
 }
 

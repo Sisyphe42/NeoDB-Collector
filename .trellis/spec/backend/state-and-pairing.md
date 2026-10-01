@@ -27,7 +27,8 @@ metadata in `preview_jobs` and `preview_observations`; see
 preserves v4 inputs/lifecycle, permits completed preview jobs and adds bounded
 normalized historical evidence in `preview_results`; see
 [Persistent Preview Results](./preview-results.md). Repositories remain internal:
-worker, startup recovery hooks and public import routes remain pending.
+owned runtime/startup recovery/retention are composed in CLI serve; public import
+routes remain pending.
 No raw files or payloads are stored. Later schema ownership (not implemented):
 
 ```sql

@@ -1,13 +1,18 @@
 mod client;
 mod config;
+mod serve_lease;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use collector_core::access::{AccessService, Clock};
+use collector_core::{
+    preview::PreviewSnapshotService, preview_records::PreviewRecordService,
+    preview_runner::PreviewAttemptRunner,
+};
 use collector_domain::ApiError;
 use collector_storage::Storage;
 use collector_storage::credentials::{SecureTokens, SystemClock};
 use serde::Serialize;
-use std::{net::SocketAddr, process::ExitCode, sync::Arc};
+use std::{future::Future, net::SocketAddr, process::ExitCode, sync::Arc};
 
 #[derive(Parser)]
 #[command(name = "collector", version, about = "Local NeoDB Collector Core")]
@@ -178,6 +183,13 @@ async fn shutdown() {
 }
 
 async fn serve(config: config::Config) -> Result<(), ApiError> {
+    serve_until(config, shutdown()).await
+}
+
+async fn serve_until(
+    config: config::Config,
+    shutdown_signal: impl Future<Output = ()> + Send + 'static,
+) -> Result<(), ApiError> {
     // Bind before migrations: a second Core must fail without changing local state.
     let listener = tokio::net::TcpListener::bind(SocketAddr::new(config.bind, config.port))
         .await
@@ -190,21 +202,75 @@ async fn serve(config: config::Config) -> Result<(), ApiError> {
     let address = listener
         .local_addr()
         .map_err(|_| ApiError::new("port_unavailable", "Cannot inspect listener address."))?;
+    let _lease = serve_lease::ServeLease::acquire(&config.data_dir)?;
     let storage = Storage::open(&config.data_dir).await?;
-    storage.clean_expired_access(SystemClock.now()).await?;
+    if let Err(error) = storage.clean_expired_access(SystemClock.now()).await {
+        storage.close().await;
+        return Err(error);
+    }
+    let clock = Arc::new(SystemClock);
+    let secrets = Arc::new(collector_storage::credentials::OsSecretStore);
+    let neodb = match collector_connectors::neodb::NeoDbClient::new() {
+        Ok(client) => Arc::new(client),
+        Err(error) => {
+            storage.close().await;
+            return Err(error);
+        }
+    };
+    let snapshots = Arc::new(PreviewSnapshotService::new(
+        Arc::new(storage.clone()),
+        secrets.clone(),
+        clock.clone(),
+        neodb.clone(),
+        neodb.clone(),
+    ));
+    let producer = Arc::new(PreviewRecordService::new(snapshots));
+    let runner = Arc::new(PreviewAttemptRunner::new(
+        Arc::new(storage.clone()),
+        Arc::new(storage.clone()),
+        Arc::new(storage.clone()),
+        Arc::new(storage.clone()),
+        clock.clone(),
+        producer,
+    ));
+    let (preview_runtime, maintenance) =
+        match collector_server::preview_runtime::PreviewRuntime::start(
+            runner,
+            Arc::new(storage.clone()),
+            clock.clone(),
+            neodb.clone(),
+            collector_connectors::imdb::catalog_identity,
+            config.preview_retention,
+        )
+        .await
+        {
+            Ok(runtime) => runtime,
+            Err(error) => {
+                storage.close().await;
+                return Err(error);
+            }
+        };
+    let preview_runtime = Arc::new(preview_runtime);
     let access = Arc::new(AccessService {
         repository: Arc::new(storage.clone()),
         tokens: Arc::new(SecureTokens),
-        clock: Arc::new(SystemClock),
+        clock: clock.clone(),
         audience: format!("http://{address}"),
     });
-    let bootstrap = access.bootstrap().await?;
+    let bootstrap = match access.bootstrap().await {
+        Ok(bootstrap) => bootstrap,
+        Err(error) => {
+            preview_runtime.shutdown().await;
+            storage.close().await;
+            return Err(error);
+        }
+    };
     let oauth = Arc::new(collector_core::oauth::OAuthService::new(
         Arc::new(storage.clone()),
-        Arc::new(collector_storage::credentials::OsSecretStore),
+        secrets,
         Arc::new(SecureTokens),
-        Arc::new(SystemClock),
-        Arc::new(collector_connectors::neodb::NeoDbClient::new()?),
+        clock,
+        neodb,
         access.audience.clone(),
     ));
     let mut access_state = collector_server::access::AccessState::new(access);
@@ -213,16 +279,40 @@ async fn serve(config: config::Config) -> Result<(), ApiError> {
     eprintln!("Core listening on http://{address}");
     // Intentional local delivery of a single-use key; never an HTTP request log.
     eprintln!("Open WebUI (one use, 10 minutes): http://{address}/#key={bootstrap}");
-    let result = collector_server::serve(
+    let (reason_sender, reason_receiver) = tokio::sync::oneshot::channel();
+    let shutdown_runtime = preview_runtime.clone();
+    let graceful_shutdown = async move {
+        let reason = tokio::select! {
+            biased;
+            result = maintenance.wait() => result,
+            _ = shutdown_signal => Ok(()),
+        };
+        shutdown_runtime.shutdown().await;
+        let _ = reason_sender.send(reason);
+    };
+    let server_result = collector_server::serve(
         listener,
         Arc::new(storage.clone()),
         config.assets_dir,
         access_state,
-        shutdown(),
+        graceful_shutdown,
     )
     .await;
+    let shutdown_result = if server_result.is_ok() {
+        reason_receiver.await.unwrap_or_else(|_| {
+            Err(ApiError::new(
+                "preview_maintenance_failed",
+                "Preview retention maintenance stopped unexpectedly.",
+            ))
+        })
+    } else {
+        Ok(())
+    };
+    preview_runtime.shutdown().await;
     storage.close().await;
-    result.map_err(|_| ApiError::new("server_failed", "Core HTTP server stopped unexpectedly."))
+    server_result
+        .map_err(|_| ApiError::new("server_failed", "Core HTTP server stopped unexpectedly."))?;
+    shutdown_result
 }
 
 #[tokio::main]
@@ -311,15 +401,46 @@ fn print_client<T: Serialize + std::fmt::Display>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use collector_core::{
+        access::{AccessRepository, Endpoint},
+        mapping::{MappingRepository, imdb_default},
+        preview_jobs::{PreviewJobRepository, PreviewJobStatus, PreviewSubmission},
+    };
     #[tokio::test]
     async fn doctor_reports_assets_port_and_database() {
         let dir = tempfile::tempdir().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let data_dir = dir.path().join("data");
+        let storage = Storage::open(&data_dir).await.unwrap();
+        let endpoint = Endpoint {
+            base_url: "https://neodb.example".into(),
+            account: "alice".into(),
+            credential_ref: "credential-generation".into(),
+        };
+        storage.set_endpoint(Some(endpoint.clone())).await.unwrap();
+        let profile = imdb_default();
+        storage.save(profile.clone(), 0).await.unwrap();
+        storage
+            .submit(
+                PreviewSubmission::new(
+                    "job:doctor-preserves".into(),
+                    endpoint,
+                    profile,
+                    vec![],
+                    100,
+                    1_000,
+                )
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+        storage.close().await;
         let config = config::Config {
             bind: listener.local_addr().unwrap().ip(),
             port: listener.local_addr().unwrap().port(),
-            data_dir: dir.path().join("data"),
+            data_dir: data_dir.clone(),
             assets_dir: dir.path().join("missing"),
+            preview_retention: Default::default(),
         };
         let report = doctor(Ok(config)).await;
         assert!(!report.ok);
@@ -338,5 +459,108 @@ mod tests {
                 .any(|c| c.name == "database" && c.status == "ok")
         );
         assert!(dir.path().join("data/collector.db").exists());
+        let storage = Storage::open(&data_dir).await.unwrap();
+        assert_eq!(
+            PreviewJobRepository::load(&storage, "job:doctor-preserves".into())
+                .await
+                .unwrap()
+                .unwrap()
+                .status(),
+            PreviewJobStatus::Queued
+        );
+        storage.close().await;
+    }
+
+    #[tokio::test]
+    async fn serve_composes_preview_runtime_without_network_or_keychain_access() {
+        let dir = tempfile::tempdir().unwrap();
+        let data_dir = dir.path().join("data");
+        let storage = Storage::open(&data_dir).await.unwrap();
+        let endpoint = Endpoint {
+            base_url: "https://neodb.example".into(),
+            account: "alice".into(),
+            credential_ref: "credential-generation".into(),
+        };
+        storage.set_endpoint(Some(endpoint.clone())).await.unwrap();
+        let profile = imdb_default();
+        storage.save(profile.clone(), 0).await.unwrap();
+        let now = SystemClock.now();
+        let expires_at = collector_core::preview_jobs::PreviewRetention::default()
+            .expires_at(now)
+            .unwrap();
+        for id in ["job:serve-queued", "job:serve-running"] {
+            storage
+                .submit(
+                    PreviewSubmission::new(
+                        id.into(),
+                        endpoint.clone(),
+                        profile.clone(),
+                        vec![],
+                        now,
+                        expires_at,
+                    )
+                    .unwrap(),
+                )
+                .await
+                .unwrap();
+        }
+        assert!(
+            storage
+                .claim("job:serve-running".into(), 1, now)
+                .await
+                .unwrap()
+        );
+        storage
+            .submit(
+                PreviewSubmission::new(
+                    "job:serve-expired".into(),
+                    endpoint.clone(),
+                    profile.clone(),
+                    vec![],
+                    1,
+                    2,
+                )
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+        storage.close().await;
+        let result = serve_until(
+            config::Config {
+                bind: "127.0.0.1".parse().unwrap(),
+                port: 0,
+                data_dir: data_dir.clone(),
+                assets_dir: dir.path().join("missing"),
+                preview_retention: collector_core::preview_jobs::PreviewRetention::new(7).unwrap(),
+            },
+            async {},
+        )
+        .await;
+        assert!(result.is_ok(), "{result:?}");
+        assert!(dir.path().join("data/collector.db").exists());
+        let storage = Storage::open(&data_dir).await.unwrap();
+        for id in ["job:serve-queued", "job:serve-running"] {
+            let job = PreviewJobRepository::load(&storage, id.into())
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(job.status(), PreviewJobStatus::Interrupted);
+            assert_eq!(job.expires_at(), expires_at);
+        }
+        assert!(
+            PreviewJobRepository::load(&storage, "job:serve-expired".into())
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(storage.endpoint().await.unwrap().is_some());
+        assert!(
+            MappingRepository::load(&storage, profile.id.clone(), Some(profile.version))
+                .await
+                .unwrap()
+                .is_some()
+        );
+        storage.close().await;
+        drop(serve_lease::ServeLease::acquire(&data_dir).unwrap());
     }
 }

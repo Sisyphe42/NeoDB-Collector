@@ -454,6 +454,68 @@ wrong-generation isolation, deletion/late writes, partial history, admission rel
 after failure/panic, dropped observer vs dropped runtime, shutdown races and bounded
 management failure. No live NeoDB/keychain; full gate before checkpoint commit.
 
+### D2b2c startup composition and retention maintenance
+
+Compose exactly one runtime in CLI `serve`, reusing the same Storage, clock,
+OS-secret adapter and Arc<NeoDbClient> for OAuth and preview services. Construct
+the real snapshot -> record producer -> attempt runner and pass the existing
+IMDb identity function. Startup binds first, opens/migrates storage, then performs
+bounded queued/running interruption and expiry cleanup before publishing the
+listener/bootstrap or accepting work. No scan/resume/enqueue of saved jobs and
+no keychain/network access occurs merely from composing these services. `doctor`
+only checks/migrates storage and never performs preview recovery/maintenance.
+
+Before opening/migrating/recovering, `serve` holds a nonblocking exclusive data-
+directory lease for its entire lifetime (including worker drain and pool close).
+Different ports do not permit multiple hosts for the same operational database.
+Use a separate `collector.serve.lock` file opened read/write/create without
+truncation, and std File::try_lock; leave the file in place and rely on handle
+drop/process exit to release ownership, not file deletion or a stale PID protocol.
+Refuse static `core_data_directory_in_use` / `core_data_directory_lock_failed`
+before DB changes; doctor remains lease-free and nonrecovering. This coordinates
+cooperating Core hosts, not arbitrary external tools removing/replacing the lock.
+Standard-library review: local rustc 1.98.0 and stable toolchain are compatible;
+try_lock is stable since 1.89, uses Unix flock/Windows LockFileEx and releases when
+the last owning handle closes. Evidence: https://doc.rust-lang.org/std/fs/struct.File.html#method.try_lock.
+No new dependency/license/features; local tests are not three-OS verification.
+
+Add a pure Core PreviewRetention value: default 30 days, nonzero u32 days,
+checked Unix-second expiry calculation (reject negative time/overflow). CLI
+configuration schema_version remains 1; add YAML `preview.retention_days`, env
+`NEODB_COLLECTOR_PREVIEW_RETENTION_DAYS` and `--preview-retention-days`, preserving
+CLI > env > YAML > default and strict unknown-field handling. The shared runtime
+retains this validated policy for future submission; it never rewrites existing
+job expiry or extends retention on resume. No public API DTO/route is added.
+
+Server's production async `PreviewRuntime::start` performs recovery then cleanup
+under one independent strict ten-second control budget and starts one tracked
+maintenance task. Keep the existing raw constructor for internal focused tests;
+production composition must use start. Use Tokio interval_at every 60 seconds
+with MissedTickBehavior::Skip; the first tick is after startup, not an immediate
+duplicate cleanup. Each tick has a fresh cancellation-aware strict ten-second
+budget, samples wall time once, signals expired registered attempts before calling
+job-only repository cleanup. Admission keeps only ID/attempt/expiry plus token;
+reject already-expired admission. No payload scan, busy loop or generic scheduler.
+
+The maintenance observer is not an owner: dropping it does not stop maintenance.
+Static startup/cleanup/panic errors must be explicit. A periodic failure closes
+admission, signals work and notifies the host, which gracefully stops serving and
+returns failure rather than silently running without retention. No automatic
+retry policy is introduced. Shutdown signals/drains maintenance and attempts
+before Storage::close on normal signal, maintenance failure and HTTP server error.
+Dropping the owner cancels maintenance without a guard/Arc cycle. Reuse existing
+Tokio/tokio-util control/tracking; no library version, schema migration or source
+write. SQLite remains authoritative if a mutation committed before cancellation.
+
+Tests use fake time/ports, paused Tokio and temporary SQLite: startup interrupts
+queued/running while preserving terminal/partial history, deletes expired rows
+only, never resumes or calls transport/keychain, repeat startup/reopen works;
+ticks do not run early/catch up; expiry stops active/waiting work and prevents late
+results; startup/periodic errors, hung/late ports and owner-drop/shutdown are bounded
+and sanitized. Test configuration defaults/precedence/unknown/zero/negative/
+overflow values, fixed expiry, doctor non-recovery, and real serve composition with
+injected shutdown/fakes. Run the full gate and keep public delivery E pending.
+
 ## 5. API and clients (later checkpoints)
 
 Add authenticated import/preview creation, status, paginated results, cancel,

@@ -1,4 +1,6 @@
 schema_version: 1
+preview:
+  retention_days: 30
 server:
   bind: 127.0.0.1
   port: 19423

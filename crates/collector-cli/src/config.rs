@@ -1,4 +1,5 @@
 use clap::Args;
+use collector_core::preview_jobs::PreviewRetention;
 use collector_domain::ApiError;
 use serde::Deserialize;
 use std::{
@@ -19,6 +20,8 @@ pub struct Overrides {
     pub data_dir: Option<PathBuf>,
     #[arg(long, global = true)]
     pub assets_dir: Option<PathBuf>,
+    #[arg(long, global = true)]
+    pub preview_retention_days: Option<String>,
 }
 
 #[derive(Debug)]
@@ -27,6 +30,7 @@ pub struct Config {
     pub port: u16,
     pub data_dir: PathBuf,
     pub assets_dir: PathBuf,
+    pub preview_retention: PreviewRetention,
 }
 
 #[derive(Default, Deserialize)]
@@ -39,6 +43,8 @@ struct FileConfig {
     storage: Storage,
     #[serde(default)]
     webui: Webui,
+    #[serde(default)]
+    preview: Preview,
 }
 #[derive(Default, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -55,6 +61,11 @@ struct Storage {
 #[serde(deny_unknown_fields)]
 struct Webui {
     assets_dir: Option<PathBuf>,
+}
+#[derive(Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Preview {
+    retention_days: Option<u32>,
 }
 
 fn invalid(field: &str, message: &str) -> ApiError {
@@ -136,6 +147,25 @@ pub fn resolve(
         .unwrap_or_else(|| "19423".into())
         .parse::<u16>()
         .map_err(|_| invalid("server.port", "Port must be an integer from 0 to 65535."))?;
+    let retention_days = args
+        .preview_retention_days
+        .clone()
+        .or_else(|| get("PREVIEW_RETENTION_DAYS").cloned())
+        .or(file.preview.retention_days.map(|days| days.to_string()))
+        .unwrap_or_else(|| PreviewRetention::default().days().to_string())
+        .parse::<u32>()
+        .map_err(|_| {
+            invalid(
+                "preview.retention_days",
+                "Preview retention must be a positive whole number of days.",
+            )
+        })?;
+    let preview_retention = PreviewRetention::new(retention_days).map_err(|_| {
+        invalid(
+            "preview.retention_days",
+            "Preview retention must be a positive whole number of days.",
+        )
+    })?;
     let path_value = |cli: &Option<PathBuf>,
                       env_key: &str,
                       file_value: Option<PathBuf>,
@@ -180,6 +210,7 @@ pub fn resolve(
             file.webui.assets_dir,
             Some(Path::new("apps/webui/dist")),
         )?,
+        preview_retention,
     })
 }
 
@@ -190,7 +221,7 @@ mod tests {
     fn precedence_and_relative_paths() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("settings.yaml");
-        std::fs::write(&path, "schema_version: 1\nserver:\n  port: 2000\nstorage:\n  data_dir: records\nwebui:\n  assets_dir: ui\n").unwrap();
+        std::fs::write(&path, "schema_version: 1\nserver:\n  port: 2000\nstorage:\n  data_dir: records\nwebui:\n  assets_dir: ui\npreview:\n  retention_days: 35\n").unwrap();
         let mut args = Overrides {
             config: Some(path),
             ..Default::default()
@@ -199,6 +230,7 @@ mod tests {
         let mut env = BTreeMap::new();
         let cfg = resolve(&args, &env, &cwd, None).unwrap();
         assert_eq!(cfg.port, 2000);
+        assert_eq!(cfg.preview_retention.days(), 35);
         assert_eq!(cfg.data_dir, dir.path().join("records"));
         assert_eq!(cfg.assets_dir, dir.path().join("ui"));
         env.insert("NEODB_COLLECTOR_PORT".into(), "3000".into());
@@ -208,6 +240,22 @@ mod tests {
         let cfg = resolve(&args, &env, &cwd, None).unwrap();
         assert_eq!(cfg.port, 4000);
         assert_eq!(cfg.data_dir, cwd.join("env-data"));
+        env.insert("NEODB_COLLECTOR_PREVIEW_RETENTION_DAYS".into(), "45".into());
+        assert_eq!(
+            resolve(&args, &env, &cwd, None)
+                .unwrap()
+                .preview_retention
+                .days(),
+            45
+        );
+        args.preview_retention_days = Some("60".into());
+        assert_eq!(
+            resolve(&args, &env, &cwd, None)
+                .unwrap()
+                .preview_retention
+                .days(),
+            60
+        );
         args.data_dir = Some("cli-data".into());
         assert_eq!(
             resolve(&args, &env, &cwd, None).unwrap().data_dir,
@@ -223,6 +271,7 @@ mod tests {
         assert!(resolve(&args, &env, dir.path(), None).is_err());
         assert_eq!(cfg.port, 19423);
         assert!(cfg.bind.is_loopback());
+        assert_eq!(cfg.preview_retention.days(), 30);
         for bind in ["0.0.0.0", "::", "192.168.1.2", "localhost"] {
             assert!(
                 resolve(
@@ -257,6 +306,10 @@ mod tests {
             "schema_version: 1\nserver:\n  unknown: true",
             "server: {}",
             "schema_version: 1\nserver:\n  port: 70000",
+            "schema_version: 1\npreview:\n  unknown: true",
+            "schema_version: 1\npreview:\n  retention_days: 0",
+            "schema_version: 1\npreview:\n  retention_days: -1",
+            "schema_version: 1\npreview:\n  retention_days: 4294967296",
         ] {
             let path = dir.path().join("invalid.yaml");
             std::fs::write(&path, yaml).unwrap();
@@ -272,6 +325,37 @@ mod tests {
                 )
                 .is_err(),
                 "{yaml}"
+            );
+        }
+        for value in ["0", "-1", "4294967296", "1.5"] {
+            assert!(
+                resolve(
+                    &Overrides {
+                        preview_retention_days: Some(value.into()),
+                        ..Default::default()
+                    },
+                    &env,
+                    dir.path(),
+                    Some(dir.path())
+                )
+                .is_err(),
+                "{value}"
+            );
+        }
+        for value in ["0", "-1", "4294967296", "1.5"] {
+            let invalid_env = BTreeMap::from([(
+                "NEODB_COLLECTOR_PREVIEW_RETENTION_DAYS".into(),
+                value.into(),
+            )]);
+            assert!(
+                resolve(
+                    &Overrides::default(),
+                    &invalid_env,
+                    dir.path(),
+                    Some(dir.path())
+                )
+                .is_err(),
+                "{value}"
             );
         }
     }

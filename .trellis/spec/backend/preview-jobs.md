@@ -4,16 +4,16 @@
 
 Checkpoint D1 owns the internal Core repository and SQLite migration/adapter.
 Submission, ordered reads and guarded lifecycle changes work without a worker.
-Runtime scheduling, configuration and HTTP/client delivery remain D2b2/E.
+Runtime startup/configuration is owned by Server/CLI; HTTP/client delivery remains E.
 No completed job can be produced by D1 alone; the compatible
 [D2b1 result repository](./preview-results.md) owns insertion and completion.
 [D2a single-record production](./preview-records.md) composes resolution and
 comparison without changing this repository or completing jobs. Persistent result
-transactions are owned by D2b1; runtime worker/startup/configuration remain pending.
+transactions are owned by D2b1; runtime startup/configuration is wired through Server/CLI.
 [D2b2a execution](./preview-runner.md) joins these ports for one explicit attempt;
 it does not enable automatic scheduling or startup recovery.
 Server's [owned runtime](./preview-runtime.md) manages explicitly selected jobs;
-startup recovery/retention hooks and public submission remain pending.
+startup recovery/retention hooks are implemented; public submission remains pending.
 
 ## 2. Signatures
 
@@ -30,6 +30,11 @@ implements them in `crates/collector-storage/src/preview_jobs.rs`.
 - `interrupt_running(now: i64) -> PortFuture<u64>` interrupts queued **and** running.
 - `delete(id: String) -> PortFuture<bool>` and
   `cleanup_expired(now: i64) -> PortFuture<u64>` remove job data only.
+
+`PreviewRetention` in the same Core owner is pure configuration: default 30 days,
+`new(u32)`, `days()` and checked `expires_at(created_at: i64)`. Zero days, negative
+Unix time and overflow return static `preview_retention_invalid`. No serializer/
+runtime dependency and no retroactive change to saved jobs.
 
 `PreviewJob` has read-only metadata getters and `is_bound_to(&Endpoint)` for exact
 base/account/credential-reference comparison without exposing its stored reference;
@@ -92,9 +97,9 @@ existing strict Domain schema and is never a raw import/response document.
   latest revision on resume. Selecting a different revision requires a new job.
   The runtime must freshly resolve/read/compare on every attempt; saved historical
   results cannot be used as fresh producer records. D1 stores no old result.
-- Recovery marks unfinished queued/running jobs interrupted. Calling recovery is
-  a runtime startup responsibility; merely defining the method does not enable
-  recovery or scheduling. Even after clock regression recovery interrupts all
+- Recovery marks unfinished queued/running jobs interrupted. Production runtime startup
+  calls recovery under an exclusive host serve lease; doctor never does. Recovery
+  never resumes/enqueues work. Even after clock regression recovery interrupts all
   unfinished jobs and preserves `updated_at` with `MAX(updated_at, now)`; ordinary
   transitions refuse timestamp regression. D1 has no automatic resume.
 - Expiry is fixed for a job, not extended by resume. Expired jobs cannot run.

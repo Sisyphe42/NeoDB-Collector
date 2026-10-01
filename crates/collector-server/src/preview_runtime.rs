@@ -5,7 +5,7 @@ use collector_core::{
     access::Clock,
     catalog::{NeoDbCatalogSearchTransport, NeoDbCatalogTransport},
     catalog_resolver::{CatalogIdentity, ResolutionControl},
-    preview_jobs::{PreviewJob, PreviewJobRepository, PreviewJobStatus},
+    preview_jobs::{PreviewJob, PreviewJobRepository, PreviewJobStatus, PreviewRetention},
     preview_runner::{PreviewAttemptOutcome, PreviewAttemptRunner},
 };
 use collector_domain::{ApiError, observation::ObservedItem};
@@ -14,11 +14,15 @@ use std::{
     sync::{Arc, Mutex, Weak},
     time::Duration,
 };
-use tokio::sync::{Semaphore, oneshot};
+use tokio::{
+    sync::{Semaphore, oneshot},
+    time::{Instant, MissedTickBehavior},
+};
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 const MAX_ADMITTED_ATTEMPTS: usize = 9;
 const MANAGEMENT_BUDGET: Duration = Duration::from_secs(10);
+const MAINTENANCE_INTERVAL: Duration = Duration::from_secs(60);
 
 pub struct PreviewRuntime<T, F> {
     runner: Arc<PreviewAttemptRunner>,
@@ -26,6 +30,7 @@ pub struct PreviewRuntime<T, F> {
     clock: Arc<dyn Clock>,
     transport: Arc<T>,
     identity: Arc<F>,
+    retention: PreviewRetention,
     active: Arc<Semaphore>,
     tracker: TaskTracker,
     shared: Arc<Shared>,
@@ -44,6 +49,7 @@ struct State {
 
 struct Admission {
     attempt: u32,
+    expires_at: i64,
     cancellation: Arc<CancellationToken>,
 }
 
@@ -55,6 +61,19 @@ pub struct PreviewAttemptObserver {
 impl PreviewAttemptObserver {
     pub async fn wait(self) -> Result<PreviewAttemptOutcome, ApiError> {
         self.receiver.await.unwrap_or_else(|_| Err(worker_failed()))
+    }
+}
+
+#[derive(Debug)]
+pub struct PreviewMaintenanceObserver {
+    receiver: oneshot::Receiver<Result<(), ApiError>>,
+}
+
+impl PreviewMaintenanceObserver {
+    pub async fn wait(self) -> Result<(), ApiError> {
+        self.receiver
+            .await
+            .unwrap_or_else(|_| Err(maintenance_failed()))
     }
 }
 
@@ -77,6 +96,7 @@ where
             clock,
             transport,
             identity: Arc::new(identity),
+            retention: PreviewRetention::default(),
             active: Arc::new(Semaphore::new(1)),
             tracker: TaskTracker::new(),
             shared: Arc::new(Shared {
@@ -90,10 +110,94 @@ where
         }
     }
 
+    pub async fn start(
+        runner: Arc<PreviewAttemptRunner>,
+        jobs: Arc<dyn PreviewJobRepository>,
+        clock: Arc<dyn Clock>,
+        transport: Arc<T>,
+        identity: F,
+        retention: PreviewRetention,
+    ) -> Result<(Self, PreviewMaintenanceObserver), ApiError> {
+        let mut runtime = Self::new(runner, jobs, clock, transport, identity);
+        runtime.retention = retention;
+        let handle = tokio::runtime::Handle::try_current().map_err(|_| runtime_unavailable())?;
+
+        let startup_token = CancellationToken::new();
+        let _startup_guard = startup_token.clone().drop_guard();
+        let startup_control = TokioResolutionControl::new(startup_token);
+        let deadline = startup_control
+            .now()
+            .checked_add(MANAGEMENT_BUDGET)
+            .ok_or_else(startup_recovery_failed)?;
+        let now = runtime.clock.now();
+        startup_control
+            .run(deadline, runtime.jobs.interrupt_running(now))
+            .await
+            .map_err(|_| startup_recovery_failed())?;
+        startup_control
+            .run(deadline, runtime.jobs.cleanup_expired(now))
+            .await
+            .map_err(|_| startup_cleanup_failed())?;
+
+        let (sender, receiver) = oneshot::channel();
+        let jobs = runtime.jobs.clone();
+        let clock = runtime.clock.clone();
+        let shared = runtime.shared.clone();
+        runtime.tracker.spawn_on(
+            async move {
+                let task_shared = shared.clone();
+                let task = tokio::spawn(async move {
+                    let first = Instant::now() + MAINTENANCE_INTERVAL;
+                    let mut interval = tokio::time::interval_at(first, MAINTENANCE_INTERVAL);
+                    interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+                    loop {
+                        tokio::select! {
+                            biased;
+                            _ = task_shared.shutdown.cancelled() => return Ok(()),
+                            _ = interval.tick() => {}
+                        }
+                        let now = clock.now();
+                        signal_expired(&task_shared, now);
+                        let token = task_shared.shutdown.child_token();
+                        let control = TokioResolutionControl::new(token);
+                        let deadline = control
+                            .now()
+                            .checked_add(MANAGEMENT_BUDGET)
+                            .ok_or_else(maintenance_failed)?;
+                        match control.run(deadline, jobs.cleanup_expired(now)).await {
+                            Ok(_) => {}
+                            Err(error)
+                                if error.code == "catalog_resolution_cancelled"
+                                    && task_shared.shutdown.is_cancelled() =>
+                            {
+                                return Ok(());
+                            }
+                            Err(_) => return Err(maintenance_failed()),
+                        }
+                    }
+                });
+                let result = task.await.unwrap_or_else(|_| Err(maintenance_failed()));
+                if result.is_err() {
+                    close_and_cancel(&shared);
+                }
+                let _ = sender.send(result);
+            },
+            &handle,
+        );
+        Ok((runtime, PreviewMaintenanceObserver { receiver }))
+    }
+
+    pub fn retention(&self) -> PreviewRetention {
+        self.retention
+    }
+
     pub fn enqueue(&self, job: &PreviewJob) -> Result<PreviewAttemptObserver, ApiError> {
         let handle = tokio::runtime::Handle::try_current().map_err(|_| runtime_unavailable())?;
         if job.status() != PreviewJobStatus::Queued {
             return Err(invalid_job());
+        }
+        if job.expires_at() <= self.clock.now() {
+            return Err(expired_job());
         }
         let id = job.id().to_owned();
         let attempt = job.attempt();
@@ -114,6 +218,7 @@ where
             id.clone(),
             Admission {
                 attempt,
+                expires_at: job.expires_at(),
                 cancellation: cancellation.clone(),
             },
         );
@@ -214,6 +319,29 @@ where
     }
 }
 
+fn signal_expired(shared: &Shared, now: i64) {
+    let state = shared
+        .state
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    for admission in state.admitted.values() {
+        if admission.expires_at <= now {
+            admission.cancellation.cancel();
+        }
+    }
+}
+
+fn close_and_cancel(shared: &Shared) {
+    {
+        let mut state = shared
+            .state
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        state.closed = true;
+    }
+    shared.shutdown.cancel();
+}
+
 impl<T, F> Drop for PreviewRuntime<T, F> {
     fn drop(&mut self) {
         if let Ok(mut state) = self.shared.state.lock() {
@@ -252,6 +380,13 @@ fn invalid_job() -> ApiError {
     ApiError::new(
         "preview_runtime_job_invalid",
         "Only a queued preview attempt can be admitted.",
+    )
+}
+
+fn expired_job() -> ApiError {
+    ApiError::new(
+        "preview_runtime_job_expired",
+        "The preview job has expired and cannot be admitted.",
     )
 }
 
@@ -308,6 +443,27 @@ fn delete_failed() -> ApiError {
     ApiError::new(
         "preview_delete_failed",
         "Preview deletion could not be persisted; query job status.",
+    )
+}
+
+fn startup_recovery_failed() -> ApiError {
+    ApiError::new(
+        "preview_startup_recovery_failed",
+        "Preview startup recovery could not be completed.",
+    )
+}
+
+fn startup_cleanup_failed() -> ApiError {
+    ApiError::new(
+        "preview_startup_cleanup_failed",
+        "Expired preview cleanup could not be completed during startup.",
+    )
+}
+
+fn maintenance_failed() -> ApiError {
+    ApiError::new(
+        "preview_maintenance_failed",
+        "Preview retention maintenance stopped unexpectedly.",
     )
 }
 

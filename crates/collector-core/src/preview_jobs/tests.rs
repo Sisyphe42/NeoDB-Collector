@@ -202,3 +202,25 @@ fn lifecycle_values_round_trip_including_result_completion() {
         assert_eq!(PreviewJobStatus::parse(status.as_str()).unwrap(), status);
     }
 }
+
+#[test]
+fn retention_defaults_to_thirty_days_and_checks_expiry() {
+    let retention = PreviewRetention::default();
+    assert_eq!(retention.days(), 30);
+    assert_eq!(retention.expires_at(100).unwrap(), 2_592_100);
+    assert_eq!(
+        PreviewRetention::new(0).unwrap_err().code,
+        "preview_retention_invalid"
+    );
+    assert_eq!(
+        retention.expires_at(-1).unwrap_err().code,
+        "preview_retention_invalid"
+    );
+    assert_eq!(
+        retention.expires_at(i64::MAX).unwrap_err().code,
+        "preview_retention_invalid"
+    );
+    let maximum = PreviewRetention::new(u32::MAX).unwrap();
+    assert_eq!(maximum.days(), u32::MAX);
+    assert_eq!(maximum.expires_at(0).unwrap(), i64::from(u32::MAX) * 86_400);
+}

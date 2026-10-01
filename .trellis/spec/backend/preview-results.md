@@ -4,14 +4,14 @@
 
 D2b1 of `09-16-preview-jobs` extends the internal job repository with bounded
 normalized review results and conditional completion. The migration and compatible
-repository ship together. Runtime worker/startup/retention composition and public
-API/client delivery remain D2b2/E; a completed preview is not a write approval.
+repository ship together. Runtime startup/retention is composed in Server/CLI; public
+API/client delivery remains E; a completed preview is not a write approval.
 Owners: `crates/collector-core/src/preview_results.rs`,
 `crates/collector-storage/src/preview_results.rs` and their `tests.rs`.
 [Single-attempt execution](./preview-runner.md) consumes these operations internally;
-automatic startup composition and public delivery remain pending.
+startup composition is implemented; public delivery remains pending.
 The [owned runtime](./preview-runtime.md) adds bounded explicit admission and
-cancel/delete/shutdown; it is not yet wired into startup or public routes.
+cancel/delete/shutdown/startup/retention; public routes remain pending.
 
 ## 2. Signatures
 

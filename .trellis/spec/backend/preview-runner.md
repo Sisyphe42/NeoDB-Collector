@@ -6,8 +6,8 @@ D2b2a under `09-16-preview-jobs` composes existing internal repositories and the
 real record producer in `crates/collector-core/src/preview_runner.rs`. It executes
 one explicitly invoked existing attempt, not an automatic background scheduler.
 Server [owned runtime](./preview-runtime.md) provides internal admission/cancellation;
-startup composition/recovery, retention configuration and public API/client
-delivery remain subsequent checkpoints. No new dependency,
+startup/recovery and retention configuration are wired through Server/CLI;
+public API/client delivery remains E. No new dependency,
 migration or public capability. Tests live in `src/preview_runner/tests.rs`.
 
 ## 2. Signatures
@@ -20,7 +20,7 @@ transport: &T, control: &C, identity: &F)` returns
 Transport implements existing catalog/search ports; ResolutionControl owns
 runtime timeout/cancellation. The pure trusted callback accepts `&ObservedItem`
 and returns `Result<CatalogIdentity, ApiError>`; the existing built-in IMDb
-`catalog_identity` function can be passed directly by the later runtime composer.
+`catalog_identity` function can be passed directly by the runtime composer.
 
 There is no new processor framework or public DTO. Core never acquires a connector,
 runtime or SQLite dependency. This slice accepts only native resolution; it does
@@ -61,7 +61,7 @@ not infer search/manual choices from display hints or persisted historical resul
   `preview_failure_cleanup_failed` error, not success. Cancellation during cleanup
   remains the cancellation error. Cancellation is not automatically user cancellation:
   return the interruption error without marking failed/cancelled. Runtime owners
-  later distinguish user cancel from shutdown. Dropped work stays recoverable.
+  distinguish user cancel from shutdown. Dropped work stays recoverable.
 - Dropping an in-flight mutation does not undo an already committed database
   change. A completion may commit before interruption is observed: subsequent
   status is authoritative. Do not promise rollback across asynchronous boundaries.

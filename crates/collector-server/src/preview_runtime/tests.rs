@@ -178,6 +178,7 @@ struct Fixture {
     storage: Storage,
     runtime: PreviewRuntime<Transport, IdentityFn>,
     transport: Arc<Transport>,
+    clock: Arc<FixedClock>,
     jobs: Vec<PreviewJob>,
 }
 
@@ -234,7 +235,7 @@ async fn fixture_with_observations(job_count: usize, observations_per_job: usize
     let runtime = PreviewRuntime::new(
         runner,
         Arc::new(storage.clone()),
-        clock,
+        clock.clone(),
         transport.clone(),
         catalog_identity as IdentityFn,
     );
@@ -243,6 +244,7 @@ async fn fixture_with_observations(job_count: usize, observations_per_job: usize
         storage,
         runtime,
         transport,
+        clock,
         jobs,
     }
 }
@@ -594,6 +596,109 @@ struct FailingManagementJobs {
     gate: tokio::sync::Semaphore,
 }
 
+struct MaintenanceJobs {
+    mode: AtomicU8,
+    interrupts: AtomicUsize,
+    cleanups: AtomicUsize,
+    periodic_entries: AtomicUsize,
+    cleaned: tokio::sync::Notify,
+    periodic_entered: tokio::sync::Notify,
+    gate: tokio::sync::Semaphore,
+    storage: Storage,
+}
+
+impl MaintenanceJobs {
+    fn new(storage: &Storage, mode: u8) -> Arc<Self> {
+        Arc::new(Self {
+            mode: AtomicU8::new(mode),
+            interrupts: AtomicUsize::new(0),
+            cleanups: AtomicUsize::new(0),
+            periodic_entries: AtomicUsize::new(0),
+            cleaned: tokio::sync::Notify::new(),
+            periodic_entered: tokio::sync::Notify::new(),
+            gate: tokio::sync::Semaphore::new(0),
+            storage: storage.clone(),
+        })
+    }
+}
+
+impl PreviewJobRepository for MaintenanceJobs {
+    fn submit(&self, _: PreviewSubmission) -> PortFuture<'_, PreviewJob> {
+        Box::pin(async { unreachable!() })
+    }
+    fn load(&self, _: String) -> PortFuture<'_, Option<PreviewJob>> {
+        Box::pin(async { unreachable!() })
+    }
+    fn observations(&self, _: String, _: u32, _: u32) -> PortFuture<'_, Vec<Observation>> {
+        Box::pin(async { unreachable!() })
+    }
+    fn claim(&self, _: String, _: u32, _: i64) -> PortFuture<'_, bool> {
+        Box::pin(async { unreachable!() })
+    }
+    fn cancel(&self, _: String, _: u32, _: i64) -> PortFuture<'_, bool> {
+        Box::pin(async { unreachable!() })
+    }
+    fn interrupt_running(&self, _: i64) -> PortFuture<'_, u64> {
+        Box::pin(async move {
+            match self.mode.load(Ordering::SeqCst) {
+                4 => return Err(ApiError::new("raw_startup_error", "must be sanitized")),
+                6 => return pending().await,
+                7 | 10 => {
+                    let permit = self.gate.acquire().await.unwrap();
+                    permit.forget();
+                }
+                _ => {}
+            }
+            self.interrupts.fetch_add(1, Ordering::SeqCst);
+            Ok(0)
+        })
+    }
+    fn fail(&self, _: String, _: u32, _: i64) -> PortFuture<'_, bool> {
+        Box::pin(async { unreachable!() })
+    }
+    fn resume(&self, _: String, _: u32, _: i64) -> PortFuture<'_, Option<u32>> {
+        Box::pin(async { unreachable!() })
+    }
+    fn delete(&self, _: String) -> PortFuture<'_, bool> {
+        Box::pin(async { unreachable!() })
+    }
+    fn cleanup_expired(&self, now: i64) -> PortFuture<'_, u64> {
+        Box::pin(async move {
+            let periodic = self.cleanups.load(Ordering::SeqCst) > 0;
+            if periodic {
+                self.periodic_entries.fetch_add(1, Ordering::SeqCst);
+                self.periodic_entered.notify_waiters();
+            }
+            match (self.mode.load(Ordering::SeqCst), periodic) {
+                (9, true) => return Err(cancelled()),
+                (10, false) => {
+                    let permit = self.gate.acquire().await.unwrap();
+                    permit.forget();
+                    return Ok(0);
+                }
+                (11, false) => return pending().await,
+                (1, true) => {
+                    return Err(ApiError::new("raw_cleanup_error", "must be sanitized"));
+                }
+                (2, true) => panic!("deliberate maintenance panic"),
+                (3, true) => return pending().await,
+                (8, true) => {
+                    let permit = self.gate.acquire().await.unwrap();
+                    permit.forget();
+                }
+                (5, false) => {
+                    return Err(ApiError::new("raw_startup_cleanup", "must be sanitized"));
+                }
+                _ => {}
+            }
+            let deleted = PreviewJobRepository::cleanup_expired(&self.storage, now).await?;
+            self.cleanups.fetch_add(1, Ordering::SeqCst);
+            self.cleaned.notify_waiters();
+            Ok(deleted)
+        })
+    }
+}
+
 impl PreviewJobRepository for FailingManagementJobs {
     fn submit(&self, _: PreviewSubmission) -> PortFuture<'_, PreviewJob> {
         Box::pin(async { unreachable!() })
@@ -757,4 +862,609 @@ async fn management_timeout_and_errors_are_bounded_and_sanitized() {
         exact_delete.await.unwrap_err().code,
         "preview_delete_failed"
     );
+}
+
+#[tokio::test]
+async fn production_start_interrupts_unfinished_and_cleans_expired_without_resuming() {
+    let f = fixture_with_observations(1, 2).await;
+    let credential = collector_core::access::AccessRecord {
+        id: "client:retained".into(),
+        hash: "a".repeat(64),
+        kind: "client".into(),
+        audience: "http://127.0.0.1:19423".into(),
+        name: "Retained client".into(),
+        client_kind: "cli".into(),
+        expires_at: 1_000,
+    };
+    f.storage.insert(credential.clone()).await.unwrap();
+    let expired = f
+        .storage
+        .submit(
+            PreviewSubmission::new(
+                "job:expired".into(),
+                endpoint(),
+                imdb_default(),
+                vec![observation(99)],
+                50,
+                100,
+            )
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    let terminal = f
+        .storage
+        .submit(
+            PreviewSubmission::new(
+                "job:terminal".into(),
+                endpoint(),
+                imdb_default(),
+                vec![],
+                100,
+                1_000,
+            )
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert!(
+        f.storage
+            .cancel(terminal.id().into(), terminal.attempt(), 110)
+            .await
+            .unwrap()
+    );
+    let observer = f.runtime.enqueue(&f.jobs[0]).unwrap();
+    wait_for_calls(&f.transport, 1).await;
+    f.transport.release();
+    wait_for_calls(&f.transport, 2).await;
+    let runner = f.runtime.runner.clone();
+    let clock: Arc<dyn Clock> = f.clock.clone();
+    let transport = f.transport.clone();
+    drop(f.runtime);
+    assert_eq!(
+        observer.wait().await.unwrap_err().code,
+        "catalog_resolution_cancelled"
+    );
+    assert_eq!(
+        f.storage
+            .results(f.jobs[0].id().into(), 1, 0, 100)
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+
+    let (runtime, maintenance) = PreviewRuntime::start(
+        runner,
+        Arc::new(f.storage.clone()),
+        clock,
+        transport.clone(),
+        catalog_identity as IdentityFn,
+        PreviewRetention::new(45).unwrap(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(runtime.retention().days(), 45);
+    assert_eq!(
+        f.storage
+            .find(
+                credential.hash.clone(),
+                credential.kind.clone(),
+                credential.audience.clone(),
+                110
+            )
+            .await
+            .unwrap()
+            .unwrap()
+            .id,
+        credential.id
+    );
+    assert_eq!(transport.calls.load(Ordering::SeqCst), 2);
+    assert_eq!(
+        PreviewJobRepository::load(&f.storage, f.jobs[0].id().into())
+            .await
+            .unwrap()
+            .unwrap()
+            .status(),
+        PreviewJobStatus::Interrupted
+    );
+    assert!(
+        PreviewJobRepository::load(&f.storage, expired.id().into())
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(
+        PreviewJobRepository::load(&f.storage, terminal.id().into())
+            .await
+            .unwrap()
+            .unwrap()
+            .status(),
+        PreviewJobStatus::Cancelled
+    );
+    assert_eq!(
+        f.storage
+            .results(f.jobs[0].id().into(), 1, 0, 100)
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    assert!(f.storage.endpoint().await.unwrap().is_some());
+    assert!(
+        MappingRepository::load(
+            &f.storage,
+            f.jobs[0].profile_id().into(),
+            Some(f.jobs[0].profile_version()),
+        )
+        .await
+        .unwrap()
+        .is_some()
+    );
+
+    let runner = runtime.runner.clone();
+    let clock = runtime.clock.clone();
+    let transport = runtime.transport.clone();
+    runtime.shutdown().await;
+    maintenance.wait().await.unwrap();
+    let (runtime, maintenance) = PreviewRuntime::start(
+        runner,
+        Arc::new(f.storage.clone()),
+        clock,
+        transport.clone(),
+        catalog_identity as IdentityFn,
+        PreviewRetention::new(45).unwrap(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(transport.calls.load(Ordering::SeqCst), 2);
+    assert_eq!(
+        PreviewJobRepository::load(&f.storage, f.jobs[0].id().into())
+            .await
+            .unwrap()
+            .unwrap()
+            .status(),
+        PreviewJobStatus::Interrupted
+    );
+    assert_eq!(
+        f.storage
+            .results(f.jobs[0].id().into(), 1, 0, 100)
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    runtime.shutdown().await;
+    maintenance.wait().await.unwrap();
+}
+
+#[tokio::test]
+async fn maintenance_waits_for_first_tick_then_signals_expired_active_work() {
+    let f = fixture(0).await;
+    let runner = f.runtime.runner.clone();
+    let clock: Arc<dyn Clock> = f.clock.clone();
+    let transport = f.transport.clone();
+    drop(f.runtime);
+    let maintenance_jobs = Arc::new(MaintenanceJobs {
+        mode: AtomicU8::new(0),
+        interrupts: AtomicUsize::new(0),
+        cleanups: AtomicUsize::new(0),
+        periodic_entries: AtomicUsize::new(0),
+        cleaned: tokio::sync::Notify::new(),
+        periodic_entered: tokio::sync::Notify::new(),
+        gate: tokio::sync::Semaphore::new(0),
+        storage: f.storage.clone(),
+    });
+    let (runtime, maintenance) = PreviewRuntime::start(
+        runner,
+        maintenance_jobs.clone(),
+        clock.clone(),
+        transport.clone(),
+        catalog_identity as IdentityFn,
+        PreviewRetention::default(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(maintenance_jobs.interrupts.load(Ordering::SeqCst), 1);
+    assert_eq!(maintenance_jobs.cleanups.load(Ordering::SeqCst), 1);
+    let active_job = f
+        .storage
+        .submit(
+            PreviewSubmission::new(
+                "job:tick".into(),
+                endpoint(),
+                imdb_default(),
+                vec![observation(100)],
+                100,
+                1_000,
+            )
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    let waiting_job = f
+        .storage
+        .submit(
+            PreviewSubmission::new(
+                "job:tick-waiting".into(),
+                endpoint(),
+                imdb_default(),
+                vec![observation(101)],
+                100,
+                1_000,
+            )
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    let active = runtime.enqueue(&active_job).unwrap();
+    wait_for_calls(&transport, 1).await;
+    let waiting = runtime.enqueue(&waiting_job).unwrap();
+    tokio::time::pause();
+    f.clock.0.store(1_000, Ordering::SeqCst);
+    tokio::time::advance(Duration::from_secs(59)).await;
+    tokio::task::yield_now().await;
+    assert_eq!(maintenance_jobs.cleanups.load(Ordering::SeqCst), 1);
+    tokio::time::advance(Duration::from_secs(1)).await;
+    tokio::time::resume();
+    loop {
+        let cleaned = maintenance_jobs.cleaned.notified();
+        if maintenance_jobs.cleanups.load(Ordering::SeqCst) >= 2 {
+            break;
+        }
+        cleaned.await;
+    }
+    assert_eq!(
+        active.wait().await.unwrap_err().code,
+        "catalog_resolution_cancelled"
+    );
+    assert_eq!(
+        waiting.wait().await.unwrap_err().code,
+        "catalog_resolution_cancelled"
+    );
+    runtime.shutdown().await;
+    maintenance.wait().await.unwrap();
+    assert_eq!(maintenance_jobs.cleanups.load(Ordering::SeqCst), 2);
+    assert_eq!(transport.calls.load(Ordering::SeqCst), 1);
+    assert!(transport.fetch_dropped.load(Ordering::SeqCst));
+    assert!(
+        PreviewJobRepository::load(&f.storage, active_job.id().into())
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        PreviewJobRepository::load(&f.storage, waiting_job.id().into())
+            .await
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[tokio::test]
+async fn startup_and_periodic_failures_are_static_and_close_admission() {
+    for (mode, expected) in [
+        (4, "preview_startup_recovery_failed"),
+        (5, "preview_startup_cleanup_failed"),
+    ] {
+        let f = fixture(0).await;
+        let jobs = Arc::new(MaintenanceJobs {
+            mode: AtomicU8::new(mode),
+            interrupts: AtomicUsize::new(0),
+            cleanups: AtomicUsize::new(0),
+            periodic_entries: AtomicUsize::new(0),
+            cleaned: tokio::sync::Notify::new(),
+            periodic_entered: tokio::sync::Notify::new(),
+            gate: tokio::sync::Semaphore::new(0),
+            storage: f.storage.clone(),
+        });
+        let error = PreviewRuntime::start(
+            f.runtime.runner.clone(),
+            jobs,
+            f.clock.clone(),
+            f.transport.clone(),
+            catalog_identity as IdentityFn,
+            PreviewRetention::default(),
+        )
+        .await
+        .err()
+        .unwrap();
+        assert_eq!(error.code, expected);
+        assert!(!error.message.contains("raw_"));
+    }
+
+    for mode in [1, 2] {
+        let f = fixture(1).await;
+        let jobs = Arc::new(MaintenanceJobs {
+            mode: AtomicU8::new(0),
+            interrupts: AtomicUsize::new(0),
+            cleanups: AtomicUsize::new(0),
+            periodic_entries: AtomicUsize::new(0),
+            cleaned: tokio::sync::Notify::new(),
+            periodic_entered: tokio::sync::Notify::new(),
+            gate: tokio::sync::Semaphore::new(0),
+            storage: f.storage.clone(),
+        });
+        let (runtime, maintenance) = PreviewRuntime::start(
+            f.runtime.runner.clone(),
+            jobs.clone(),
+            f.clock.clone(),
+            f.transport.clone(),
+            catalog_identity as IdentityFn,
+            PreviewRetention::default(),
+        )
+        .await
+        .unwrap();
+        jobs.mode.store(mode, Ordering::SeqCst);
+        tokio::time::pause();
+        tokio::time::advance(MAINTENANCE_INTERVAL).await;
+        assert_eq!(
+            maintenance.wait().await.unwrap_err().code,
+            "preview_maintenance_failed"
+        );
+        tokio::time::resume();
+        assert_eq!(
+            runtime.enqueue(&f.jobs[0]).unwrap_err().code,
+            "preview_runtime_closed"
+        );
+        runtime.shutdown().await;
+    }
+}
+
+#[tokio::test]
+async fn startup_and_periodic_hung_or_exact_deadline_work_fail_strictly() {
+    for mode in [6, 7] {
+        let f = fixture(0).await;
+        let jobs = Arc::new(MaintenanceJobs {
+            mode: AtomicU8::new(mode),
+            interrupts: AtomicUsize::new(0),
+            cleanups: AtomicUsize::new(0),
+            periodic_entries: AtomicUsize::new(0),
+            cleaned: tokio::sync::Notify::new(),
+            periodic_entered: tokio::sync::Notify::new(),
+            gate: tokio::sync::Semaphore::new(0),
+            storage: f.storage.clone(),
+        });
+        tokio::time::pause();
+        let start = tokio::spawn(PreviewRuntime::start(
+            f.runtime.runner.clone(),
+            jobs.clone(),
+            f.clock.clone(),
+            f.transport.clone(),
+            catalog_identity as IdentityFn,
+            PreviewRetention::default(),
+        ));
+        tokio::task::yield_now().await;
+        tokio::time::advance(MANAGEMENT_BUDGET).await;
+        if mode == 7 {
+            jobs.gate.add_permits(1);
+        }
+        assert_eq!(
+            start.await.unwrap().err().unwrap().code,
+            "preview_startup_recovery_failed"
+        );
+        tokio::time::resume();
+    }
+
+    for mode in [3, 8] {
+        let f = fixture(0).await;
+        let jobs = Arc::new(MaintenanceJobs {
+            mode: AtomicU8::new(0),
+            interrupts: AtomicUsize::new(0),
+            cleanups: AtomicUsize::new(0),
+            periodic_entries: AtomicUsize::new(0),
+            cleaned: tokio::sync::Notify::new(),
+            periodic_entered: tokio::sync::Notify::new(),
+            gate: tokio::sync::Semaphore::new(0),
+            storage: f.storage.clone(),
+        });
+        let (runtime, maintenance) = PreviewRuntime::start(
+            f.runtime.runner.clone(),
+            jobs.clone(),
+            f.clock.clone(),
+            f.transport.clone(),
+            catalog_identity as IdentityFn,
+            PreviewRetention::default(),
+        )
+        .await
+        .unwrap();
+        jobs.mode.store(mode, Ordering::SeqCst);
+        tokio::time::pause();
+        tokio::time::advance(MAINTENANCE_INTERVAL).await;
+        loop {
+            let entered = jobs.periodic_entered.notified();
+            if jobs.periodic_entries.load(Ordering::SeqCst) > 0 {
+                break;
+            }
+            entered.await;
+        }
+        tokio::time::advance(MANAGEMENT_BUDGET).await;
+        if mode == 8 {
+            jobs.gate.add_permits(1);
+        }
+        assert_eq!(
+            maintenance.wait().await.unwrap_err().code,
+            "preview_maintenance_failed"
+        );
+        tokio::time::resume();
+        runtime.shutdown().await;
+    }
+}
+
+#[tokio::test]
+async fn skipped_interval_does_not_catch_up_after_a_large_time_jump() {
+    let f = fixture(0).await;
+    let jobs = Arc::new(MaintenanceJobs {
+        mode: AtomicU8::new(0),
+        interrupts: AtomicUsize::new(0),
+        cleanups: AtomicUsize::new(0),
+        periodic_entries: AtomicUsize::new(0),
+        cleaned: tokio::sync::Notify::new(),
+        periodic_entered: tokio::sync::Notify::new(),
+        gate: tokio::sync::Semaphore::new(0),
+        storage: f.storage.clone(),
+    });
+    let (runtime, maintenance) = PreviewRuntime::start(
+        f.runtime.runner.clone(),
+        jobs.clone(),
+        f.clock.clone(),
+        f.transport.clone(),
+        catalog_identity as IdentityFn,
+        PreviewRetention::default(),
+    )
+    .await
+    .unwrap();
+    tokio::task::yield_now().await;
+    tokio::time::pause();
+    tokio::time::advance(MAINTENANCE_INTERVAL * 3).await;
+    tokio::time::resume();
+    loop {
+        let cleaned = jobs.cleaned.notified();
+        if jobs.cleanups.load(Ordering::SeqCst) >= 2 {
+            break;
+        }
+        cleaned.await;
+    }
+    assert_eq!(jobs.periodic_entries.load(Ordering::SeqCst), 1);
+    runtime.shutdown().await;
+    maintenance.wait().await.unwrap();
+}
+
+#[tokio::test]
+async fn expired_job_is_rejected_before_registration() {
+    let f = fixture(1).await;
+    f.clock.0.store(1_000, Ordering::SeqCst);
+    assert_eq!(
+        f.runtime.enqueue(&f.jobs[0]).unwrap_err().code,
+        "preview_runtime_job_expired"
+    );
+    assert!(f.runtime.shared.state.lock().unwrap().admitted.is_empty());
+}
+
+#[tokio::test]
+async fn maintenance_observer_drop_keeps_cleanup_owned_and_owner_drop_drains() {
+    let f = fixture(0).await;
+    let jobs = MaintenanceJobs::new(&f.storage, 0);
+    let (runtime, observer) = PreviewRuntime::start(
+        f.runtime.runner.clone(),
+        jobs.clone(),
+        f.clock.clone(),
+        f.transport.clone(),
+        catalog_identity as IdentityFn,
+        PreviewRetention::default(),
+    )
+    .await
+    .unwrap();
+    drop(observer);
+    tokio::task::yield_now().await;
+    tokio::time::pause();
+    tokio::time::advance(MAINTENANCE_INTERVAL).await;
+    tokio::time::resume();
+    loop {
+        let cleaned = jobs.cleaned.notified();
+        if jobs.cleanups.load(Ordering::SeqCst) == 2 {
+            break;
+        }
+        cleaned.await;
+    }
+    let tracker = runtime.tracker.clone();
+    drop(runtime);
+    tracker.wait().await;
+    assert!(tracker.is_empty());
+    tokio::time::pause();
+    tokio::time::advance(MAINTENANCE_INTERVAL * 3).await;
+    tokio::time::resume();
+    assert_eq!(jobs.cleanups.load(Ordering::SeqCst), 2);
+}
+
+#[tokio::test]
+async fn a_repository_cancellation_code_does_not_fabricate_host_shutdown() {
+    let f = fixture(0).await;
+    let jobs = MaintenanceJobs::new(&f.storage, 9);
+    let (runtime, observer) = PreviewRuntime::start(
+        f.runtime.runner.clone(),
+        jobs,
+        f.clock.clone(),
+        f.transport.clone(),
+        catalog_identity as IdentityFn,
+        PreviewRetention::default(),
+    )
+    .await
+    .unwrap();
+    tokio::task::yield_now().await;
+    tokio::time::pause();
+    tokio::time::advance(MAINTENANCE_INTERVAL).await;
+    assert_eq!(
+        observer.wait().await.unwrap_err().code,
+        "preview_maintenance_failed"
+    );
+    tokio::time::resume();
+    assert!(runtime.shared.state.lock().unwrap().closed);
+    runtime.shutdown().await;
+}
+
+#[tokio::test]
+async fn startup_cleanup_shares_recovery_budget_and_rejects_hung_or_late_replies() {
+    use std::{future::Future, task::Poll};
+    for mode in [10, 11] {
+        let f = fixture(0).await;
+        let jobs = MaintenanceJobs::new(&f.storage, mode);
+        tokio::time::pause();
+        let start = PreviewRuntime::start(
+            f.runtime.runner.clone(),
+            jobs.clone(),
+            f.clock.clone(),
+            f.transport.clone(),
+            catalog_identity as IdentityFn,
+            PreviewRetention::default(),
+        );
+        tokio::pin!(start);
+        assert!(std::future::poll_fn(|cx| Poll::Ready(start.as_mut().poll(cx).is_pending())).await);
+        if mode == 10 {
+            tokio::time::advance(Duration::from_secs(9)).await;
+            jobs.gate.add_permits(1);
+            assert!(
+                std::future::poll_fn(|cx| Poll::Ready(start.as_mut().poll(cx).is_pending())).await
+            );
+            assert_eq!(jobs.interrupts.load(Ordering::SeqCst), 1);
+            tokio::time::advance(Duration::from_secs(1)).await;
+            jobs.gate.add_permits(1);
+        } else {
+            tokio::time::advance(MANAGEMENT_BUDGET).await;
+        }
+        assert_eq!(
+            start.await.err().unwrap().code,
+            "preview_startup_cleanup_failed"
+        );
+        assert_eq!(jobs.cleanups.load(Ordering::SeqCst), 0);
+        tokio::time::resume();
+    }
+}
+
+#[test]
+fn production_start_without_executor_performs_no_recovery_or_cleanup() {
+    use std::{
+        future::Future,
+        task::{Context, Poll, Waker},
+    };
+    let executor = tokio::runtime::Runtime::new().unwrap();
+    let f = executor.block_on(fixture(0));
+    drop(executor);
+    let jobs = MaintenanceJobs::new(&f.storage, 0);
+    let mut start = Box::pin(PreviewRuntime::start(
+        f.runtime.runner.clone(),
+        jobs.clone(),
+        f.clock.clone(),
+        f.transport.clone(),
+        catalog_identity as IdentityFn,
+        PreviewRetention::default(),
+    ));
+    let mut context = Context::from_waker(Waker::noop());
+    let Poll::Ready(Err(error)) = start.as_mut().poll(&mut context) else {
+        panic!("Missing executor must reject before port calls.");
+    };
+    assert_eq!(error.code, "preview_runtime_unavailable");
+    assert_eq!(jobs.interrupts.load(Ordering::SeqCst), 0);
+    assert_eq!(jobs.cleanups.load(Ordering::SeqCst), 0);
 }

@@ -2,11 +2,11 @@
 
 ## 1. Scope / Trigger
 
-D2b2b under `09-16-preview-jobs` adds internal runtime admission and lifecycle in
+D2b2b/c under `09-16-preview-jobs` adds internal runtime admission and lifecycle in
 `crates/collector-server/src/preview_runtime.rs`, around the real Core
-[single-attempt runner](./preview-runner.md). CLI/server startup composition,
-restart interruption, retention configuration/cleanup and public API/client
-delivery remain subsequent checkpoints. No new dependency, migration or route.
+[single-attempt runner](./preview-runner.md), plus CLI startup composition,
+restart interruption and periodic retention cleanup. Public API/client delivery
+remains E. No new dependency, migration or route.
 
 ## 2. Signatures
 
@@ -17,19 +17,26 @@ identity: F)` requires the existing catalog/search ports and a pure trusted
 T/F are Send/Sync/static. No connector dependency enters Server.
 
 - `enqueue(&self, &PreviewJob) -> Result<PreviewAttemptObserver, ApiError>` accepts
-  validated queued metadata; copy only ID/attempt, not payloads/credentials.
+  validated queued/unexpired metadata; copy only ID/attempt/expiry, not payloads/credentials.
 - `PreviewAttemptObserver::wait(self) -> Result<PreviewAttemptOutcome, ApiError>`
   observes completion; dropping it does not cancel accepted runtime-owned work.
 - `cancel(&self, id: &str, expected_attempt: u32) -> Result<bool, ApiError>` and
   `delete(&self, id: &str) -> Result<bool, ApiError>` are async management methods.
 - `shutdown(&self)` is async and closes/signals/drains the owner.
+- Async `start(runner, jobs, clock, transport, identity, PreviewRetention)` returns
+  `Result<(Self, PreviewMaintenanceObserver), ApiError>` after recovery and initial
+  cleanup. Production hosts use start; raw new remains focused internal construction.
+- `retention()` returns the validated pure Core policy for future submission.
+- `PreviewMaintenanceObserver::wait(self) -> Result<(), ApiError>` observes owned
+  maintenance. Observer drop does not stop it. Explicit cancellation returns Ok;
+  unexpected task/channel failure is static `preview_maintenance_failed`.
 
-All are internal Rust APIs, not HTTP routes or public DTOs. Later startup must
-share exactly one owner; no automatic database scanning happens here.
+All are internal Rust APIs, not HTTP routes or public DTOs. CLI serve shares
+exactly one owner; recovery/cleanup never enqueue or resume saved jobs.
 
 ## 3. Contracts
 
-- One owner shared by the later server composer has one execution permit across
+- One owner shared by the production composer has one execution permit across
   all jobs. Independent owners do not promise process-wide admission exclusion;
   the repository still prevents duplicate claim of the same attempt.
 - Bound accepted attempts at 9 (one permit and at most 8 additional waiters) before
@@ -60,14 +67,30 @@ share exactly one owner; no automatic database scanning happens here.
   Return truthful results. Completion may have committed before interruption:
   persisted status is authoritative. Never roll back async commits by assertion.
 - Shutdown closes admission then signals/drains local work without marking it as
-  failed or user-cancelled. Startup interruption remains D2b2c; no automatic resume.
+  failed or user-cancelled. Startup interrupts unfinished attempts; no automatic resume.
   Preserve partial review history and unrelated profiles/account/credentials.
+
+Production start interrupts queued/running then deletes expired job data under
+one independent strict ten-second control budget, before publishing HTTP/bootstrap.
+Static errors prevent startup; cancellation cannot undo already committed SQL.
+
+A tracked task uses Tokio interval_at every 60 seconds, MissedTickBehavior::Skip,
+first tick delayed. Each tick samples wall time once and uses fresh cancellation-
+aware strict ten-second control. Signal expired registered attempts before job-only
+cleanup; transaction guards prevent late results. No scan/auto-enqueue/retry.
+Retention defaults to 30 positive u32 days and remains fixed per saved job.
+Changing configuration never rewrites existing expiry or extends it on resume.
+Recovery/cleanup perform no transport/keychain operation. Periodic failure/panic
+closes admission, cancels children and notifies the host, which gracefully stops
+serving with a static error, not silent maintenance loss. Shutdown drains attempts
+and maintenance before pool close; the serve lease is released last.
 
 ## 4. Validation & Error Matrix
 
 | Condition | Required outcome |
 |---|---|
 | Nonqueued metadata | preview_runtime_job_invalid; no task |
+| Expired metadata | preview_runtime_job_expired; no task |
 | No active Tokio runtime | preview_runtime_unavailable; no registration |
 | Duplicate locally registered job | preview_runtime_duplicate; no second task |
 | Admission full | preview_runtime_busy; no unbounded spawned waiter |
@@ -80,6 +103,8 @@ share exactly one owner; no automatic database scanning happens here.
 | Observer dropped | Accepted runtime-owned work continues |
 | Runtime owner dropped | Children signalled; no implicit persisted cancel/fail |
 | Explicit shutdown | No later admission; tracked tasks drained |
+| Startup interruption/cleanup error or deadline | preview_startup_recovery_failed / preview_startup_cleanup_failed; no published host |
+| Periodic failure/deadline/panic/channel failure | preview_maintenance_failed; close admission, cancel work, stop host |
 
 ## 5. Good / Base / Bad Cases
 
@@ -110,6 +135,21 @@ does not fabricate persisted cancellation, and gated ready results at exactly
 10 seconds still fail the deadline). Owner-drop and partial-result failure
 tests check the same lifecycle using real runner/SQLite operations.
 
+D2b2c tests prove queued/running interruption and terminal/partial-history
+preservation across reopen, expired data removal without profile/account/auth loss,
+no automatic transport/secret reads, delayed/skipped periodic ticks, active/waiter
+expiry cancellation, bounded startup/periodic static errors and late/hung ports,
+observer/owner drop and shutdown drain. CLI composition tests use injected
+shutdown/fakes; smoke rejects an ephemeral-port second host on the same database
+and verifies doctor remains usable without recovery ownership.
+
+Independent-review regressions include
+`production_start_without_executor_performs_no_recovery_or_cleanup`,
+`startup_cleanup_shares_recovery_budget_and_rejects_hung_or_late_replies`,
+`a_repository_cancellation_code_does_not_fabricate_host_shutdown`, and
+`maintenance_observer_drop_keeps_cleanup_owned_and_owner_drop_drains`.
+The partial-history startup test also retains a live hashed client credential.
+
 ## 7. Wrong vs Correct
 
 Wrong: spawn every request, then acquire a permit and forget its task handle.
@@ -119,3 +159,8 @@ scoped task cleanup and explicit tracked shutdown.
 Wrong: dropping TaskTracker cancels workers, or its close forbids spawn.
 Correct: owner-held cancellation guards signal work; an explicit closed-state
 lock serializes admission and shutdown, and tracker wait confirms destruction.
+
+Wrong: recover another live host's database by choosing a different port, or close
+SQLite while maintenance still owns a cleanup future.
+Correct: hold the serve lease before recovery, drain all work before pool close,
+and release the lease last. See [Runnable Foundation](./foundation-runtime.md).

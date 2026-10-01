@@ -10,6 +10,8 @@ No completed job can be produced by D1 alone; the compatible
 [D2a single-record production](./preview-records.md) composes resolution and
 comparison without changing this repository or completing jobs. Persistent result
 transactions are owned by D2b1; runtime worker/startup/configuration remain pending.
+[D2b2a execution](./preview-runner.md) joins these ports for one explicit attempt;
+it does not enable automatic scheduling or startup recovery.
 
 ## 2. Signatures
 

@@ -213,6 +213,10 @@ pending. Keep the preview child active rather than archiving it.
     - [x] D2b1: Consume produced records through an atomic bounded result repository,
       current-attempt pagination and conditional completion; compatible v5 migration.
     - [ ] D2b2: Compose bounded worker, startup recovery and retention configuration.
+      - [x] D2b2a: Internal sequential single-attempt runner using existing ports
+        and real record production; no automatic runtime/startup/public surface.
+      - [ ] D2b2b: Server-owned single-job admission/cancellation and lifecycle.
+      - [ ] D2b2c: Startup recovery and retention configuration/periodic cleanup.
 
 Main owns design/contracts/acceptance/commit; Sol/medium implements Core repository
 types and SQLite adapter/tests. Do not create migration-only commits, public DTOs,
@@ -283,6 +287,34 @@ Tests use fake ports or loopback mocks, not live NeoDB or OS credential access.
 D2b1 is complete; worker/startup/retention composition (D2b2), D2/D2b and E remain
 pending. No public capability/API or actual scheduled preview was enabled; keep
 the preview child active.
+
+D2b2a ownership: Sol/medium implements `collector-core/src/preview_runner.rs`,
+its tests and module registration only. Main owns design/specs, review, full gate
+and checkpoint commit. Use existing pure adapter callback, ResolutionControl,
+job/result/mapping/access/clock ports and PreviewRecordService; no new trait solely
+to wrap a pure function, no serializer/runtime/dependency or source matcher in Core.
+Read the D2b2a design, preview-jobs/records/results, mapping-storage/evaluator,
+repository-layout and connector/IMDb contracts. Test against fake ports and the
+real producer without live accounts/keychain. Do not modify Storage/Server/CLI,
+public contracts or mark D2b2 complete. Report scoped tests/fmt/Clippy, then stop
+editing so main can independently review and run full `pnpm verify`.
+
+D2b2a verification (2026-10-01): Sol/medium implemented the internal runner and
+13 fake-port tests. Main independently reviewed production/tests, requested fixed
+claim-time tuple binding, a shared setup deadline and truthful cleanup races,
+then reviewed the supplemental pending-phase tests after the sub-agent hit its
+usage limit. Main reran scoped Core tests (81 unit + 2 compile-fail doctests),
+fmt and Core Clippy, followed by full `pnpm verify` with `CARGO_BUILD_JOBS=1`:
+177 Rust unit tests, 2 doctests, 25 TS/UI tests, fmt/workspace Clippy, generated
+contract drift, dependency boundaries, lint/typecheck, WebUI/CLI builds and actual
+CLI/local HTTP/desktop-mobile browser smoke passed. Product YAML/34 evidence IDs
+and references plus `git diff --check` passed. Tests cover empty/205-record batches,
+real snapshot comparison, partial failure, exact profile revision, fixed binding,
+expiry after endpoint reads, a second runner denied ownership, cancel/timeout/drop
+and cleanup races including resume/delete. No live NeoDB or OS credential access,
+new dependency, migration, public DTO/route, automatic scheduler or API capability.
+Only D2b2a is complete; Server admission/cancellation (D2b2b), startup/retention
+(D2b2c), D2/D2b/D2b2 and E remain pending. Keep the preview child active.
 
 - [ ] Implement repositories, ordered migration, atomic bounded submission,
   version/account binding and conditional worker transitions.

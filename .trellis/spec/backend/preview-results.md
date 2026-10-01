@@ -8,6 +8,8 @@ repository ship together. Runtime worker/startup/retention composition and publi
 API/client delivery remain D2b2/E; a completed preview is not a write approval.
 Owners: `crates/collector-core/src/preview_results.rs`,
 `crates/collector-storage/src/preview_results.rs` and their `tests.rs`.
+[Single-attempt execution](./preview-runner.md) consumes these operations internally;
+scheduled runtime ownership and public delivery remain pending.
 
 ## 2. Signatures
 

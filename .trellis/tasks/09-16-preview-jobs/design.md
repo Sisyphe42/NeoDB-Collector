@@ -343,6 +343,67 @@ completion, rollback of insertion/resume/delete, malformed/oversized result JSON
 prior v1-v4 upgrade with populated v4 rows and preservation of unrelated state.
 Do not call real NeoDB or the OS credential store.
 
+### D2b2a single-attempt runner before runtime ownership
+
+Compose the existing job/result/mapping/access/clock ports and PreviewRecordService
+in `collector-core/src/preview_runner.rs`. This is callable internal orchestration,
+not an automatically scheduled worker. Server's single-job admission, owned
+cancellation, startup interruption and retention configuration follow separately.
+No public DTO/route, migration, new dependency or advertised capability belongs here.
+
+An invocation identifies one existing job and expected positive attempt. Validate
+metadata and cancellation before work; load the queued job, current endpoint and
+its exact disabled profile revision, never latest. Require retained full binding,
+status/attempt, non-regressing wall clock and unexpired retention before claim.
+The existing atomic claim is the only ownership grant. A losing/stale invocation
+performs no catalog/credential/mark reads, result write or fail transition.
+
+Traverse original observations in stable pages of at most 100, process sequentially
+and retain no batch-wide result buffer. A trusted pure adapter callback accepts
+ObservedItem and returns CatalogIdentity; callers can pass existing IMDb
+`catalog_identity` directly. Core must not depend on connectors or reconstruct a
+second source identity/model mapper. Validate page count and normalized observations,
+reuse the production evaluator and record producer. Native mode only in this slice:
+no implicit search query, selected item or old stored result is execution input.
+
+Before each record and before publication/completion, recheck live job status,
+attempt, both original/fresh job bindings against the initial claimed full endpoint
+tuple, and wall-clock bounds after awaited endpoint reads. The result repository remains
+the atomic authority against concurrent cancellation/deletion/resume/rotation.
+Store immediately at the original ordinal; stop on a refused write and never
+process a subsequent record. Call conditional complete only after every ordinal
+was processed, including a claimed empty batch. A completed preview remains
+non-executable regardless of identity/review outcome.
+
+Reuse ResolutionControl for cancellable bounded repository/producer operations;
+no custom future race, busy loop or Core runtime dependency. Each record gets a
+checked deadline capped at 120 seconds and its remaining retention; a large batch
+does not receive an accidental 120-second total-job deadline. Include per-record
+guards and persistence in that outer budget. Initial load/setup/claim share one
+deadline; page reads and completion also use bounded control. Wall-clock regression
+or exact expiry stops remote work.
+Dropping a mutation future cannot undo an already committed SQLite operation;
+callers inspect status, and later startup recovery interrupts unfinished attempts.
+
+After a known successful claim, ordinary producer/repository failures request only
+the existing attempt-guarded fail transition, preserving partial history. Surface
+failure to persist that transition with a static cleanup diagnostic; never declare
+success or overwrite another attempt/terminal state. Cleanup has a separate
+10-second bound capped by remaining retention. If fail returns false, reload under
+that deadline: disappearance, terminal state or another attempt preserves the
+original error; an unchanged running attempt yields the cleanup error. Runtime cancellation returns
+its existing interruption error without inventing cancelled/failed status: user
+cancel and shutdown have different owners. Dropped runs remain unfinished for
+explicit later recovery; no automatic retry/resume or expiry extension.
+
+Tests use real Core producer plus memory job/result repositories, fake transports,
+credentials/clocks and deterministic control. Cover empty/multiple-page processing,
+stable ordinals and bounded sequential calls, losing/concurrent claims, fresh rerun
+after explicit resume, exact revision and all tuple changes, terminal/deleted/expired
+jobs at phase boundaries, refused stores/completion, partial failure/cleanup failure,
+invalid/holey pages, cancellation/timeout/drop during every pending port phase and
+retention-limited work. Keep runtime composition and public integration unchecked.
+
 ## 5. API and clients (later checkpoints)
 
 Add authenticated import/preview creation, status, paginated results, cancel,

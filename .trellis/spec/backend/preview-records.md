@@ -8,6 +8,8 @@ internal record producer consumed by the [result repository](./preview-results.m
 not a running worker or completed job. D2a itself has no migration, HTTP/client
 shape, activation or new dependency.
 Source owners: `crates/collector-core/src/preview_records.rs` and its `tests.rs`.
+[Single-attempt execution](./preview-runner.md) invokes this producer sequentially
+for claimed jobs; scheduling, startup recovery and public integration remain pending.
 
 ## 2. Signatures
 

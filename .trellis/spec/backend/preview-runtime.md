@@ -2,13 +2,14 @@
 
 ## 1. Scope / Trigger
 
-D2b2b/c under `09-16-preview-jobs` adds internal runtime admission and lifecycle in
+D2b2b/c and E2b1 under `09-16-preview-jobs` add internal runtime admission and lifecycle in
 `crates/collector-server/src/preview_runtime.rs`, around the real Core
 [single-attempt runner](./preview-runner.md), plus CLI startup composition,
 restart interruption and periodic retention cleanup. Public API/client delivery
 is owned by [Preview HTTP](./preview-http.md) and
-[Preview Management HTTP](./preview-management-http.md); submission/resume/screens
-remain E. No new runtime dependency or migration.
+[Preview Management HTTP](./preview-management-http.md). E2b1 adds owned internal
+submission/resume; public CSV upload/resume/screens remain E. No new runtime
+dependency or migration.
 
 ## 2. Signatures
 
@@ -20,6 +21,14 @@ T/F are Send/Sync/static. No connector dependency enters Server.
 
 - `enqueue(&self, &PreviewJob) -> Result<PreviewAttemptObserver, ApiError>` accepts
   validated queued/unexpired metadata; copy only ID/attempt/expiry, not payloads/credentials.
+- `submit(&self, PreviewSubmission)` and `resume(&self, &PreviewJob)` return
+  `Result<PreviewAdmissionObserver, ApiError>`, reserving capacity synchronously
+  before starting a repository mutation. Submit consumes validated normalized
+  inputs; resume accepts only interrupted/failed/cancelled metadata.
+- `PreviewAdmissionObserver::wait(self) -> Result<PreviewAcceptedAttempt, ApiError>`
+  reports confirmed mutation acceptance. Receipt fields are `job_id: String`,
+  `attempt: u32`, `completion: PreviewAttemptObserver`; not persisted running or
+  completed status. Receipt types are internal and not serialized.
 - `PreviewAttemptObserver::wait(self) -> Result<PreviewAttemptOutcome, ApiError>`
   observes completion; dropping it does not cancel accepted runtime-owned work.
 - `cancel(&self, id: &str, expected_attempt: u32) -> Result<bool, ApiError>` and
@@ -61,6 +70,25 @@ CLI serve shares exactly one owner; recovery/cleanup never enqueue or resume sav
   shutdown guard in an Arc cycle. Observer drop leaves accepted work running.
   Owner drop signals all work, including queued children; it does not promise
   synchronous task destruction. Explicit shutdown waits for tracked destruction.
+- Submit/resume reserve the same nine-slot capacity and ID exclusion as enqueue
+  before database I/O; full/closed/duplicate admission performs no mutation.
+  Resume reserves the checked next attempt and retains the existing fixed expiry.
+  Submit requires `created_at <= now < expires_at`; resume also refuses time
+  regression before mutation. Core validation and atomic Storage binding/profile/
+  lifecycle guards remain authoritative. No new processor port or scheduler.
+- A single tracked task owns preparation and execution. Prepare uses existing
+  strict ten-second ResolutionControl, capped by remaining retention, with the
+  registration's child cancellation token. Do not hold the state mutex over I/O.
+  Confirmed persistence continues directly into the real runner on the same
+  registration; never persist then call enqueue, recheck capacity or reload solely
+  to create an acceptance response. Only execution waits for the shared permit.
+- Dropping an admission or completion observer never aborts already accepted
+  preparation. Error/refusal/panic/cancellation releases registration before error
+  notification and performs no catalog/keychain operation. SQL may commit before
+  timeout/shutdown/panic is observed: static failures instruct status inspection,
+  never promise rollback, erase a possibly committed job or automatically retry.
+  A successful receipt reports only persistence acceptance; later execution may
+  stop or fail. Fresh resume always reads all original observations again.
 - User cancellation signals only the matching local generation before the
   repository's attempt-guarded cancel. Deletion signals the local job before
   repository deletion. Use a separate bounded management budget, not the already
@@ -94,11 +122,18 @@ and maintenance before pool close; the serve lease is released last.
 | Condition | Required outcome |
 |---|---|
 | Nonqueued metadata | preview_runtime_job_invalid; no task |
-| Expired metadata | preview_runtime_job_expired; no task |
+| Expired enqueue/resume metadata | preview_runtime_job_expired; no task |
 | No active Tokio runtime | preview_runtime_unavailable; no registration |
 | Duplicate locally registered job | preview_runtime_duplicate; no second task |
 | Admission full | preview_runtime_busy; no unbounded spawned waiter |
 | Closed runtime | preview_runtime_closed; no registration or remote work |
+| Submit future-created/expired metadata | preview_runtime_job_invalid; no mutation |
+| Resume time regression | preview_runtime_job_expired; no mutation |
+| Clock regresses before/after preparation I/O | preview_submit_failed / preview_resume_failed; no execution, do not assert rollback |
+| Ineligible resume status / generation overflow | preview_runtime_job_invalid / preview_attempt_exhausted; no mutation |
+| Unknown submit/resume error, refusal, hang, panic or ambiguous commit | preview_submit_failed / preview_resume_failed; query status, no fabricated rollback/success |
+| Known submit validation/binding/profile/storage-size or resume transition/binding/profile error | Preserve stable code with a reconstructed static message, never echo port diagnostics |
+| Admission observer dropped during mutation | Owned preparation continues under its deadline |
 | Cancelled while waiting | No claim/catalog/credential/result calls |
 | Wrong cancellation attempt | Newer local generation remains running; repository guard decides mutation |
 | User cancellation / deletion | Signal matching work before bounded repository request |
@@ -116,6 +151,9 @@ Good: task A holds the single permit; B waits and can be explicitly cancelled
 without a catalog request. Base: an observer is discarded and the accepted job
 finishes normally. Bad: a shutdown sets jobs cancelled, or a duplicate request
 cancels the legitimate owner rather than reporting local duplicate admission.
+Good: full admission rejects resume without deleting its historical results.
+Base: accepted header-only normalized input completes without catalog calls.
+Bad: create a durable job before asking a runtime with no capacity to execute it.
 
 ## 6. Tests Required
 
@@ -154,6 +192,26 @@ Independent-review regressions include
 `maintenance_observer_drop_keeps_cleanup_owned_and_owner_drop_drains`.
 The partial-history startup test also retains a live hashed client credential.
 
+E2b1 tests in the same runtime test owner additionally prove bounded/duplicate/
+closed admission before submit/resume I/O, real normalized submission and fresh
+resume, exact revision/full binding/fixed expiry, refused persistence retaining
+history, observer drop during pending persistence, static error/panic/hang/late
+commit behavior, cancellation and shutdown drain, and capacity reuse. All prepare
+failure paths assert no catalog/keychain use; ambiguous commit tests inspect real
+persisted status rather than asserting rollback. Public wire schemas stay unchanged.
+Concrete regressions include
+`submit_admission_is_bounded_duplicate_safe_and_closed_before_mutation`,
+`resume_admission_is_bounded_and_closed_before_mutation`,
+`dropped_admission_observer_does_not_abandon_pending_submission`,
+`preparation_rejects_clock_regression_before_and_after_commit`,
+`cancellation_after_resume_commit_is_truthful_and_skips_catalog`,
+`retention_caps_the_preparation_deadline`,
+`shutdown_drains_held_preparation_before_and_after_commit`, and
+`accepted_execution_panic_is_sanitized_and_releases_registration`.
+The extended `runner_failure_releases_admission_and_preserves_partial_results`
+proves changed-binding refusal keeps attempt-1 history, and successful resume after
+profile v2 exists still uses v1, restarts from ordinal zero and obtains fresh results.
+
 ## 7. Wrong vs Correct
 
 Wrong: spawn every request, then acquire a permit and forget its task handle.
@@ -168,3 +226,8 @@ Wrong: recover another live host's database by choosing a different port, or clo
 SQLite while maintenance still owns a cleanup future.
 Correct: hold the serve lease before recovery, drain all work before pool close,
 and release the lease last. See [Runnable Foundation](./foundation-runtime.md).
+
+Wrong: `jobs.submit(input).await?; runtime.enqueue(&job)?` may leave an unowned
+queued job when admission is full, and caller disconnect can abandon preparation.
+Correct: reserve capacity before mutation; a tracked prepare-and-execute operation
+keeps the reservation through execution while observers are disposable.

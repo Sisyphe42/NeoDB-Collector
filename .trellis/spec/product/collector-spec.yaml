@@ -276,7 +276,7 @@ service:
 storage:
   preview_retention:
     status: approved_for_imdb_preview_milestone
-    implementation: internal_job_results_and_owned_runtime_retention
+    implementation: internal_job_results_owned_submit_resume_and_runtime_retention
     pending: [public_submission_resume_and_clients]
     management_contract: .trellis/spec/backend/preview-management-http.md
     default_days: 30

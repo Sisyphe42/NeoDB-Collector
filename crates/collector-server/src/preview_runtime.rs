@@ -5,7 +5,9 @@ use collector_core::{
     access::{Clock, PortFuture},
     catalog::{NeoDbCatalogSearchTransport, NeoDbCatalogTransport},
     catalog_resolver::{CatalogIdentity, ResolutionControl},
-    preview_jobs::{PreviewJob, PreviewJobRepository, PreviewJobStatus, PreviewRetention},
+    preview_jobs::{
+        PreviewJob, PreviewJobRepository, PreviewJobStatus, PreviewRetention, PreviewSubmission,
+    },
     preview_runner::{PreviewAttemptOutcome, PreviewAttemptRunner},
 };
 use collector_domain::{ApiError, observation::ObservedItem};
@@ -62,6 +64,27 @@ struct Admission {
 #[derive(Debug)]
 pub struct PreviewAttemptObserver {
     receiver: oneshot::Receiver<Result<PreviewAttemptOutcome, ApiError>>,
+}
+
+#[derive(Debug)]
+pub struct PreviewAcceptedAttempt {
+    pub job_id: String,
+    pub attempt: u32,
+    pub completion: PreviewAttemptObserver,
+}
+
+#[derive(Debug)]
+pub struct PreviewAdmissionObserver {
+    receiver: oneshot::Receiver<Result<PreviewAcceptedAttempt, ApiError>>,
+    closed_error: fn() -> ApiError,
+}
+
+impl PreviewAdmissionObserver {
+    pub async fn wait(self) -> Result<PreviewAcceptedAttempt, ApiError> {
+        self.receiver
+            .await
+            .unwrap_or_else(|_| Err((self.closed_error)()))
+    }
 }
 
 impl PreviewAttemptObserver {
@@ -240,28 +263,17 @@ where
         let active = self.active.clone();
         self.tracker.spawn_on(
             async move {
-                let task_cancellation = cancellation.clone();
-                let task = tokio::spawn(async move {
-                    let _drop_guard = (*task_cancellation).clone().drop_guard();
-                    let permit = tokio::select! {
-                        biased;
-                        _ = task_cancellation.cancelled() => return Err(cancelled()),
-                        permit = active.acquire_owned() => permit.map_err(|_| worker_failed())?,
-                    };
-                    let control = TokioResolutionControl::new((*task_cancellation).clone());
-                    let result = runner
-                        .run(
-                            &id,
-                            attempt,
-                            transport.as_ref(),
-                            &control,
-                            identity.as_ref(),
-                        )
-                        .await;
-                    drop(permit);
-                    result
-                });
-                let result = task.await.unwrap_or_else(|_| Err(worker_failed()));
+                let _drop_guard = (*cancellation).clone().drop_guard();
+                let result = supervise_attempt(
+                    runner,
+                    transport,
+                    identity,
+                    active,
+                    cancellation,
+                    id,
+                    attempt,
+                )
+                .await;
                 drop(registration);
                 let _ = sender.send(result);
             },
@@ -270,6 +282,161 @@ where
         drop(state);
 
         Ok(PreviewAttemptObserver { receiver })
+    }
+
+    pub fn submit(
+        &self,
+        submission: PreviewSubmission,
+    ) -> Result<PreviewAdmissionObserver, ApiError> {
+        let now = self.clock.now();
+        if now < submission.created_at() || now >= submission.expires_at() {
+            return Err(invalid_job());
+        }
+        let id = submission.id().to_owned();
+        let expected = SubmittedJob {
+            id: id.clone(),
+            attempt: 1,
+            created_at: submission.created_at(),
+            expires_at: submission.expires_at(),
+            observation_count: submission.observations().len() as u32,
+            profile_id: submission.profile().id.clone(),
+            profile_version: submission.profile().version,
+            binding: submission.binding().clone(),
+        };
+        self.prepare(
+            id,
+            1,
+            now,
+            expected.expires_at,
+            PrepareOperation::Submit {
+                submission: Box::new(submission),
+                expected,
+            },
+        )
+    }
+
+    pub fn resume(&self, job: &PreviewJob) -> Result<PreviewAdmissionObserver, ApiError> {
+        if !matches!(
+            job.status(),
+            PreviewJobStatus::Interrupted | PreviewJobStatus::Failed | PreviewJobStatus::Cancelled
+        ) {
+            return Err(invalid_resume());
+        }
+        let now = self.clock.now();
+        if now < job.created_at() || now < job.updated_at() || now >= job.expires_at() {
+            return Err(expired_job());
+        }
+        let attempt = job.attempt().checked_add(1).ok_or_else(attempt_exhausted)?;
+        self.prepare(
+            job.id().to_owned(),
+            attempt,
+            now,
+            job.expires_at(),
+            PrepareOperation::Resume {
+                previous_attempt: job.attempt(),
+            },
+        )
+    }
+
+    fn prepare(
+        &self,
+        id: String,
+        attempt: u32,
+        admitted_at: i64,
+        expires_at: i64,
+        operation: PrepareOperation,
+    ) -> Result<PreviewAdmissionObserver, ApiError> {
+        let handle = tokio::runtime::Handle::try_current().map_err(|_| runtime_unavailable())?;
+        let (sender, receiver) = oneshot::channel();
+        let cancellation = Arc::new(self.shared.shutdown.child_token());
+        let closed_error: fn() -> ApiError = match &operation {
+            PrepareOperation::Submit { .. } => submit_failed,
+            PrepareOperation::Resume { .. } => resume_failed,
+        };
+
+        let mut state = self.shared.state.lock().unwrap_or_else(|e| e.into_inner());
+        if state.closed {
+            return Err(closed());
+        }
+        if state.admitted.contains_key(&id) {
+            return Err(duplicate());
+        }
+        if state.admitted.len() >= MAX_ADMITTED_ATTEMPTS {
+            return Err(busy());
+        }
+        state.admitted.insert(
+            id.clone(),
+            Admission {
+                attempt,
+                expires_at,
+                cancellation: cancellation.clone(),
+            },
+        );
+
+        let registration = Registration {
+            shared: Arc::downgrade(&self.shared),
+            id: id.clone(),
+            cancellation: cancellation.clone(),
+        };
+        let runner = self.runner.clone();
+        let jobs = self.jobs.clone();
+        let clock = self.clock.clone();
+        let transport = self.transport.clone();
+        let identity = self.identity.clone();
+        let active = self.active.clone();
+        self.tracker.spawn_on(
+            async move {
+                let _drop_guard = (*cancellation).clone().drop_guard();
+                let prepare_id = id.clone();
+                let prepare_cancellation = cancellation.clone();
+                let prepare = tokio::spawn(async move {
+                    prepare_attempt(
+                        jobs,
+                        clock,
+                        prepare_cancellation,
+                        &prepare_id,
+                        operation,
+                        admitted_at,
+                        expires_at,
+                    )
+                    .await
+                });
+                let prepared = prepare.await.unwrap_or_else(|_| Err((closed_error)()));
+                let Err(error) = prepared else {
+                    let (completion_sender, completion_receiver) = oneshot::channel();
+                    let receipt = PreviewAcceptedAttempt {
+                        job_id: id.clone(),
+                        attempt,
+                        completion: PreviewAttemptObserver {
+                            receiver: completion_receiver,
+                        },
+                    };
+                    let _ = sender.send(Ok(receipt));
+                    let result = supervise_attempt(
+                        runner,
+                        transport,
+                        identity,
+                        active,
+                        cancellation,
+                        id,
+                        attempt,
+                    )
+                    .await;
+                    drop(registration);
+                    let _ = completion_sender.send(result);
+                    return;
+                };
+                drop(registration);
+                let _ = sender.send(Err(error));
+            },
+            &handle,
+        );
+        drop(state);
+
+        Ok(PreviewAdmissionObserver {
+            receiver,
+            closed_error,
+        })
     }
 
     pub async fn cancel(&self, id: &str, expected_attempt: u32) -> Result<bool, ApiError> {
@@ -322,6 +489,214 @@ where
         }
         self.shared.shutdown.cancel();
         self.tracker.wait().await;
+    }
+}
+
+struct SubmittedJob {
+    id: String,
+    attempt: u32,
+    created_at: i64,
+    expires_at: i64,
+    observation_count: u32,
+    profile_id: String,
+    profile_version: u32,
+    binding: collector_core::access::Endpoint,
+}
+
+enum PrepareOperation {
+    Submit {
+        submission: Box<PreviewSubmission>,
+        expected: SubmittedJob,
+    },
+    Resume {
+        previous_attempt: u32,
+    },
+}
+
+impl PrepareOperation {
+    fn failure(&self) -> ApiError {
+        match self {
+            Self::Submit { .. } => submit_failed(),
+            Self::Resume { .. } => resume_failed(),
+        }
+    }
+}
+
+async fn prepare_attempt(
+    jobs: Arc<dyn PreviewJobRepository>,
+    clock: Arc<dyn Clock>,
+    cancellation: Arc<CancellationToken>,
+    id: &str,
+    operation: PrepareOperation,
+    admitted_at: i64,
+    expires_at: i64,
+) -> Result<(), ApiError> {
+    let now = clock.now();
+    if now < admitted_at {
+        return Err(operation.failure());
+    }
+    let remaining = expires_at.checked_sub(now).filter(|value| *value > 0);
+    let Some(remaining) = remaining.and_then(|value| u64::try_from(value).ok()) else {
+        return Err(operation.failure());
+    };
+    let control = TokioResolutionControl::new((*cancellation).clone());
+    let deadline = MANAGEMENT_BUDGET.min(Duration::from_secs(remaining));
+    match operation {
+        PrepareOperation::Submit {
+            submission,
+            expected,
+        } => control
+            .run(deadline, jobs.submit(*submission))
+            .await
+            .map_err(sanitize_submit_error)
+            .and_then(|job| {
+                let completed_at = clock.now();
+                if submitted_job_matches(&job, &expected)
+                    && completed_at >= now
+                    && completed_at < expires_at
+                {
+                    Ok(())
+                } else {
+                    Err(submit_failed())
+                }
+            }),
+        PrepareOperation::Resume { previous_attempt } => {
+            let expected_attempt = previous_attempt
+                .checked_add(1)
+                .ok_or_else(attempt_exhausted)?;
+            control
+                .run(deadline, jobs.resume(id.to_owned(), previous_attempt, now))
+                .await
+                .map_err(sanitize_resume_error)
+                .and_then(|attempt| {
+                    let completed_at = clock.now();
+                    if attempt == Some(expected_attempt)
+                        && completed_at >= now
+                        && completed_at < expires_at
+                    {
+                        Ok(())
+                    } else {
+                        Err(resume_failed())
+                    }
+                })
+        }
+    }
+}
+
+fn submitted_job_matches(job: &PreviewJob, expected: &SubmittedJob) -> bool {
+    job.id() == expected.id
+        && job.status() == PreviewJobStatus::Queued
+        && job.attempt() == expected.attempt
+        && job.created_at() == expected.created_at
+        && job.updated_at() == expected.created_at
+        && job.expires_at() == expected.expires_at
+        && job.observation_count() == expected.observation_count
+        && job.profile_id() == expected.profile_id
+        && job.profile_version() == expected.profile_version
+        && job.is_bound_to(&expected.binding)
+}
+
+async fn execute_attempt<T, F>(
+    runner: Arc<PreviewAttemptRunner>,
+    transport: Arc<T>,
+    identity: Arc<F>,
+    active: Arc<Semaphore>,
+    cancellation: Arc<CancellationToken>,
+    id: String,
+    attempt: u32,
+) -> Result<PreviewAttemptOutcome, ApiError>
+where
+    T: NeoDbCatalogTransport + NeoDbCatalogSearchTransport + Send + Sync + 'static,
+    F: Fn(&ObservedItem) -> Result<CatalogIdentity, ApiError> + Send + Sync + 'static,
+{
+    let permit = tokio::select! {
+        biased;
+        _ = cancellation.cancelled() => return Err(cancelled()),
+        permit = active.acquire_owned() => permit.map_err(|_| worker_failed())?,
+    };
+    let control = TokioResolutionControl::new((*cancellation).clone());
+    let result = runner
+        .run(
+            &id,
+            attempt,
+            transport.as_ref(),
+            &control,
+            identity.as_ref(),
+        )
+        .await;
+    drop(permit);
+    result
+}
+
+async fn supervise_attempt<T, F>(
+    runner: Arc<PreviewAttemptRunner>,
+    transport: Arc<T>,
+    identity: Arc<F>,
+    active: Arc<Semaphore>,
+    cancellation: Arc<CancellationToken>,
+    id: String,
+    attempt: u32,
+) -> Result<PreviewAttemptOutcome, ApiError>
+where
+    T: NeoDbCatalogTransport + NeoDbCatalogSearchTransport + Send + Sync + 'static,
+    F: Fn(&ObservedItem) -> Result<CatalogIdentity, ApiError> + Send + Sync + 'static,
+{
+    tokio::spawn(execute_attempt(
+        runner,
+        transport,
+        identity,
+        active,
+        cancellation,
+        id,
+        attempt,
+    ))
+    .await
+    .unwrap_or_else(|_| Err(worker_failed()))
+}
+
+fn sanitize_submit_error(error: ApiError) -> ApiError {
+    match error.code.as_str() {
+        "preview_job_invalid" => invalid_job(),
+        "preview_observation_invalid" => ApiError::new(
+            "preview_observation_invalid",
+            "Observation is outside the supported normalized preview subset.",
+        ),
+        "preview_observation_too_large" => ApiError::new(
+            "preview_observation_too_large",
+            "A normalized preview observation exceeds the encoded size limit.",
+        ),
+        "preview_submission_too_large" => ApiError::new(
+            "preview_submission_too_large",
+            "Preview submission exceeds its bounded storage limit.",
+        ),
+        "preview_binding_changed" => ApiError::new(
+            "preview_binding_changed",
+            "The configured NeoDB account binding changed.",
+        ),
+        "preview_profile_changed" => ApiError::new(
+            "preview_profile_changed",
+            "The selected mapping profile changed.",
+        ),
+        _ => submit_failed(),
+    }
+}
+
+fn sanitize_resume_error(error: ApiError) -> ApiError {
+    match error.code.as_str() {
+        "preview_attempt_exhausted" => attempt_exhausted(),
+        "preview_transition_invalid" => ApiError::new(
+            "preview_transition_invalid",
+            "Preview transition metadata is invalid.",
+        ),
+        "preview_binding_changed" => ApiError::new(
+            "preview_binding_changed",
+            "The configured NeoDB account binding changed.",
+        ),
+        "preview_profile_changed" => ApiError::new(
+            "preview_profile_changed",
+            "The selected mapping profile changed.",
+        ),
+        _ => resume_failed(),
     }
 }
 
@@ -399,7 +774,35 @@ impl Drop for Registration {
 fn invalid_job() -> ApiError {
     ApiError::new(
         "preview_runtime_job_invalid",
-        "Only a queued preview attempt can be admitted.",
+        "Preview job metadata is not eligible for runtime admission.",
+    )
+}
+
+fn invalid_resume() -> ApiError {
+    ApiError::new(
+        "preview_runtime_job_invalid",
+        "Only an interrupted, failed, or cancelled preview attempt can be resumed.",
+    )
+}
+
+fn attempt_exhausted() -> ApiError {
+    ApiError::new(
+        "preview_attempt_exhausted",
+        "The preview attempt generation is exhausted.",
+    )
+}
+
+fn submit_failed() -> ApiError {
+    ApiError::new(
+        "preview_submit_failed",
+        "Preview submission could not be persisted; query job status.",
+    )
+}
+
+fn resume_failed() -> ApiError {
+    ApiError::new(
+        "preview_resume_failed",
+        "Preview resume could not be persisted; query job status.",
     )
 }
 

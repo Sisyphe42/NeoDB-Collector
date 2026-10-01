@@ -27,6 +27,46 @@ at consumers. Acceptance includes Debug redaction and compile-fail serialization
 Display tests plus all existing rollback paths. See `internal-secrets.md` in the
 backend specs. OAuth protocol replacement remains a separate evaluation.
 
+### E2b1 admission before durable submission/resume
+
+Before exposing CSV upload or resume HTTP routes, extend the existing single
+Server runtime with internal `submit(PreviewSubmission)` and `resume(&PreviewJob)`.
+Both synchronously reserve the existing bounded admission slot and job ID before
+any repository mutation, then return an admission observer. Its awaited receipt
+contains only job ID, accepted attempt and the existing completion observer; it
+does not invent running/completed status. Submission requires live validated
+metadata. Resume accepts only retained interrupted/failed/cancelled metadata,
+checks generation overflow and reserves the next generation. The existing atomic
+repository remains authoritative about current status, binding and exact revision.
+
+The runtime owns persistence and execution as one tracked operation. Dropping
+either observer, including an HTTP caller that will later await admission, does
+not strand an accepted mutation by abandoning its future. Use existing
+Tokio/tokio-util task tracking, cancellation and strict ten-second control for
+the mutation; do not hold the registration mutex across I/O or add a processor
+port, scheduler, library, migration or public DTO. A confirmed mutation continues
+on the same registration into the real runner without re-enqueueing or a second
+capacity check. Only runner execution acquires the single execution permit.
+
+Refused/failed persistence releases admission without catalog/keychain access.
+Resume refusal leaves prior results intact; successful resume runs all original
+observations freshly and retains the exact profile/binding and fixed expiry.
+Cancellation, expiry and shutdown signal preparation as well as execution;
+shutdown drains their tracked futures before storage closes. A timeout, panic or
+shutdown may follow a SQL commit: return a static query-status error, never assert
+rollback, auto-retry, delete a possibly committed job, or report fabricated success.
+Registration cleanup happens before normal failure notification or execution
+completion, while a successful admission receipt is sent before execution finishes.
+No worker may retain the owner's shutdown guard in an Arc cycle.
+
+Tests use the real runner and temporary SQLite/fake ports. Cover full/closed/
+duplicate admission before submit/resume mutation, concurrent resume, immutable
+profile/account binding, empty batches, fresh resume, dropped observers during
+pending mutation, hung/error/panic/refused/late mutation, expiry and shutdown,
+truthful ambiguous commits, registration reuse and no transport before persistence.
+Public CSV submission/resume routes and generated clients remain E2b2; no API
+capability is advertised in E2b1.
+
 ## 1. Native catalog-fetch boundary (first checkpoint)
 
 Add an internal catalog transport port with a single-attempt fetch operation and

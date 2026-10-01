@@ -182,6 +182,115 @@ struct Fixture {
     jobs: Vec<PreviewJob>,
 }
 
+struct ControlledJobs {
+    storage: Storage,
+    mode: AtomicU8,
+    mutations: AtomicUsize,
+    entered: tokio::sync::Notify,
+    gate: tokio::sync::Semaphore,
+}
+
+impl ControlledJobs {
+    fn new(storage: &Storage) -> Arc<Self> {
+        Arc::new(Self {
+            storage: storage.clone(),
+            mode: AtomicU8::new(0),
+            mutations: AtomicUsize::new(0),
+            entered: tokio::sync::Notify::new(),
+            gate: tokio::sync::Semaphore::new(0),
+        })
+    }
+
+    async fn wait_for_mutations(&self, expected: usize) {
+        loop {
+            let entered = self.entered.notified();
+            if self.mutations.load(Ordering::SeqCst) >= expected {
+                return;
+            }
+            entered.await;
+        }
+    }
+
+    async fn before_mutation(&self) -> Result<(), ApiError> {
+        self.mutations.fetch_add(1, Ordering::SeqCst);
+        self.entered.notify_waiters();
+        match self.mode.load(Ordering::SeqCst) {
+            1 => Err(ApiError::new(
+                "private_database_detail",
+                "secret diagnostic",
+            )),
+            2 => panic!("deliberate preparation panic"),
+            3 => pending().await,
+            4 => {
+                self.gate.acquire().await.unwrap().forget();
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
+}
+
+impl PreviewJobRepository for ControlledJobs {
+    fn submit(&self, submission: PreviewSubmission) -> PortFuture<'_, PreviewJob> {
+        Box::pin(async move {
+            self.before_mutation().await?;
+            let result = self.storage.submit(submission).await?;
+            if self.mode.load(Ordering::SeqCst) == 5 {
+                self.gate.acquire().await.unwrap().forget();
+            }
+            Ok(result)
+        })
+    }
+
+    fn load(&self, id: String) -> PortFuture<'_, Option<PreviewJob>> {
+        PreviewJobRepository::load(&self.storage, id)
+    }
+
+    fn observations(
+        &self,
+        id: String,
+        offset: u32,
+        limit: u32,
+    ) -> PortFuture<'_, Vec<Observation>> {
+        self.storage.observations(id, offset, limit)
+    }
+
+    fn claim(&self, id: String, attempt: u32, now: i64) -> PortFuture<'_, bool> {
+        self.storage.claim(id, attempt, now)
+    }
+
+    fn cancel(&self, id: String, attempt: u32, now: i64) -> PortFuture<'_, bool> {
+        self.storage.cancel(id, attempt, now)
+    }
+
+    fn interrupt_running(&self, now: i64) -> PortFuture<'_, u64> {
+        self.storage.interrupt_running(now)
+    }
+
+    fn fail(&self, id: String, attempt: u32, now: i64) -> PortFuture<'_, bool> {
+        self.storage.fail(id, attempt, now)
+    }
+
+    fn resume(&self, id: String, attempt: u32, now: i64) -> PortFuture<'_, Option<u32>> {
+        Box::pin(async move {
+            self.before_mutation().await?;
+            let result = self.storage.resume(id, attempt, now).await?;
+            if self.mode.load(Ordering::SeqCst) == 5 {
+                self.gate.acquire().await.unwrap().forget();
+            }
+            Ok(result)
+        })
+    }
+
+    fn delete(&self, id: String) -> PortFuture<'_, bool> {
+        self.storage.delete(id)
+    }
+
+    fn cleanup_expired(&self, now: i64) -> PortFuture<'_, u64> {
+        self.storage.cleanup_expired(now)
+    }
+}
+
 pub(crate) struct HttpRuntimeFixture {
     _dir: tempfile::TempDir,
     pub(crate) storage: Storage,
@@ -327,6 +436,37 @@ fn observation(index: usize) -> Observation {
     }
 }
 
+fn submission(id: &str, observation_count: usize) -> PreviewSubmission {
+    PreviewSubmission::new(
+        id.to_owned(),
+        endpoint(),
+        imdb_default(),
+        (0..observation_count).map(observation).collect(),
+        100,
+        1_000,
+    )
+    .unwrap()
+}
+
+fn runtime_with_jobs(
+    fixture: &Fixture,
+    jobs: Arc<dyn PreviewJobRepository>,
+) -> PreviewRuntime<Transport, IdentityFn> {
+    PreviewRuntime::new(
+        fixture.runtime.runner.clone(),
+        jobs,
+        fixture.clock.clone(),
+        fixture.transport.clone(),
+        catalog_identity as IdentityFn,
+    )
+}
+
+async fn load_job(storage: &Storage, id: &str) -> Option<PreviewJob> {
+    PreviewJobRepository::load(storage, id.to_owned())
+        .await
+        .unwrap()
+}
+
 fn catalog_identity(item: &ObservedItem) -> Result<CatalogIdentity, ApiError> {
     Ok(CatalogIdentity {
         source_url: item.canonical_url.clone(),
@@ -365,6 +505,470 @@ fn queued_generation(job: &PreviewJob, attempt: u32) -> PreviewJob {
         endpoint(),
     )
     .unwrap()
+}
+
+#[tokio::test]
+async fn submit_and_resume_accept_real_work_with_fixed_metadata() {
+    let f = fixture(1).await;
+    assert!(
+        f.storage
+            .cancel(f.jobs[0].id().to_owned(), 1, 110)
+            .await
+            .unwrap()
+    );
+    let cancelled = load_job(&f.storage, f.jobs[0].id()).await.unwrap();
+
+    let submitted = f
+        .runtime
+        .submit(submission("submitted:empty", 0))
+        .unwrap()
+        .wait()
+        .await
+        .unwrap();
+    assert_eq!(submitted.job_id, "submitted:empty");
+    assert_eq!(submitted.attempt, 1);
+    assert_eq!(
+        submitted.completion.wait().await.unwrap(),
+        PreviewAttemptOutcome::Completed
+    );
+
+    let resumed = f.runtime.resume(&cancelled).unwrap().wait().await.unwrap();
+    assert_eq!(resumed.job_id, cancelled.id());
+    assert_eq!(resumed.attempt, 2);
+    wait_for_calls(&f.transport, 1).await;
+    f.transport.release();
+    assert_eq!(
+        resumed.completion.wait().await.unwrap(),
+        PreviewAttemptOutcome::Completed
+    );
+    let completed = load_job(&f.storage, cancelled.id()).await.unwrap();
+    assert_eq!(completed.status(), PreviewJobStatus::Completed);
+    assert_eq!(completed.attempt(), 2);
+    assert_eq!(completed.expires_at(), cancelled.expires_at());
+    assert_eq!(completed.profile_id(), cancelled.profile_id());
+    assert_eq!(completed.profile_version(), cancelled.profile_version());
+    assert!(completed.is_bound_to(&endpoint()));
+    f.runtime.shutdown().await;
+}
+
+#[tokio::test]
+async fn submit_admission_is_bounded_duplicate_safe_and_closed_before_mutation() {
+    let f = fixture(9).await;
+    let jobs = ControlledJobs::new(&f.storage);
+    let runtime = runtime_with_jobs(&f, jobs.clone());
+    let mut observers = Vec::new();
+    for job in &f.jobs {
+        observers.push(runtime.enqueue(job).unwrap());
+    }
+    wait_for_calls(&f.transport, 1).await;
+    assert_eq!(
+        runtime.submit(submission("new:full", 0)).unwrap_err().code,
+        "preview_runtime_busy"
+    );
+    assert_eq!(
+        runtime
+            .submit(submission(f.jobs[0].id(), 0))
+            .unwrap_err()
+            .code,
+        "preview_runtime_duplicate"
+    );
+    assert_eq!(jobs.mutations.load(Ordering::SeqCst), 0);
+    runtime.shutdown().await;
+    assert_eq!(
+        runtime
+            .submit(submission("new:closed", 0))
+            .unwrap_err()
+            .code,
+        "preview_runtime_closed"
+    );
+    assert_eq!(jobs.mutations.load(Ordering::SeqCst), 0);
+    drop(observers);
+}
+
+#[tokio::test]
+async fn resume_admission_is_bounded_and_closed_before_mutation() {
+    let f = fixture(10).await;
+    assert!(
+        f.storage
+            .cancel(f.jobs[9].id().to_owned(), 1, 110)
+            .await
+            .unwrap()
+    );
+    let cancelled = load_job(&f.storage, f.jobs[9].id()).await.unwrap();
+    let jobs = ControlledJobs::new(&f.storage);
+    let runtime = runtime_with_jobs(&f, jobs.clone());
+    let observers = f.jobs[..9]
+        .iter()
+        .map(|job| runtime.enqueue(job).unwrap())
+        .collect::<Vec<_>>();
+    wait_for_calls(&f.transport, 1).await;
+    assert_eq!(
+        runtime.resume(&cancelled).unwrap_err().code,
+        "preview_runtime_busy"
+    );
+    assert_eq!(jobs.mutations.load(Ordering::SeqCst), 0);
+    assert_eq!(
+        load_job(&f.storage, cancelled.id())
+            .await
+            .unwrap()
+            .attempt(),
+        1
+    );
+    runtime.shutdown().await;
+    assert_eq!(
+        runtime.resume(&cancelled).unwrap_err().code,
+        "preview_runtime_closed"
+    );
+    assert_eq!(jobs.mutations.load(Ordering::SeqCst), 0);
+    assert_eq!(
+        load_job(&f.storage, cancelled.id())
+            .await
+            .unwrap()
+            .attempt(),
+        1
+    );
+    drop(observers);
+}
+
+#[tokio::test]
+async fn resume_rejects_ineligible_and_exhausted_metadata_before_mutation() {
+    let f = fixture(1).await;
+    let jobs = ControlledJobs::new(&f.storage);
+    let runtime = runtime_with_jobs(&f, jobs.clone());
+    assert_eq!(
+        runtime.resume(&f.jobs[0]).unwrap_err().code,
+        "preview_runtime_job_invalid"
+    );
+    let exhausted = PreviewJob::from_stored(
+        PreviewJobIdentity {
+            id: "resume:exhausted".into(),
+            profile_id: imdb_default().id,
+            profile_version: 1,
+            observation_count: 0,
+        },
+        PreviewJobLifecycle {
+            status: PreviewJobStatus::Failed,
+            attempt: u32::MAX,
+            created_at: 100,
+            updated_at: 110,
+            expires_at: 1_000,
+        },
+        endpoint(),
+    )
+    .unwrap();
+    assert_eq!(
+        runtime.resume(&exhausted).unwrap_err().code,
+        "preview_attempt_exhausted"
+    );
+    assert_eq!(jobs.mutations.load(Ordering::SeqCst), 0);
+    runtime.shutdown().await;
+}
+
+#[tokio::test]
+async fn concurrent_resume_is_rejected_before_a_second_mutation() {
+    let f = fixture(1).await;
+    assert!(
+        f.storage
+            .cancel(f.jobs[0].id().to_owned(), 1, 110)
+            .await
+            .unwrap()
+    );
+    let cancelled = load_job(&f.storage, f.jobs[0].id()).await.unwrap();
+    let jobs = ControlledJobs::new(&f.storage);
+    jobs.mode.store(4, Ordering::SeqCst);
+    let runtime = runtime_with_jobs(&f, jobs.clone());
+    let first = runtime.resume(&cancelled).unwrap();
+    jobs.wait_for_mutations(1).await;
+    assert_eq!(
+        runtime.resume(&cancelled).unwrap_err().code,
+        "preview_runtime_duplicate"
+    );
+    assert_eq!(jobs.mutations.load(Ordering::SeqCst), 1);
+    jobs.gate.add_permits(1);
+    let accepted = first.wait().await.unwrap();
+    wait_for_calls(&f.transport, 1).await;
+    f.transport.release();
+    assert_eq!(
+        accepted.completion.wait().await.unwrap(),
+        PreviewAttemptOutcome::Completed
+    );
+    runtime.shutdown().await;
+}
+
+#[tokio::test]
+async fn dropped_admission_observer_does_not_abandon_pending_submission() {
+    let f = fixture(0).await;
+    let jobs = ControlledJobs::new(&f.storage);
+    jobs.mode.store(4, Ordering::SeqCst);
+    let runtime = runtime_with_jobs(&f, jobs.clone());
+    let observer = runtime.submit(submission("owned:drop", 1)).unwrap();
+    jobs.wait_for_mutations(1).await;
+    drop(observer);
+    jobs.gate.add_permits(1);
+    wait_for_calls(&f.transport, 1).await;
+    f.transport.release();
+    loop {
+        let job = load_job(&f.storage, "owned:drop").await.unwrap();
+        if job.status() == PreviewJobStatus::Completed {
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
+    assert!(runtime.shared.state.lock().unwrap().admitted.is_empty());
+    runtime.shutdown().await;
+}
+
+#[tokio::test]
+async fn preparation_failures_are_static_release_capacity_and_never_call_catalog() {
+    for mode in [1, 2] {
+        let f = fixture(0).await;
+        let jobs = ControlledJobs::new(&f.storage);
+        jobs.mode.store(mode, Ordering::SeqCst);
+        let runtime = runtime_with_jobs(&f, jobs);
+        let error = runtime
+            .submit(submission("prepare:failure", 1))
+            .unwrap()
+            .wait()
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, "preview_submit_failed");
+        assert_eq!(f.transport.calls.load(Ordering::SeqCst), 0);
+        assert!(runtime.shared.state.lock().unwrap().admitted.is_empty());
+        runtime.shutdown().await;
+    }
+}
+
+#[tokio::test]
+async fn preparation_rejects_clock_regression_before_and_after_commit() {
+    let f = fixture(0).await;
+    let jobs = ControlledJobs::new(&f.storage);
+    let runtime = runtime_with_jobs(&f, jobs.clone());
+    let observer = runtime.submit(submission("clock:before", 1)).unwrap();
+    f.clock.0.store(109, Ordering::SeqCst);
+    assert_eq!(
+        observer.wait().await.unwrap_err().code,
+        "preview_submit_failed"
+    );
+    assert!(load_job(&f.storage, "clock:before").await.is_none());
+    assert_eq!(jobs.mutations.load(Ordering::SeqCst), 0);
+
+    f.clock.0.store(110, Ordering::SeqCst);
+    jobs.mode.store(5, Ordering::SeqCst);
+    let observer = runtime.submit(submission("clock:after", 1)).unwrap();
+    jobs.wait_for_mutations(1).await;
+    loop {
+        if load_job(&f.storage, "clock:after").await.is_some() {
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
+    f.clock.0.store(109, Ordering::SeqCst);
+    jobs.gate.add_permits(1);
+    assert_eq!(
+        observer.wait().await.unwrap_err().code,
+        "preview_submit_failed"
+    );
+    assert_eq!(f.transport.calls.load(Ordering::SeqCst), 0);
+    assert_eq!(
+        load_job(&f.storage, "clock:after").await.unwrap().status(),
+        PreviewJobStatus::Queued
+    );
+    runtime.shutdown().await;
+}
+
+#[tokio::test]
+async fn cancellation_after_submit_commit_is_truthful_and_skips_catalog() {
+    let f = fixture(0).await;
+    let jobs = ControlledJobs::new(&f.storage);
+    jobs.mode.store(5, Ordering::SeqCst);
+    let runtime = runtime_with_jobs(&f, jobs.clone());
+    let observer = runtime.submit(submission("commit:cancel", 1)).unwrap();
+    jobs.wait_for_mutations(1).await;
+    loop {
+        if load_job(&f.storage, "commit:cancel").await.is_some() {
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
+    let cancel = runtime.cancel("commit:cancel", 1);
+    let (admission, cancelled) = tokio::join!(observer.wait(), cancel);
+    assert_eq!(admission.unwrap_err().code, "preview_submit_failed");
+    assert!(cancelled.unwrap());
+    assert_eq!(f.transport.calls.load(Ordering::SeqCst), 0);
+    assert_eq!(
+        load_job(&f.storage, "commit:cancel")
+            .await
+            .unwrap()
+            .status(),
+        PreviewJobStatus::Cancelled
+    );
+    runtime.shutdown().await;
+}
+
+#[tokio::test]
+async fn cancellation_after_resume_commit_is_truthful_and_skips_catalog() {
+    let f = fixture(1).await;
+    assert!(
+        f.storage
+            .cancel(f.jobs[0].id().to_owned(), 1, 110)
+            .await
+            .unwrap()
+    );
+    let cancelled = load_job(&f.storage, f.jobs[0].id()).await.unwrap();
+    let jobs = ControlledJobs::new(&f.storage);
+    jobs.mode.store(5, Ordering::SeqCst);
+    let runtime = runtime_with_jobs(&f, jobs.clone());
+    let observer = runtime.resume(&cancelled).unwrap();
+    jobs.wait_for_mutations(1).await;
+    loop {
+        if load_job(&f.storage, cancelled.id())
+            .await
+            .is_some_and(|job| job.attempt() == 2)
+        {
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
+    let cancel = runtime.cancel(cancelled.id(), 2);
+    let (admission, cancelled_result) = tokio::join!(observer.wait(), cancel);
+    assert_eq!(admission.unwrap_err().code, "preview_resume_failed");
+    assert!(cancelled_result.unwrap());
+    assert_eq!(f.transport.calls.load(Ordering::SeqCst), 0);
+    let persisted = load_job(&f.storage, cancelled.id()).await.unwrap();
+    assert_eq!(persisted.attempt(), 2);
+    assert_eq!(persisted.status(), PreviewJobStatus::Cancelled);
+    runtime.shutdown().await;
+}
+
+#[tokio::test]
+async fn hung_preparation_times_out_and_releases_capacity() {
+    let f = fixture(0).await;
+    let jobs = ControlledJobs::new(&f.storage);
+    jobs.mode.store(3, Ordering::SeqCst);
+    let runtime = runtime_with_jobs(&f, jobs.clone());
+    tokio::time::pause();
+    let observer = runtime.submit(submission("prepare:hung", 1)).unwrap();
+    jobs.wait_for_mutations(1).await;
+    tokio::time::advance(MANAGEMENT_BUDGET).await;
+    assert_eq!(
+        observer.wait().await.unwrap_err().code,
+        "preview_submit_failed"
+    );
+    assert!(runtime.shared.state.lock().unwrap().admitted.is_empty());
+    assert_eq!(f.transport.calls.load(Ordering::SeqCst), 0);
+    tokio::time::resume();
+
+    jobs.mode.store(0, Ordering::SeqCst);
+    let accepted = runtime
+        .submit(submission("prepare:replacement", 0))
+        .unwrap()
+        .wait()
+        .await
+        .unwrap();
+    assert_eq!(
+        accepted.completion.wait().await.unwrap(),
+        PreviewAttemptOutcome::Completed
+    );
+    runtime.shutdown().await;
+}
+
+#[tokio::test]
+async fn retention_caps_the_preparation_deadline() {
+    let f = fixture(0).await;
+    let jobs = ControlledJobs::new(&f.storage);
+    jobs.mode.store(3, Ordering::SeqCst);
+    let runtime = runtime_with_jobs(&f, jobs.clone());
+    let near_expiry = PreviewSubmission::new(
+        "prepare:expiry".into(),
+        endpoint(),
+        imdb_default(),
+        vec![observation(0)],
+        100,
+        111,
+    )
+    .unwrap();
+    let observer = runtime.submit(near_expiry).unwrap();
+    jobs.wait_for_mutations(1).await;
+    tokio::time::pause();
+    tokio::time::advance(Duration::from_secs(1)).await;
+    assert_eq!(
+        observer.wait().await.unwrap_err().code,
+        "preview_submit_failed"
+    );
+    tokio::time::resume();
+    assert!(runtime.shared.state.lock().unwrap().admitted.is_empty());
+    assert_eq!(f.transport.calls.load(Ordering::SeqCst), 0);
+    runtime.shutdown().await;
+}
+
+#[tokio::test]
+async fn shutdown_drains_held_preparation_before_and_after_commit() {
+    for mode in [4, 5] {
+        let f = fixture(0).await;
+        let jobs = ControlledJobs::new(&f.storage);
+        jobs.mode.store(mode, Ordering::SeqCst);
+        let runtime = runtime_with_jobs(&f, jobs.clone());
+        let id = if mode == 4 {
+            "shutdown:before"
+        } else {
+            "shutdown:after"
+        };
+        let observer = runtime.submit(submission(id, 1)).unwrap();
+        jobs.wait_for_mutations(1).await;
+        if mode == 5 {
+            loop {
+                if load_job(&f.storage, id).await.is_some() {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        }
+        runtime.shutdown().await;
+        assert_eq!(
+            observer.wait().await.unwrap_err().code,
+            "preview_submit_failed"
+        );
+        assert!(runtime.shared.state.lock().unwrap().admitted.is_empty());
+        assert_eq!(f.transport.calls.load(Ordering::SeqCst), 0);
+        assert_eq!(load_job(&f.storage, id).await.is_some(), mode == 5);
+    }
+}
+
+#[tokio::test]
+async fn accepted_execution_panic_is_sanitized_and_releases_registration() {
+    let f = fixture(0).await;
+    f.transport.mode.store(1, Ordering::SeqCst);
+    let accepted = f
+        .runtime
+        .submit(submission("execute:panic", 1))
+        .unwrap()
+        .wait()
+        .await
+        .unwrap();
+    assert_eq!(
+        accepted.completion.wait().await.unwrap_err().code,
+        "preview_runtime_worker_failed"
+    );
+    assert!(f.runtime.shared.state.lock().unwrap().admitted.is_empty());
+    let queued = PreviewJob::from_stored(
+        PreviewJobIdentity {
+            id: "execute:panic".into(),
+            profile_id: imdb_default().id,
+            profile_version: 1,
+            observation_count: 1,
+        },
+        PreviewJobLifecycle {
+            status: PreviewJobStatus::Queued,
+            attempt: 1,
+            created_at: 100,
+            updated_at: 100,
+            expires_at: 1_000,
+        },
+        endpoint(),
+    )
+    .unwrap();
+    assert!(f.runtime.enqueue(&queued).is_ok());
+    f.runtime.shutdown().await;
 }
 
 #[tokio::test]
@@ -616,8 +1220,54 @@ async fn runner_failure_releases_admission_and_preserves_partial_results() {
             .len(),
         1
     );
-    let stale = queued_generation(&f.jobs[0], 2);
-    assert!(f.runtime.enqueue(&stale).is_ok());
+    let changed_endpoint = Endpoint {
+        account: "bob".into(),
+        ..endpoint()
+    };
+    f.storage
+        .set_endpoint(Some(changed_endpoint))
+        .await
+        .unwrap();
+    assert_eq!(
+        f.runtime
+            .resume(&current)
+            .unwrap()
+            .wait()
+            .await
+            .unwrap_err()
+            .code,
+        "preview_binding_changed"
+    );
+    assert_eq!(
+        PreviewResultRepository::results(&f.storage, f.jobs[0].id().into(), 1, 0, 100)
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    f.storage.set_endpoint(Some(endpoint())).await.unwrap();
+    let mut newer = imdb_default();
+    newer.version = 2;
+    newer.rules[1].enabled = true;
+    f.storage.save(newer, 1).await.unwrap();
+    f.transport.fail_on_call.store(0, Ordering::SeqCst);
+    let accepted = f.runtime.resume(&current).unwrap().wait().await.unwrap();
+    assert_eq!(accepted.attempt, 2);
+    assert_eq!(
+        accepted.completion.wait().await.unwrap(),
+        PreviewAttemptOutcome::Completed
+    );
+    assert_eq!(f.transport.calls.load(Ordering::SeqCst), 4);
+    let completed = load_job(&f.storage, current.id()).await.unwrap();
+    assert_eq!(completed.profile_version(), 1);
+    assert_eq!(completed.expires_at(), current.expires_at());
+    assert_eq!(
+        PreviewResultRepository::results(&f.storage, current.id().into(), 2, 0, 100)
+            .await
+            .unwrap()
+            .len(),
+        2
+    );
     f.runtime.shutdown().await;
 }
 
@@ -625,14 +1275,43 @@ async fn runner_failure_releases_admission_and_preserves_partial_results() {
 fn enqueue_without_executor_is_static_and_does_not_register() {
     let initial = tokio::runtime::Runtime::new().unwrap();
     let f = initial.block_on(fixture(1));
+    let cancelled = PreviewJob::from_stored(
+        PreviewJobIdentity {
+            id: "no:executor:resume".into(),
+            profile_id: imdb_default().id,
+            profile_version: 1,
+            observation_count: 0,
+        },
+        PreviewJobLifecycle {
+            status: PreviewJobStatus::Cancelled,
+            attempt: 1,
+            created_at: 100,
+            updated_at: 110,
+            expires_at: 1_000,
+        },
+        endpoint(),
+    )
+    .unwrap();
     drop(initial);
     assert_eq!(
         f.runtime.enqueue(&f.jobs[0]).unwrap_err().code,
         "preview_runtime_unavailable"
     );
     assert!(f.runtime.shared.state.lock().unwrap().admitted.is_empty());
+    assert_eq!(
+        f.runtime
+            .submit(submission("no:executor", 0))
+            .unwrap_err()
+            .code,
+        "preview_runtime_unavailable"
+    );
+    assert_eq!(
+        f.runtime.resume(&cancelled).unwrap_err().code,
+        "preview_runtime_unavailable"
+    );
     let executor = tokio::runtime::Runtime::new().unwrap();
     executor.block_on(async {
+        assert!(load_job(&f.storage, cancelled.id()).await.is_none());
         let observer = f.runtime.enqueue(&f.jobs[0]).unwrap();
         f.runtime.shutdown().await;
         assert_eq!(

@@ -409,7 +409,16 @@ client/end-to-end PRD acceptance remain pending. Keep this child active, not arc
   single owned runtime, without source or personal-state writes.
   - [x] E2a: Guarded cancel/delete API and generated thin-client management methods.
   - [ ] E2b: Bounded CSV submission/resume with truthful runtime admission.
+    - [x] E2b1: Owned admission-before-persistence submission/resume internals.
+    - [ ] E2b2: CSV upload/resume HTTP contracts and thin generated clients.
 - [ ] E3: CLI/WebUI import/progress/diff controls and mock end-to-end acceptance.
+
+E2b1 ownership: Sol/medium implements only Server `preview_runtime.rs` and its
+test module(s), using the real runner and existing repository ports. Main owns
+design/specs, independent review, full verification and commit. No new port,
+dependency, Core/Storage/CLI/HTTP/schema change, recursive delegation or agent
+commit. Preserve existing enqueue/management/maintenance behavior; include
+pending-mutation ownership and admission rejection before I/O in focused tests.
 
 E1 ownership: Sol/medium owns Domain `preview.rs`, Server inspection routes and
 tests, module/OpenAPI/AccessState registration, and the minimal CLI read-port
@@ -485,6 +494,31 @@ references were separately verified; `git diff --check` passed. Tests used fake
 ports/temporary SQLite/loopback only, not live NeoDB, native fetch, real accounts
 or OS credentials. E2a is complete; E2b submission/resume and E3 screens/end-to-end
 acceptance remain pending. Keep this child active and connectorIds empty.
+
+E2b1 verification (2026-10-01): Sol/medium implemented internal owned submission/
+resume and 14 new runtime tests; main reviewed production/tests, refined supervised
+panic handling and pre/post-I/O clock guards, and aligned product/runtime contracts.
+Synchronous reservation precedes mutation, and one tracked operation keeps the
+same admission through preparation and execution. Discarded observers do not
+abandon accepted work; durable acceptance is separate from completion/status.
+Tests cover full/closed/duplicate admission before mutation, concurrent resume,
+empty submission, fresh ordinal-zero resume using v1 despite v2, changed binding
+refusal preserving partial history, fixed expiry, observer drop, error/panic/hung
+preparation, retention-limited deadlines, clock regression, post-commit submit/
+resume cancellation ambiguity, shutdown drain, overflow and missing executor.
+Uncertain commits are inspected truthfully, never erased or reported rolled back.
+
+Scoped runtime 34 tests and Server 73 tests/fmt/Clippy passed. Final main
+`pnpm verify` with `CARGO_BUILD_JOBS=1` passed: 243 Rust unit tests,
+2 compile-fail doctests, 36 TS/UI tests, workspace fmt/Clippy, generated contract
+drift, dependency boundaries, lint/typecheck, WebUI/CLI builds and actual CLI/local
+HTTP/session/pairing/revocation/desktop-mobile Chromium smoke. Product YAML/34
+evidence IDs and references and `git diff --check` passed. Temporary SQLite/fake
+ports/loopback only; no live NeoDB/native fetch, real account or OS credential
+operation. No dependency, migration, Core/Storage/CLI change or public API/schema/
+capability was added. E2b1 is complete; E2b2 public CSV upload/resume and thin
+clients, E3 screens and end-to-end acceptance remain pending. Keep this child
+active; do not archive it or mark broader E complete.
 
 - [ ] Define domain DTOs and executable API contract; regenerate schemas/TS validators.
 - [ ] Add guarded import/status/results/cancel/resume/delete routes, body and

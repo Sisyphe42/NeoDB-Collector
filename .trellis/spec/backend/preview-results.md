@@ -9,7 +9,9 @@ API/client delivery remain D2b2/E; a completed preview is not a write approval.
 Owners: `crates/collector-core/src/preview_results.rs`,
 `crates/collector-storage/src/preview_results.rs` and their `tests.rs`.
 [Single-attempt execution](./preview-runner.md) consumes these operations internally;
-scheduled runtime ownership and public delivery remain pending.
+automatic startup composition and public delivery remain pending.
+The [owned runtime](./preview-runtime.md) adds bounded explicit admission and
+cancel/delete/shutdown; it is not yet wired into startup or public routes.
 
 ## 2. Signatures
 

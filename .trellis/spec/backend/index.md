@@ -16,6 +16,7 @@ The runnable foundation, local session/pairing, NeoDB OAuth HTTP/UI and CLI pair
 | [Persistent Preview Jobs](./preview-jobs.md) | Internal bounded normalized inputs, transactional lifecycle/attempt guards and retention primitives; worker/API pending |
 | [Persistent Preview Results](./preview-results.md) | Guarded normalized historical evidence, current-attempt pages and exhaustive conditional completion; runtime/API pending |
 | [Single-attempt Preview Execution](./preview-runner.md) | Internal sequential claim/produce/persist/complete orchestration; automatic worker/startup/API pending |
+| [Owned Preview Runtime](./preview-runtime.md) | Internal single-job admission, bounded waiters, explicit cancel/delete and shutdown; startup/retention/API pending |
 | [Mapping and Conflict](./mapping-and-conflict-contract.md) | Mapping validation, dry-run, activation, and review |
 | [Mapping Evaluator](./mapping-evaluator.md) | Implemented pure suggestions and bounded YAML/JSON configuration |
 | [Mapping Storage](./mapping-storage.md) | Immutable disabled profile revisions and atomic version checks |

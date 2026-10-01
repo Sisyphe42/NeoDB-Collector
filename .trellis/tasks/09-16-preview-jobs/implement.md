@@ -215,7 +215,7 @@ pending. Keep the preview child active rather than archiving it.
     - [ ] D2b2: Compose bounded worker, startup recovery and retention configuration.
       - [x] D2b2a: Internal sequential single-attempt runner using existing ports
         and real record production; no automatic runtime/startup/public surface.
-      - [ ] D2b2b: Server-owned single-job admission/cancellation and lifecycle.
+      - [x] D2b2b: Server-owned single-job admission/cancellation and lifecycle.
       - [ ] D2b2c: Startup recovery and retention configuration/periodic cleanup.
 
 Main owns design/contracts/acceptance/commit; Sol/medium implements Core repository
@@ -315,6 +315,42 @@ and cleanup races including resume/delete. No live NeoDB or OS credential access
 new dependency, migration, public DTO/route, automatic scheduler or API capability.
 Only D2b2a is complete; Server admission/cancellation (D2b2b), startup/retention
 (D2b2c), D2/D2b/D2b2 and E remain pending. Keep the preview child active.
+
+D2b2b ownership: Sol/medium owns Server `preview_runtime.rs`, its tests and minimal
+module registration/resolution-control comment alignment. Main owns persisted
+design/contracts, independent review, full gate and commit. Load D2b2b design,
+preview-runner/jobs/results, foundation-runtime, repository-layout and
+state-and-pairing contracts. Use existing Tokio semaphore/cancellation and
+tokio-util TaskTracker; fixed bounded admission and real runner, not a fake
+processor port or general scheduler. Do not modify CLI/HTTP/Storage/Core or public
+schemas without first reporting a concrete missing reusable primitive.
+Library review: locked Tokio 1.53.1/tokio-util 0.7.19 already provide the needed
+primitives; tokio-util local manifest declares MIT and Rust 1.71, and workspace
+`rt` enables task/sync support. TaskTracker `close` does not reject future spawns,
+so the runtime must explicitly serialize closed-state checks with registration.
+Its wait tracks task destruction; neither observer drop nor tracker drop alone
+cancels work. Retain owned CancellationToken/drop guards and scoped deregistration.
+No version/features/allowlist change; local checks are not three-OS evidence.
+
+D2b2b verification (2026-10-01): Sol/medium implemented Server runtime ownership
+and 10 tests using the real Core runner/producer, temporary SQLite and fake
+transport/secret ports. Main reviewed all production/tests and requested a missing
+Tokio-context guard, deterministic observer-drop verification, serial completion
+across distinct jobs, real resumed-attempt cancellation isolation and exact-deadline
+management tests. Management reuses fresh independent TokioResolutionControl with
+strict 10-second checks; signalling a record token does not cancel management I/O.
+Scoped Server 27 tests, fmt and Server Clippy passed. Main strengthened different-
+generation duplicate admission, nonqueued rejection and fully released shutdown
+assertions, then ran full `pnpm verify` with `CARGO_BUILD_JOBS=1`: 187 Rust unit
+tests, 2 compile-fail doctests, 25 TS/UI tests, fmt/workspace Clippy, generated
+contract drift, dependency boundaries, lint/typecheck, WebUI/CLI builds and actual
+CLI/local HTTP/desktop-mobile browser smoke passed. Product YAML/34 evidence IDs
+and references plus `git diff --check` passed. No live NeoDB/account/keychain,
+new dependency, migration, HTTP/client schema or CLI startup composition. One
+shared internal owner admits at most 9 attempts with one active permit; shutdown
+does not fabricate persisted user cancellation. D2b2b is complete; startup/recovery/
+retention (D2b2c), D2/D2b/D2b2 and public delivery E remain pending. Keep this
+preview child active; do not archive it at this checkpoint.
 
 - [ ] Implement repositories, ordered migration, atomic bounded submission,
   version/account binding and conditional worker transitions.

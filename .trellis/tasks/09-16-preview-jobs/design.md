@@ -404,6 +404,56 @@ jobs at phase boundaries, refused stores/completion, partial failure/cleanup fai
 invalid/holey pages, cancellation/timeout/drop during every pending port phase and
 retention-limited work. Keep runtime composition and public integration unchecked.
 
+### D2b2b owned runtime admission and lifecycle
+
+Add an internal Server runtime owner around the real PreviewAttemptRunner, existing
+transport ports and trusted identity callback. No HTTP/CLI composition, database
+scan, automatic restart/resume, retention setting or public capability in this slice.
+Use existing Tokio Semaphore/CancellationToken and tokio-util TaskTracker; no new
+library/version or general workflow framework. One owner is created by the later
+server composer; independent owners do not promise process-wide exclusion.
+
+Accept explicitly supplied validated PreviewJob metadata, retaining only its ID
+and attempt for execution. Admission is nonblocking and bounded: at most one active
+attempt plus a fixed small number of waiting attempts. Return a static busy error
+when full; do not spawn unlimited waiters or hold source payloads in the queue.
+Reject duplicate local job IDs, including a different generation while an older
+local task still exists. Waiting tasks acquire the shared single permit with a
+cancellation-aware select. Claim remains Core/Storage's atomic authority, not the
+semaphore or an in-memory running label.
+
+The runtime owns spawned tasks. Returning/dropping a result observer does not cancel
+accepted work; cancellation is explicit. Each task has a child token and drop guard,
+and a scoped registration guard removes its own admission entry on all exits,
+including panic/drop. Keep registration/closed-state mutex sections short and never
+hold them across I/O. Observer failure after panic must be sanitized and must not
+invent a persisted status. Persisted status remains authoritative if an async
+mutation committed before interruption was observed.
+
+User cancel first signals only the matching local job/attempt token, then requests
+the existing attempt-guarded repository cancel under a separate bounded management
+budget, reusing fresh independent TokioResolutionControl with strict 10-second
+pre/post deadline checks rather than a bare timeout. Wrong attempts cannot stop newer work. Delete signals any local generation
+for that job before bounded repository deletion; late stores cannot recreate it.
+Management repository errors/timeouts are explicit: local interruption is not proof
+that cancelled/deleted state persisted. Dropping a management future cannot roll
+back already committed SQL. Do not erase partial history except through existing
+delete/resume operations, and never touch credentials/profiles.
+
+Shutdown closes admission before signalling all work and waiting for tracked tasks.
+It does not classify shutdown as user cancel or mutate jobs to failed/cancelled;
+unfinished queued/running work is left for D2b2c startup interruption. Dropping the
+runtime owner signals children without detaching uncancelled work; workers must not
+retain the owning shutdown guard in an Arc cycle. Caller-owned tickets are observers,
+not task owners. No automatic retries or a total-batch 120-second timeout.
+
+Tests use real runner/producer with fake transport/secrets and memory or temporary
+SQLite repositories. Prove one active job across distinct job IDs, bounded waiters,
+duplicate rejection, cancellation before permit and during hung catalog I/O,
+wrong-generation isolation, deletion/late writes, partial history, admission release
+after failure/panic, dropped observer vs dropped runtime, shutdown races and bounded
+management failure. No live NeoDB/keychain; full gate before checkpoint commit.
+
 ## 5. API and clients (later checkpoints)
 
 Add authenticated import/preview creation, status, paginated results, cancel,

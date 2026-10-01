@@ -5,8 +5,9 @@
 D2b2a under `09-16-preview-jobs` composes existing internal repositories and the
 real record producer in `crates/collector-core/src/preview_runner.rs`. It executes
 one explicitly invoked existing attempt, not an automatic background scheduler.
-Server admission/cancellation ownership, startup recovery, retention configuration
-and public API/client delivery remain subsequent checkpoints. No new dependency,
+Server [owned runtime](./preview-runtime.md) provides internal admission/cancellation;
+startup composition/recovery, retention configuration and public API/client
+delivery remain subsequent checkpoints. No new dependency,
 migration or public capability. Tests live in `src/preview_runner/tests.rs`.
 
 ## 2. Signatures

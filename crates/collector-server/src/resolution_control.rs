@@ -1,4 +1,4 @@
-//! Runtime adapter only; not yet composed into preview jobs or HTTP routes.
+//! Runtime adapter shared by catalog resolution and the internal preview runtime.
 use collector_core::{access::PortFuture, catalog_resolver::ResolutionControl};
 use collector_domain::ApiError;
 use std::time::Duration;

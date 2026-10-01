@@ -12,6 +12,8 @@ comparison without changing this repository or completing jobs. Persistent resul
 transactions are owned by D2b1; runtime worker/startup/configuration remain pending.
 [D2b2a execution](./preview-runner.md) joins these ports for one explicit attempt;
 it does not enable automatic scheduling or startup recovery.
+Server's [owned runtime](./preview-runtime.md) manages explicitly selected jobs;
+startup recovery/retention hooks and public submission remain pending.
 
 ## 2. Signatures
 

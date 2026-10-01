@@ -6,7 +6,9 @@ D2b2b/c under `09-16-preview-jobs` adds internal runtime admission and lifecycle
 `crates/collector-server/src/preview_runtime.rs`, around the real Core
 [single-attempt runner](./preview-runner.md), plus CLI startup composition,
 restart interruption and periodic retention cleanup. Public API/client delivery
-remains E. No new dependency, migration or route.
+is owned by [Preview HTTP](./preview-http.md) and
+[Preview Management HTTP](./preview-management-http.md); submission/resume/screens
+remain E. No new runtime dependency or migration.
 
 ## 2. Signatures
 
@@ -31,8 +33,10 @@ T/F are Send/Sync/static. No connector dependency enters Server.
   maintenance. Observer drop does not stop it. Explicit cancellation returns Ok;
   unexpected task/channel failure is static `preview_maintenance_failed`.
 
-All are internal Rust APIs, not HTTP routes or public DTOs. CLI serve shares
-exactly one owner; recovery/cleanup never enqueue or resume saved jobs.
+All are internal Rust APIs, not HTTP routes or public DTOs. A narrow Server
+management view type-erases cancel/delete only for authenticated HTTP dispatch;
+CLI composes the same runtime Arc, never another owner or repository bypass.
+CLI serve shares exactly one owner; recovery/cleanup never enqueue or resume saved jobs.
 
 ## 3. Contracts
 

@@ -30,6 +30,8 @@ mod oauth_tests;
 mod preview_http;
 #[cfg(test)]
 mod preview_http_tests;
+#[cfg(test)]
+mod preview_management_tests;
 pub mod preview_runtime;
 pub mod resolution_control;
 
@@ -87,6 +89,11 @@ async fn capabilities() -> Json<CapabilityDocument> {
                 "previewResults".into(),
                 "/api/v1/previews/{id}/results".into(),
             ),
+            (
+                "previewCancel".into(),
+                "/api/v1/previews/{id}/cancel".into(),
+            ),
+            ("previewDelete".into(), "/api/v1/previews/{id}".into()),
         ]),
     })
 }
@@ -120,7 +127,9 @@ async fn schema() -> Json<utoipa::openapi::OpenApi> {
         mapping_http::default_profile,
         mapping_http::convert,
         preview_http::job,
-        preview_http::results
+        preview_http::results,
+        preview_http::cancel_preview,
+        preview_http::delete_preview
     ),
     components(schemas(
         ApiError,
@@ -155,7 +164,9 @@ async fn schema() -> Json<utoipa::openapi::OpenApi> {
         PreviewComparedFieldView,
         PreviewSinkView,
         PreviewComparisonStatusView,
-        PreviewProvenanceView
+        PreviewProvenanceView,
+        PreviewCancelRequest,
+        PreviewMutationResult
     ))
 )]
 struct ApiDoc;
@@ -217,7 +228,9 @@ pub fn contract_documents() -> serde_json::Value {
             "ConvertMappingDocument": schemars::schema_for!(ConvertMappingDocument),
             "PreviewJobView": schemars::schema_for!(PreviewJobView),
             "PreviewResultPage": schemars::schema_for!(PreviewResultPage),
-            "PreviewResultView": schemars::schema_for!(PreviewResultView)
+            "PreviewResultView": schemars::schema_for!(PreviewResultView),
+            "PreviewCancelRequest": schemars::schema_for!(PreviewCancelRequest),
+            "PreviewMutationResult": schemars::schema_for!(PreviewMutationResult)
         }
     })
 }

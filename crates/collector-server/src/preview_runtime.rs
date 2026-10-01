@@ -2,7 +2,7 @@
 
 use crate::resolution_control::TokioResolutionControl;
 use collector_core::{
-    access::Clock,
+    access::{Clock, PortFuture},
     catalog::{NeoDbCatalogSearchTransport, NeoDbCatalogTransport},
     catalog_resolver::{CatalogIdentity, ResolutionControl},
     preview_jobs::{PreviewJob, PreviewJobRepository, PreviewJobStatus, PreviewRetention},
@@ -23,6 +23,12 @@ use tokio_util::{sync::CancellationToken, task::TaskTracker};
 const MAX_ADMITTED_ATTEMPTS: usize = 9;
 const MANAGEMENT_BUDGET: Duration = Duration::from_secs(10);
 const MAINTENANCE_INTERVAL: Duration = Duration::from_secs(60);
+
+/// Object-safe HTTP composition view over the single owned preview runtime.
+pub trait PreviewManagement: Send + Sync {
+    fn cancel<'a>(&'a self, id: &'a str, expected_attempt: u32) -> PortFuture<'a, bool>;
+    fn delete<'a>(&'a self, id: &'a str) -> PortFuture<'a, bool>;
+}
 
 pub struct PreviewRuntime<T, F> {
     runner: Arc<PreviewAttemptRunner>,
@@ -319,6 +325,20 @@ where
     }
 }
 
+impl<T, F> PreviewManagement for PreviewRuntime<T, F>
+where
+    T: NeoDbCatalogTransport + NeoDbCatalogSearchTransport + Send + Sync + 'static,
+    F: Fn(&ObservedItem) -> Result<CatalogIdentity, ApiError> + Send + Sync + 'static,
+{
+    fn cancel<'a>(&'a self, id: &'a str, expected_attempt: u32) -> PortFuture<'a, bool> {
+        Box::pin(async move { PreviewRuntime::cancel(self, id, expected_attempt).await })
+    }
+
+    fn delete<'a>(&'a self, id: &'a str) -> PortFuture<'a, bool> {
+        Box::pin(async move { PreviewRuntime::delete(self, id).await })
+    }
+}
+
 fn signal_expired(shared: &Shared, now: i64) {
     let state = shared
         .state
@@ -468,4 +488,4 @@ fn maintenance_failed() -> ApiError {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

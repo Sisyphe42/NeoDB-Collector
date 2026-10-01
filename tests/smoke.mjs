@@ -46,9 +46,20 @@ try {
   assert.deepEqual(capabilities.connectorIds, []);
   assert.equal(capabilities.routes.preview, '/api/v1/previews/{id}');
   assert.equal(capabilities.routes.previewResults, '/api/v1/previews/{id}/results');
+  assert.equal(capabilities.routes.previewCancel, '/api/v1/previews/{id}/cancel');
+  assert.equal(capabilities.routes.previewDelete, '/api/v1/previews/{id}');
   assert.equal((await fetch(`${address}/api/v1/imports`)).status, 404);
   for (const path of ['/api/v1/previews/missing', '/api/v1/previews/missing/results?attempt=1']) {
     const response = await fetch(`${address}${path}`);
+    assert.equal(response.status, 401);
+    assert.equal((await response.json()).code, 'authentication_required');
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+  }
+  for (const [path, options] of [
+    ['/api/v1/previews/missing', { method: 'DELETE' }],
+    ['/api/v1/previews/missing/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedAttempt: 1 }) }],
+  ]) {
+    const response = await fetch(`${address}${path}`, options);
     assert.equal(response.status, 401);
     assert.equal((await response.json()).code, 'authentication_required');
     assert.equal(response.headers.get('cache-control'), 'no-store');
@@ -127,13 +138,26 @@ try {
     assert.equal(response.status, 404);
     assert.equal((await response.json()).code, 'preview_job_not_found');
   }
-  assert.equal((await fetch(`${address}/api/v1/previews/missing`, { method: 'DELETE', headers: { Authorization: `Bearer ${pairedToken.token}` } })).status, 405);
+  const mutationHeaders = { Authorization: `Bearer ${pairedToken.token}` };
+  for (const [path, options] of [
+    ['/api/v1/previews/missing', { method: 'DELETE', headers: mutationHeaders }],
+    ['/api/v1/previews/missing/cancel', { method: 'POST', headers: { ...mutationHeaders, 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedAttempt: 1 }) }],
+  ]) {
+    const response = await fetch(`${address}${path}`, options);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { applied: false });
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+  }
+  assert.equal((await fetch(`${address}/api/v1/previews/missing`, { method: 'PUT', headers: mutationHeaders })).status, 405);
   assert.equal((await fetch(`${address}/api/v1/clients`, { headers: { Authorization: `Bearer ${pairedToken.token}` } })).status, 403);
   await page.getByRole('button', { name: '隐藏链接' }).click();
   await page.getByRole('button', { name: '刷新列表' }).click();
   await page.getByRole('button', { name: '撤销 Collector CLI' }).click();
   await page.getByText('cli · 已撤销', { exact: true }).waitFor();
   assert.equal((await fetch(`${address}/api/v1/client`, { headers: { Authorization: `Bearer ${pairedToken.token}` } })).status, 401);
+  const revokedDelete = await fetch(`${address}/api/v1/previews/missing`, { method: 'DELETE', headers: mutationHeaders });
+  assert.equal(revokedDelete.status, 401);
+  assert.equal((await revokedDelete.json()).code, 'authentication_required');
   await page.getByRole('button', { name: '重新检查' }).click();
   await page.getByRole('heading', { name: '本地服务已连接' }).waitFor();
   await page.getByRole('button', { name: '读取并替换表单' }).click();

@@ -407,6 +407,8 @@ client/end-to-end PRD acceptance remain pending. Keep this child active, not arc
 - [x] E1: Thin shared TS GET client and wire/auth/redaction/timeout regression tests.
 - [ ] E2: Bounded CSV submission and explicit cancel/resume/delete through the
   single owned runtime, without source or personal-state writes.
+  - [x] E2a: Guarded cancel/delete API and generated thin-client management methods.
+  - [ ] E2b: Bounded CSV submission/resume with truthful runtime admission.
 - [ ] E3: CLI/WebUI import/progress/diff controls and mock end-to-end acceptance.
 
 E1 ownership: Sol/medium owns Domain `preview.rs`, Server inspection routes and
@@ -417,6 +419,14 @@ only thin shared TS client/test additions after DTO names are finalized. No
 recursive delegation or sub-agent commits. Read E1 design plus foundation-runtime,
 preview-jobs/results/runtime, state-and-pairing, mapping-http/storage,
 repository-layout and guides. Keep broader E/PRD acceptance unchecked.
+
+E2a ownership: Sol/medium implements Domain cancel/result DTOs, Server object-safe
+runtime management view, guarded cancel/delete HTTP and separate router tests,
+AccessState/OpenAPI registration and minimal same-Arc CLI wiring. Luna/max owns
+thin TS cancel/delete methods and tests only. Main owns specs/generated artifacts,
+WebUI client-test mock, actual-process smoke, independent review and full gate/
+commit. Reuse existing runtime/control/access boundaries; no recursive delegation,
+agent commits, new dependencies/migration or CSV/resume work in this slice.
 
 E1 verification (2026-10-01): Sol/medium implemented Domain inspection DTOs,
 Server read routes and temporary-SQLite/fake-port tests plus minimal CLI port
@@ -446,6 +456,35 @@ evidence IDs and references plus `git diff --check` passed. No live NeoDB/native
 fetch, real account or OS credential operation. E1 is complete; E2 mutations and
 E3 client screens/end-to-end acceptance remain pending, connectorIds stays empty,
 and historical evidence is never executable. Keep this child active, not archived.
+
+E2a verification (2026-10-01): Sol/medium implemented Domain cancel/result DTOs,
+Server management type-erasure and guarded HTTP, same-Arc CLI wiring and router
+tests reusing a test-only real runtime fixture. Luna/max implemented thin TS
+cancel/delete methods and five tests. Main independently reviewed code/tests,
+corrected route-local body-limit composition and duplicate OAuth/preview OpenAPI
+operation names, aligned specs/README/product and extended actual-process smoke.
+Main retained native incoming Requests in cancellation mocks instead of cloning
+away the original abort bridge. No UI controls, enqueue/resume, migration,
+dependencies or public API version change were introduced.
+
+Management regressions passed 7/7: active and queued cancel, wrong-attempt
+isolation, retained committed partial history, delete preventing late publication,
+preserved profile/account/auth, Origin/CSRF including cross-session mismatch,
+exclusive/revoked/duplicate Bearer, strict duplicate/negative/fractional/overflow
+request fields, exact 4 KiB versus +1 bodies, absent management and truthful
+applied=false. Notify-synchronized hung/exact-ten-second tests cover both methods,
+with static redacted errors rather than a fabricated applied result. Existing
+runtime regressions retain actual resumed-generation cancellation isolation.
+
+Final main `pnpm verify` with `CARGO_BUILD_JOBS=1` passed: 229 Rust unit tests,
+2 compile-fail doctests, 36 TS/UI tests, workspace fmt/Clippy, generated contract
+drift, dependency boundaries, lint/typecheck, WebUI/CLI builds and actual CLI/local
+HTTP/session/pairing/revocation/desktop-mobile Chromium smoke. Generated management
+bounds/strict shapes/route operation IDs and product YAML/34 evidence IDs and
+references were separately verified; `git diff --check` passed. Tests used fake
+ports/temporary SQLite/loopback only, not live NeoDB, native fetch, real accounts
+or OS credentials. E2a is complete; E2b submission/resume and E3 screens/end-to-end
+acceptance remain pending. Keep this child active and connectorIds empty.
 
 - [ ] Define domain DTOs and executable API contract; regenerate schemas/TS validators.
 - [ ] Add guarded import/status/results/cancel/resume/delete routes, body and

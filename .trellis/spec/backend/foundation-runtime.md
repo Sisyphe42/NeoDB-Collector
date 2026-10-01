@@ -2,7 +2,7 @@
 
 ## 1. Scope / Trigger
 
-Applies to configuration, startup/doctor, SQLite baseline, health/capabilities/schema, generated contracts and status WebUI. Implemented sessions/pairing and read-only OAuth are specified in [Operational State and Pairing](./state-and-pairing.md). Internal preview startup/retention and [historical inspection API](./preview-http.md) are implemented; submission/management/client screens, synchronization, scheduling, desktop and external integrations remain deferred.
+Applies to configuration, startup/doctor, SQLite baseline, health/capabilities/schema, generated contracts and status WebUI. Implemented sessions/pairing and read-only OAuth are specified in [Operational State and Pairing](./state-and-pairing.md). Internal preview startup/retention, [historical inspection API](./preview-http.md) and [cancel/delete API](./preview-management-http.md) are implemented; submission/resume/client screens, synchronization, scheduling, desktop and external integrations remain deferred.
 
 Source owners: `crates/collector-domain`, `collector-core`, `collector-storage`, `collector-server`, `collector-cli`; `packages/contracts-ts`, `core-client-ts`; `apps/webui`.
 
@@ -20,7 +20,7 @@ GET /assets/*            -> static bundle assets
 
 `collector_core::StorageHealth::is_ready` returns a boxed Send future without requiring a concrete async runtime in Core. SQLx implements it with a real `SELECT 1`; the server uses that result, not a constant success flag.
 
-SQLite uses `{data_dir}/collector.db`; `0001_baseline.sql` establishes SQLx's migration ledger, `0002_access.sql` adds hashed local-access credentials and singleton endpoint metadata, `0003_mapping_profiles.sql` adds immutable disabled profile revisions, and `0004_preview_jobs.sql` adds bounded normalized preview inputs and lifecycle metadata. `0005_preview_results.sql` preserves v4 data while adding bounded historical result storage and guarded completed jobs. Internal preview runtime is composed at serve startup; public submission/routes remain pending. No raw payloads or plaintext secrets are stored. Existing databases are checked read-only for newer migration versions before writable migration startup.
+SQLite uses `{data_dir}/collector.db`; `0001_baseline.sql` establishes SQLx's migration ledger, `0002_access.sql` adds hashed local-access credentials and singleton endpoint metadata, `0003_mapping_profiles.sql` adds immutable disabled profile revisions, and `0004_preview_jobs.sql` adds bounded normalized preview inputs and lifecycle metadata. `0005_preview_results.sql` preserves v4 data while adding bounded historical result storage and guarded completed jobs. Internal preview runtime is composed at serve startup; public submission/resume remain pending. No raw payloads or plaintext secrets are stored. Existing databases are checked read-only for newer migration versions before writable migration startup.
 
 ## 3. Contracts
 

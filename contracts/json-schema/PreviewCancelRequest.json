@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "expectedAttempt": {
+      "format": "uint32",
+      "maximum": 4294967295,
+      "minimum": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "expectedAttempt"
+  ],
+  "title": "PreviewCancelRequest",
+  "type": "object"
+}

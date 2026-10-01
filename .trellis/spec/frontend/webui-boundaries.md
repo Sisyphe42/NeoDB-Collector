@@ -4,7 +4,7 @@
 
 This contract applies to the WebUI embedded in desktop, served by `collector serve`, and bundled in Docker. All hosts serve the same built assets from Core and use the same `/api/v1` contract. Browser-extension UI remains a separate surface but shares generated API and domain types.
 
-Implementation status: CLI-hosted status plus local session/client management exists. See [Runnable Foundation](../backend/foundation-runtime.md) and [Local Access](../backend/state-and-pairing.md). OAuth follows backend/oauth-http.md; mapping configuration follows [Mapping Editor](./mapping-editor.md). Historical preview inspection has a [generated API/shared client](../backend/preview-http.md); preview screens, SSE and other host bundles remain future requirements. Public status endpoints require no session; client metadata and management require a session and mutation CSRF checks.
+Implementation status: CLI-hosted status plus local session/client management exists. See [Runnable Foundation](../backend/foundation-runtime.md) and [Local Access](../backend/state-and-pairing.md). OAuth follows backend/oauth-http.md; mapping configuration follows [Mapping Editor](./mapping-editor.md). Historical preview inspection has a [generated API/shared client](../backend/preview-http.md); explicit cancel/delete has a [shared management client](../backend/preview-management-http.md). Preview screens, SSE and other host bundles remain future requirements. Public status endpoints require no session; client metadata and management require a session and mutation CSRF checks.
 
 ## 2. Signatures and Data Shapes
 

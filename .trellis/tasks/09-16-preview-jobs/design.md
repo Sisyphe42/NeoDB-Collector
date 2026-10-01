@@ -565,6 +565,44 @@ storage, hung/late reads and response bounds/redaction. No actual account/keycha
 or native-fetch operation. Full gate before an independent E1 checkpoint; E2
 submission/management and E3 CLI/WebUI remain pending.
 
+### E2a explicit cancel/delete before submission and resume
+
+Expose POST `/api/v1/previews/{id}/cancel` with strict
+`PreviewCancelRequest { expectedAttempt: positive u32 }`, and DELETE
+`/api/v1/previews/{id}` without a body. Both return a strict
+`PreviewMutationResult { applied: boolean }`: true reports the repository's
+successful/idempotent transition, false reports its refusal/absence, never a
+fabricated cancelled/deleted status. Clients use the existing GET to reconcile
+ambiguous outcomes; no automatic mutation retry. A wrong cancellation attempt
+must not signal newer work; deletion signals any locally registered generation.
+
+Session mutations require exact Origin and CSRF; Bearer mutations require the
+already fixed `imports.submit` scope. Authorization presence excludes cookie
+fallback. Reuse the existing job ID grammar, 4 KiB JSON cap, no-store/Host/Origin
+boundary and static errors. Invalid IDs/envelopes/zero attempts are 400, over-cap
+JSON is 413, absent management composition is 503 preview_unavailable. Failures,
+hung or exact-deadline work return static 503 preview_cancel_failed or
+preview_delete_failed, not transport/database diagnostics. Each request has a
+strict ten-second management budget; a committed mutation cannot be rolled back
+merely because its future was dropped or its response timed out.
+
+Use an object-safe narrow Server management view of the existing generic runtime
+to compose the exact same CLI-owned Arc into AccessState. Its cancel/delete
+methods delegate directly to the runtime, not repositories or a second scheduler.
+No Core port, new runtime owner, migration, dependency, enqueue/resume, network,
+credential operation or personal-state write belongs here. Runtime shutdown/drain
+and the serve lease retain their existing ownership. Thin TS methods consume the
+generated request/result/path contract and mutation CSRF without UI controls.
+
+Tests use temporary SQLite, real runtime/runner and fake catalog/secret ports to
+prove active/queued cancellation, wrong-generation isolation, partial-history
+preservation and deletion preventing late publication; retain profiles/account/auth.
+Also cover session Origin/CSRF, Bearer fallback/revocation/duplicates, strict input,
+optional composition, static failures and strict hung/late management bounds.
+Update real-process smoke for delivered methods/capabilities. Full gate before
+checkpoint commit; CSV submission, explicit resume and screens remain pending,
+connectorIds stays empty and no personal-state write capability is advertised.
+
 Add authenticated import/preview creation, status, paginated results, cancel,
 resume and delete operations under API v1. Reuse `imports.submit` for mutations
 and `imports.read` for inspection, with existing session Origin/CSRF and Bearer

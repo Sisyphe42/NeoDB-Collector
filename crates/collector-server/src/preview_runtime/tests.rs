@@ -182,6 +182,58 @@ struct Fixture {
     jobs: Vec<PreviewJob>,
 }
 
+pub(crate) struct HttpRuntimeFixture {
+    _dir: tempfile::TempDir,
+    pub(crate) storage: Storage,
+    runtime: Arc<PreviewRuntime<Transport, IdentityFn>>,
+    transport: Arc<Transport>,
+    jobs: Vec<PreviewJob>,
+}
+
+impl HttpRuntimeFixture {
+    pub(crate) fn management(&self) -> Arc<dyn PreviewManagement> {
+        self.runtime.clone()
+    }
+
+    pub(crate) fn enqueue(&self, index: usize) -> PreviewAttemptObserver {
+        self.runtime.enqueue(&self.jobs[index]).unwrap()
+    }
+
+    pub(crate) fn job_id(&self, index: usize) -> &str {
+        self.jobs[index].id()
+    }
+
+    pub(crate) async fn wait_for_calls(&self, expected: usize) {
+        wait_for_calls(&self.transport, expected).await;
+    }
+
+    pub(crate) fn release(&self) {
+        self.transport.release();
+    }
+
+    pub(crate) fn active_calls(&self) -> usize {
+        self.transport.active.load(Ordering::SeqCst)
+    }
+
+    pub(crate) async fn shutdown(&self) {
+        self.runtime.shutdown().await;
+    }
+}
+
+pub(crate) async fn http_fixture(
+    job_count: usize,
+    observations_per_job: usize,
+) -> HttpRuntimeFixture {
+    let fixture = fixture_with_observations(job_count, observations_per_job).await;
+    HttpRuntimeFixture {
+        _dir: fixture._dir,
+        storage: fixture.storage,
+        runtime: Arc::new(fixture.runtime),
+        transport: fixture.transport,
+        jobs: fixture.jobs,
+    }
+}
+
 async fn fixture(job_count: usize) -> Fixture {
     fixture_with_observations(job_count, 1).await
 }

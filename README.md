@@ -41,7 +41,7 @@ cargo run --locked -p collector-cli -- serve --port 19424 --data-dir ./local-dat
 
 YAML 使用 `schema_version: 1`，其中相对路径相对 YAML 文件目录；CLI/环境变量相对路径相对工作目录。只允许 loopback IP（含 `::1`）；不接受公网/LAN 地址或主机名。端口 `0` 表示系统分配空闲端口，实际地址输出在 stderr。
 
-预览保留期为正整数天数，仅用于新任务，不改变已有任务的到期时间。内部预览运行时已接入启动恢复和每分钟清理，历史任务/结果读取 API 已开放；导入、取消、恢复、删除及预览 UI 尚未开放。重启不会自动重跑任务。清理失败会明确报错并停止服务。`doctor` 不恢复或清理预览任务。
+预览保留期为正整数天数，仅用于新任务，不改变已有任务的到期时间。内部预览运行时已接入启动恢复和每分钟清理，历史任务/结果读取及取消/删除 API 已开放；导入、恢复及预览 UI 尚未开放。重启不会自动重跑任务。清理失败会明确报错并停止服务。`doctor` 不恢复或清理预览任务。
 
 同一数据目录只能由一个 `serve` 进程使用，即使选择不同端口。服务通过 `collector.serve.lock` 文件持有系统锁，退出后自动释放；不要在运行期间删除该文件。
 
@@ -64,10 +64,14 @@ YAML 使用 `schema_version: 1`，其中相对路径相对 YAML 文件目录；C
 | `POST /api/v1/oauth/neodb` / `DELETE /api/v1/oauth/neodb` | WebUI 开始 / 取消只读 OAuth |
 | `GET /api/v1/previews/{id}` | 已授权会话或 Bearer 查看历史任务状态、账号绑定及保留期 |
 | `GET /api/v1/previews/{id}/results?attempt=N&offset=0&limit=50` | 历史条目证据及字段差异，limit 为 1–100，offset 为原始记录序号 |
+| `POST /api/v1/previews/{id}/cancel` | 显式取消指定 attempt，JSON 为 `{"expectedAttempt": 1}` |
+| `DELETE /api/v1/previews/{id}` | 删除任务及预览数据，不删除配置或凭据 |
 
 健康、能力和契约端点公开；本地管理接口要求 8 小时有效的 HttpOnly / SameSite=Strict 会话，修改操作还要求同源 Origin 与 CSRF 令牌。浏览器请求须同源，Host 仅允许实际监听地址或相同端口的 localhost。不开放 CORS。配对、CLI 认证状态与 NeoDB 只读 OAuth 已可用；WebUI 支持授权、账户状态及取消。令牌仅保存在系统凭据库中。媒体导入/同步尚未接入；配对客户端不能管理 OAuth 或其他客户端。
 
 预览读取要求会话或带 `imports.read` 权限的 Bearer。结果为历史证据，不是当前 NeoDB 状态或写入许可；账号绑定为 current 也不表示旧快照仍新鲜。过期/不存在任务返回 404，attempt 不匹配返回 409；运行中空结果页不表示完成。此阶段没有公开创建任务的入口，连接器能力列表仍为空。
+
+取消/删除要求同源会话与 CSRF，或带 `imports.submit` 权限的 Bearer。返回 `{"applied": true/false}` 表示实际仓库结果，不伪造终止状态；超时/中断后应重新查询任务，不自动重试。取消只影响指定 attempt 的本地工作，不能撤销 NeoDB 已排队的公共目录创建；已有个人标记始终不会被修改。
 
 ## CLI 配对
 

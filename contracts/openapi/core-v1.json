@@ -612,6 +612,21 @@
         ],
         "type": "string"
       },
+      "PreviewCancelRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedAttempt": {
+            "format": "int32",
+            "maximum": 4294967295,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expectedAttempt"
+        ],
+        "type": "object"
+      },
       "PreviewCatalogItemView": {
         "additionalProperties": false,
         "properties": {
@@ -836,6 +851,18 @@
           "bindingState",
           "historical",
           "executable"
+        ],
+        "type": "object"
+      },
+      "PreviewMutationResult": {
+        "additionalProperties": false,
+        "properties": {
+          "applied": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "applied"
         ],
         "type": "object"
       },
@@ -2246,6 +2273,74 @@
       }
     },
     "/api/v1/previews/{id}": {
+      "delete": {
+        "operationId": "delete_preview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewMutationResult"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "preview_http"
+        ]
+      },
       "get": {
         "operationId": "job",
         "parameters": [
@@ -2300,6 +2395,96 @@
             "description": ""
           },
           "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "preview_http"
+        ]
+      }
+    },
+    "/api/v1/previews/{id}/cancel": {
+      "post": {
+        "operationId": "cancel_preview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewCancelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewMutationResult"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": ""
+          },
+          "413": {
             "content": {
               "application/json": {
                 "schema": {

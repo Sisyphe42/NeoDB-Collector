@@ -12,6 +12,7 @@ function client(): AccessClient {
     startNeoDb: vi.fn(), cancelNeoDb: vi.fn(),
     mappingProfile: vi.fn(), validateMapping: vi.fn(), saveMapping: vi.fn(),
     previewJob: vi.fn(), previewResults: vi.fn(),
+    cancelPreview: vi.fn(), deletePreview: vi.fn(),
     defaultMapping: vi.fn(), convertMapping: vi.fn(),
     logout: vi.fn().mockResolvedValue(undefined), clients: vi.fn().mockResolvedValue([]),
     createPairing: vi.fn().mockResolvedValue({ uri: 'http://127.0.0.1:19423/pair#key=example', expiresAt: Date.now() / 1000 + 600 }),

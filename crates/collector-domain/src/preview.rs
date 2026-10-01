@@ -1,11 +1,25 @@
-//! Read-only preview inspection wire contracts.
+//! Preview inspection and local management wire contracts.
 //!
-//! These values are historical evidence for review. They deliberately contain no
-//! credential reference and cannot be converted into executable operations.
+//! Historical views are non-executable review evidence and contain no credential
+//! reference. Cancel/delete requests manage only local operational preview jobs.
 use crate::observation::ScalarValue;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ToSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PreviewCancelRequest {
+    #[schemars(range(min = 1, max = 4294967295_u64))]
+    #[schema(minimum = 1, maximum = 4294967295_u64)]
+    pub expected_attempt: u32,
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ToSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PreviewMutationResult {
+    pub applied: bool,
+}
 
 fn historical_schema() -> utoipa::openapi::schema::Object {
     utoipa::openapi::schema::ObjectBuilder::new()

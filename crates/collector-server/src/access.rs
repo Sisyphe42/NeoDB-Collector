@@ -20,6 +20,7 @@ pub struct AccessState {
     pub mappings: Option<Arc<dyn collector_core::mapping::MappingRepository>>,
     pub preview_jobs: Option<Arc<dyn collector_core::preview_jobs::PreviewJobRepository>>,
     pub preview_results: Option<Arc<dyn collector_core::preview_results::PreviewResultRepository>>,
+    pub preview_management: Option<Arc<dyn crate::preview_runtime::PreviewManagement>>,
     limiter: Arc<Mutex<(i64, u32)>>,
 }
 impl AccessState {
@@ -30,6 +31,7 @@ impl AccessState {
             mappings: None,
             preview_jobs: None,
             preview_results: None,
+            preview_management: None,
             limiter: Arc::new(Mutex::new((0, 0))),
         }
     }

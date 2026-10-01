@@ -1,18 +1,18 @@
-//! Authenticated, read-only historical preview inspection.
+//! Authenticated historical preview inspection and local job management.
 use crate::{
     access::{self, AccessState, HttpError},
     resolution_control::TokioResolutionControl,
 };
 use axum::{
-    Router,
+    Json, Router,
     body::Body,
     extract::{
-        Path, Query, State,
-        rejection::{PathRejection, QueryRejection},
+        DefaultBodyLimit, Path, Query, State,
+        rejection::{JsonRejection, PathRejection, QueryRejection},
     },
     http::{HeaderMap, StatusCode, header},
     response::Response,
-    routing::get,
+    routing::{get, post},
 };
 use collector_core::{
     access::Endpoint,
@@ -33,22 +33,29 @@ const MAX_RESPONSE_BYTES: usize = 8 * 1024 * 1024;
 
 pub(crate) fn routes() -> Router<AccessState> {
     Router::new()
-        .route("/api/v1/previews/{id}", get(job))
+        .route("/api/v1/previews/{id}", get(job).delete(delete_preview))
         .route("/api/v1/previews/{id}/results", get(results))
+        .route("/api/v1/previews/{id}/cancel", post(cancel_preview))
+        .layer(DefaultBodyLimit::max(4096))
 }
 
-async fn authorize(state: &AccessState, headers: &HeaderMap) -> Result<(), HttpError> {
+async fn authorize(
+    state: &AccessState,
+    headers: &HeaderMap,
+    scope: &str,
+    mutation: bool,
+) -> Result<(), HttpError> {
     if headers.contains_key(header::AUTHORIZATION) {
         access::bearer(state, headers).await?;
-        if !collector_core::access::PAIRING_SCOPES.contains(&"imports.read") {
+        if !collector_core::access::PAIRING_SCOPES.contains(&scope) {
             return Err(HttpError::new(
                 StatusCode::FORBIDDEN,
                 "scope_required",
-                "Import read scope is required.",
+                "The required import scope is missing.",
             ));
         }
     } else {
-        access::admin(state, headers, false).await?;
+        access::admin(state, headers, mutation).await?;
     }
     Ok(())
 }
@@ -74,7 +81,7 @@ pub(crate) async fn job(
     headers: HeaderMap,
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Response, HttpError> {
-    authorize(&state, &headers).await?;
+    authorize(&state, &headers, "imports.read", false).await?;
     let id = path.map_err(|_| request_invalid())?.0;
     validate_id(&id)?;
     let jobs = state.preview_jobs.as_ref().ok_or_else(unavailable)?;
@@ -108,7 +115,7 @@ pub(crate) async fn results(
     path: Result<Path<String>, PathRejection>,
     query: Result<Query<ResultsQuery>, QueryRejection>,
 ) -> Result<Response, HttpError> {
-    authorize(&state, &headers).await?;
+    authorize(&state, &headers, "imports.read", false).await?;
     let id = path.map_err(|_| request_invalid())?.0;
     validate_id(&id)?;
     let query = query.map_err(|_| request_invalid())?.0;
@@ -162,6 +169,53 @@ pub(crate) async fn results(
         items: rows.iter().map(result_view).collect(),
     };
     json_response(&page)
+}
+
+#[utoipa::path(post, path="/api/v1/previews/{id}/cancel", params(("id"=String, Path)),
+    request_body=PreviewCancelRequest,
+    responses((status=200, body=PreviewMutationResult), (status=400, body=ApiError), (status=401, body=ApiError), (status=403, body=ApiError), (status=413, body=ApiError), (status=503, body=ApiError)))]
+pub(crate) async fn cancel_preview(
+    State(state): State<AccessState>,
+    headers: HeaderMap,
+    path: Result<Path<String>, PathRejection>,
+    body: Result<Json<PreviewCancelRequest>, JsonRejection>,
+) -> Result<Response, HttpError> {
+    authorize(&state, &headers, "imports.submit", true).await?;
+    let id = path.map_err(|_| request_invalid())?.0;
+    validate_id(&id)?;
+    let request = access::json(body)?;
+    if request.expected_attempt == 0 {
+        return Err(request_invalid());
+    }
+    let management = state.preview_management.as_ref().ok_or_else(unavailable)?;
+    let control = TokioResolutionControl::new(CancellationToken::new());
+    let applied = control
+        .run(
+            MANAGEMENT_BUDGET,
+            management.cancel(&id, request.expected_attempt),
+        )
+        .await
+        .map_err(|_| cancel_failed())?;
+    json_response(&PreviewMutationResult { applied })
+}
+
+#[utoipa::path(delete, path="/api/v1/previews/{id}", params(("id"=String, Path)),
+    responses((status=200, body=PreviewMutationResult), (status=400, body=ApiError), (status=401, body=ApiError), (status=403, body=ApiError), (status=503, body=ApiError)))]
+pub(crate) async fn delete_preview(
+    State(state): State<AccessState>,
+    headers: HeaderMap,
+    path: Result<Path<String>, PathRejection>,
+) -> Result<Response, HttpError> {
+    authorize(&state, &headers, "imports.submit", true).await?;
+    let id = path.map_err(|_| request_invalid())?.0;
+    validate_id(&id)?;
+    let management = state.preview_management.as_ref().ok_or_else(unavailable)?;
+    let control = TokioResolutionControl::new(CancellationToken::new());
+    let applied = control
+        .run(MANAGEMENT_BUDGET, management.delete(&id))
+        .await
+        .map_err(|_| delete_failed())?;
+    json_response(&PreviewMutationResult { applied })
 }
 
 fn ensure_retained(state: &AccessState, job: &PreviewJob) -> Result<(), HttpError> {
@@ -397,6 +451,22 @@ fn unavailable() -> HttpError {
         StatusCode::SERVICE_UNAVAILABLE,
         "preview_unavailable",
         "Preview inspection is temporarily unavailable.",
+    )
+}
+
+fn cancel_failed() -> HttpError {
+    HttpError::new(
+        StatusCode::SERVICE_UNAVAILABLE,
+        "preview_cancel_failed",
+        "Preview cancellation could not be completed; query job status.",
+    )
+}
+
+fn delete_failed() -> HttpError {
+    HttpError::new(
+        StatusCode::SERVICE_UNAVAILABLE,
+        "preview_delete_failed",
+        "Preview deletion could not be completed; query job status.",
     )
 }
 

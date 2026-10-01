@@ -278,6 +278,7 @@ async fn serve_until(
     access_state.mappings = Some(Arc::new(storage.clone()));
     access_state.preview_jobs = Some(Arc::new(storage.clone()));
     access_state.preview_results = Some(Arc::new(storage.clone()));
+    access_state.preview_management = Some(preview_runtime.clone());
     eprintln!("Core listening on http://{address}");
     // Intentional local delivery of a single-use key; never an HTTP request log.
     eprintln!("Open WebUI (one use, 10 minutes): http://{address}/#key={bootstrap}");

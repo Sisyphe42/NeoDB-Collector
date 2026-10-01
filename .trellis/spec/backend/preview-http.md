@@ -5,7 +5,8 @@
 E1 under `09-16-preview-jobs` exposes authenticated inspection only. Owners are
 Domain `src/preview.rs`, Server `src/preview_http.rs` and its tests, and the thin
 shared TS client. CLI serve composes the existing Storage job/result ports.
-Submission, cancel/resume/delete, client screens and runnable IMDb capability
+Cancel/delete are owned by [Preview Management HTTP](./preview-management-http.md).
+Submission/resume, client screens and runnable IMDb capability
 remain separate checkpoints. No credential/network read or personal-state write
 is performed by inspection, and no migration or new dependency is required.
 
@@ -62,6 +63,7 @@ is performed by inspection, and no migration or new dependency is required.
 - Optional inspection ports absent => 503, not a fake empty job/page. Production
   CLI wires Storage. Capabilities advertise only the two delivered GET routes;
   connectorIds remains empty until the end-to-end submission path is delivered.
+  Explicit cancel/delete have a separate mutation contract; no inspection enables work.
 
 ## 4. Validation & Error Matrix
 
@@ -74,7 +76,7 @@ is performed by inspection, and no migration or new dependency is required.
 | Requested attempt obsolete, including during page read | 409 preview_attempt_changed |
 | Optional ports absent, corrupt/error/hung/late reads | Static 503 preview_unavailable |
 | Encoded response over cap | Static 503; no partial page |
-| POST/PUT/DELETE on read-only resource | Structured 405 method_not_allowed |
+| POST/PUT on job, or mutations on results | Structured 405 method_not_allowed |
 
 ## 5. Good / Base / Bad Cases
 

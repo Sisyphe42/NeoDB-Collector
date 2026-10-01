@@ -29,7 +29,8 @@ normalized historical evidence in `preview_results`; see
 [Persistent Preview Results](./preview-results.md). Repositories remain internal:
 owned runtime/startup recovery/retention and historical inspection read ports are
 composed in CLI serve; [Preview HTTP](./preview-http.md) owns safe wire projections.
-Public import and preview management routes remain pending.
+Explicit cancel/delete use the same owned runtime via
+[Preview Management HTTP](./preview-management-http.md); import/resume/screens remain pending.
 No raw files or payloads are stored. Later schema ownership (not implemented):
 
 ```sql

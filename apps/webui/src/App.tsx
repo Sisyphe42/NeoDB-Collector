@@ -13,7 +13,17 @@ const labels = {
   invalid_response: ['服务响应格式异常', '请确认当前端口运行的是兼容的 Collector Core，再重新检查。'],
 } as const;
 
-export function App({ loadStatus = client.status, access }: { loadStatus?: (signal?: AbortSignal) => Promise<Snapshot>; access?: ReactNode }) {
+export function previewAvailable(snapshot: Snapshot): boolean {
+  const routes = snapshot.capabilities.routes;
+  return routes.imdbRatingsImport === '/api/v1/imports/imdb/ratings'
+    && routes.preview === '/api/v1/previews/{id}'
+    && routes.previewResults === '/api/v1/previews/{id}/results'
+    && routes.previewCancel === '/api/v1/previews/{id}/cancel'
+    && routes.previewResume === '/api/v1/previews/{id}/resume'
+    && routes.previewDelete === '/api/v1/previews/{id}';
+}
+
+export function App({ loadStatus = client.status, access }: { loadStatus?: (signal?: AbortSignal) => Promise<Snapshot>; access?: ReactNode | ((snapshot: Snapshot) => ReactNode) }) {
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [revision, setRevision] = useState(0);
   useEffect(() => {
@@ -27,7 +37,10 @@ export function App({ loadStatus = client.status, access }: { loadStatus?: (sign
     return () => { active = false; controller.abort(); };
   }, [revision, loadStatus]);
   const snapshot = 'snapshot' in state ? state.snapshot : undefined;
-  const [title, description] = labels[state.kind];
+  const [title, defaultDescription] = labels[state.kind];
+  const description = state.kind === 'connected' && previewAvailable(state.snapshot)
+    ? '基础服务运行正常。可授权 NeoDB 只读连接并导入 CSV 进行历史预览；不会执行同步写入。'
+    : defaultDescription;
   return <main>
     <header className="masthead"><a href="/" className="wordmark">NeoDB <strong>Collector</strong></a><span className="local-label">本地控制台</span></header>
     <section className="intro"><p className="eyebrow">服务状态</p><h1>记录流动之前，<br />先确认连接。</h1><p>检查本地服务、数据库与当前可用的平台连接。</p></section>
@@ -42,10 +55,10 @@ export function App({ loadStatus = client.status, access }: { loadStatus?: (sign
         <div><dt>本地数据库</dt><dd>{snapshot ? (snapshot.health.storage === 'ready' ? '可用' : '不可用') : '尚未确认'}</dd></div>
       </dl></section>
       <section aria-labelledby="platform-title"><div className="section-title"><h2 id="platform-title">平台连接</h2>{snapshot && <span>{snapshot.capabilities.connectorIds.length} 个</span>}</div>
-        {snapshot ? (snapshot.capabilities.connectorIds.length ? <ul>{snapshot.capabilities.connectorIds.map(id => <li key={id}>{id}</li>)}</ul> : <div className="empty"><p>尚无可用的平台连接</p><span>当前是基础服务版本；同步与导入功能将在后续版本接入。</span></div>) : <p className="empty">连接服务后显示可用平台。</p>}
+        {snapshot ? (snapshot.capabilities.connectorIds.length ? <ul>{snapshot.capabilities.connectorIds.map(id => <li key={id}>{id}</li>)}</ul> : <div className="empty"><p>尚无可用的平台连接</p><span>{previewAvailable(snapshot) ? '已提供 CSV 只读预览；完整连接器验收和同步写入仍未开放。' : '当前是基础服务版本；同步与导入功能将在后续版本接入。'}</span></div>) : <p className="empty">连接服务后显示可用平台。</p>}
       </section>
     </div>
-    {(state.kind === 'connected' || state.kind === 'degraded') && access}
+    {(state.kind === 'connected' || state.kind === 'degraded') && (typeof access === 'function' ? access(state.snapshot) : access)}
     <footer><span>管理本地访问 · 不执行同步</span><code>collector doctor --format json</code></footer>
   </main>;
 }

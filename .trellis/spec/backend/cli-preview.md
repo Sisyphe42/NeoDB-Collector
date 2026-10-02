@@ -5,7 +5,8 @@
 E3a delivers thin commands in `collector-cli/src/main.rs` and
 `src/client/preview.rs`; tests live in `src/client/preview_tests.rs` and main's
 command parsing tests. Reuse pairing's origin/health/credential helpers and Domain
-wire types. WebUI screens and final mock restart/resume acceptance remain pending.
+wire types. [WebUI screens](../frontend/preview-panel.md) are delivered separately;
+final mock restart/resume acceptance remains pending.
 No source/personal-state writes, direct DB access, alternate parser/planner,
 API change or dependency is added.
 

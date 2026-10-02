@@ -207,7 +207,9 @@ service:
     config: yaml_v1_cli_over_env_over_file_over_defaults
     exposure: loopback_only
     authentication: webui_session_csrf_and_transactional_client_pairing
-    pending: [general_imports, preview_webui_and_end_to_end_acceptance]
+    implemented_ui: [local_access, neodb_oauth, mapping_editor, historical_preview]
+    preview_ui_contract: .trellis/spec/frontend/preview-panel.md
+    pending: [general_imports, preview_end_to_end_acceptance]
     code_contract: .trellis/spec/backend/foundation-runtime.md
   routes:
     webui: /
@@ -279,7 +281,7 @@ storage:
   preview_retention:
     status: approved_for_imdb_preview_milestone
     implementation: internal_job_results_owned_submit_resume_and_runtime_retention
-    pending: [preview_webui_and_end_to_end_acceptance]
+    pending: [preview_end_to_end_acceptance]
     management_contract: .trellis/spec/backend/preview-management-http.md
     default_days: 30
     configurable: true

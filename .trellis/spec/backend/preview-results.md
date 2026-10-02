@@ -7,12 +7,14 @@ normalized review results and conditional completion. The migration and compatib
 repository ship together. Runtime startup/retention is composed in Server/CLI; public
 historical read API is owned by [Preview HTTP](./preview-http.md), submission/resume
 by [Preview Submission HTTP](./preview-submission-http.md) and cancel/delete by
-[Preview Management HTTP](./preview-management-http.md). Client screens remain E3;
+[Preview Management HTTP](./preview-management-http.md). Client screens are owned
+by [Historical Preview WebUI](../frontend/preview-panel.md);
 a completed preview is not a write approval.
 Owners: `crates/collector-core/src/preview_results.rs`,
 `crates/collector-storage/src/preview_results.rs` and their `tests.rs`.
 [Single-attempt execution](./preview-runner.md) consumes these operations internally;
-startup composition and public API/thin clients are implemented; screens remain pending.
+startup composition, public API/thin clients and screens are implemented;
+final mock restart/resume acceptance remains pending.
 The [owned runtime](./preview-runtime.md) adds bounded explicit admission and
 cancel/delete/shutdown/startup/retention and shared authenticated dispatch.
 

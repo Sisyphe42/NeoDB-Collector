@@ -5,6 +5,7 @@ import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
+import { runPreviewUiSmoke } from './preview-ui-smoke.mjs';
 
 const directory = await mkdtemp(join(tmpdir(), 'collector-smoke-'));
 const binary = resolve(`target/debug/collector${process.platform === 'win32' ? '.exe' : ''}`);
@@ -230,8 +231,12 @@ try {
   await page.screenshot({ path: 'test-results/status-mobile.png', fullPage: true });
   assert.equal(await page.evaluate(() => localStorage.length), 0);
   assert.equal(await page.evaluate(() => sessionStorage.length), 0);
+  await runPreviewUiSmoke(page);
   await page.reload();
   await page.getByText('已授权', { exact: true }).waitFor();
+  assert.equal(await page.getByLabel('已有任务 ID', { exact: true }).inputValue(), '');
+  assert.equal(await page.getByLabel('保存的配置 ID', { exact: true }).inputValue(), '');
+  assert.equal(await page.getByLabel('CSV 文件（UTF-8，最大 10 MiB）').inputValue(), '');
   await page.getByRole('button', { name: '读取并替换表单' }).click();
   await page.getByText('已读取 v2；替换了上方表单，配置文本仍保留。', { exact: true }).waitFor();
   assert.equal(await page.getByLabel('评分即看完（需主动开启）').isChecked(), true);

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NeoDbPanel } from './NeoDbPanel.js';
 import { MappingPanel } from './MappingPanel.js';
+import { PreviewPanel } from './PreviewPanel.js';
 import { AccessClientError, type AccessClient, type PairedClient, type SessionView, type PairingLink } from '@neodb-collector/core-client';
 
 function message(error: unknown) {
@@ -9,7 +10,7 @@ function message(error: unknown) {
   if (code === 'auth_rate_limited') return '操作过于频繁，请等待一分钟后重试。';
   return '操作未确认成功。请检查服务连接后刷新状态，不要重复兑换旧链接。';
 }
-export function AccessPanel({ client, initialSession }: { client: AccessClient; initialSession: Promise<SessionView> }) {
+export function AccessPanel({ client, initialSession, previewAvailable = false }: { client: AccessClient; initialSession: Promise<SessionView>; previewAvailable?: boolean }) {
   const [session, setSession] = useState<SessionView>();
   const [clients, setClients] = useState<PairedClient[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,6 +48,7 @@ export function AccessPanel({ client, initialSession }: { client: AccessClient; 
     {session && <>
       <NeoDbPanel client={client} />
       <MappingPanel client={client} />
+      {previewAvailable && <PreviewPanel client={client} />}
       <p className="access-hint">以下配对授权用于连接本地客户端，独立于 NeoDB 账户授权。</p>
       <form onSubmit={event => { event.preventDefault(); setLink(undefined); void act(async () => setLink(await client.createPairing({ clientName: name, clientKind: kind }))); }}>
         <label>客户端名称<input value={name} maxLength={80} required onChange={event => setName(event.target.value)} /></label>

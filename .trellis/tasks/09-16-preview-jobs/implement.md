@@ -16,6 +16,14 @@ than silently substituting a different model. This does not remove review gates.
 
 ## Activation gate
 
+E3b checkpoint (2026-10-03): Sol/medium owns WebUI PreviewPanel and focused tests,
+minimal AccessPanel integration and preview-only CSS. Main owns design/specs,
+mock Chromium smoke, independent review, full verification and commit. Read E3b
+design, frontend webui-boundaries/mapping-editor, backend preview-http/submission/
+management and repository-layout. No new API/dependencies, source/personal writes,
+recursive delegation or agent commits. Keep connectorIds empty and final mock
+restart/resume integration acceptance pending. Scoped lint/typecheck/test first.
+
 E3a checkpoint (started 2026-10-02, verified 2026-10-03): Sol/medium owns CLI command parsing,
 client preview HTTP methods/output and Rust tests only. Main owns persisted
 design/specs, independent review, real-process smoke, full verification and commit.
@@ -564,9 +572,9 @@ Keep this child active, personal writes disabled and connectorIds empty until E3
 - [x] Define domain DTOs and executable API contract; regenerate schemas/TS validators.
 - [x] Add guarded import/status/results/cancel/resume/delete routes, body and
   pagination caps; test session CSRF, Bearer scopes, invalid input and redaction.
-- [ ] Add thin shared client, CLI commands and WebUI progress/diff/review controls.
+- [x] Add thin shared client, CLI commands and WebUI progress/diff/review controls.
   - [x] E3a: Thin CLI import/status/one-page results/cancel/resume/delete commands.
-  - [ ] E3b: WebUI upload/progress/field-diff/explicit management controls.
+  - [x] E3b: WebUI upload/progress/field-diff/explicit management controls.
 - [ ] Test generated-response validation, loading/error/cancellation flows and
   end-to-end CSV -> preview -> restart -> resume -> delete with mock NeoDB.
 - [ ] Enable truthful capability reporting only for delivered operations.
@@ -597,6 +605,31 @@ disabled. E3b WebUI, mock restart/resume end-to-end and broader child/parent
 acceptance remain pending. Keep this child active, not archived.
 
 ## Verification gates
+
+E3b verification (2026-10-03): Sol/medium implemented the session-only preview
+panel, focused tests, AccessPanel integration and responsive styles. Main owns
+the exact six-route capability gate, immutable selection/raw-BOM Chromium mock,
+all-outcome evidence, cancel/resume/delete and missing-route/reload checks, plus
+spec/README alignment. A separate read-only Sol/medium review identified stale
+rejection/finalization and observation-vs-action races. Main added synchronous
+inspection abort, matching generation/abort guards on every completion path and
+a regression proving abort precedes dispatch even when the old port returns
+attempt 99. Reviewer spot-check found no remaining actionable issue.
+
+Main's full `pnpm verify` after the final code/test changes passed with
+`CARGO_BUILD_JOBS=1`: 273 Rust unit tests, two compile-fail doctests, 63 TS/UI
+tests (18 new), workspace fmt/Clippy, non-mutating generated contract drift,
+dependency boundaries, lint/typecheck, WebUI/CLI builds and actual local CLI/
+HTTP/session/pairing/revocation/browser smoke. Product YAML/34 evidence IDs and
+references and `git diff --check` passed. Desktop/mobile status and preview
+screenshots were visually inspected; no horizontal overflow or browser storage.
+No real account/keychain/native fetch, dependency, migration or API change.
+Preview browser flows use schema-validated mocks and the actual shared client;
+they do not prove backend restart/resume integration. No mutation retries,
+fabricated percentages, manual-confirmation endpoint or personal/source writes.
+E3a/E3b client delivery is complete; final mock CSV -> restart -> fresh resume ->
+delete and broader child/parent acceptance remain pending. Keep this child active
+and connectorIds empty rather than archiving or marking all PRD criteria complete.
 
 For each slice run scoped Rust tests and formatting while iterating, then before
 handoff/commit run `pnpm verify` (workspace Rust tests, Clippy, generated contract

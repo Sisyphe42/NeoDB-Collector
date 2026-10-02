@@ -620,6 +620,44 @@ injected shutdown/fakes. Run the full gate and keep public delivery E pending.
 
 ## 5. API and clients (later checkpoints)
 
+### E3b historical WebUI preview
+
+Add a session-only PreviewPanel through the existing shared AccessClient. Select
+a local UTF-8 CSV (10 MiB maximum, fatal decoding preserving BOM) and explicitly
+enter a saved profile ID/version. Core validates that exact immutable revision;
+the latest-profile GET must not silently replace a requested older version. No
+CSV parser, persistence, default selection, model, dependency or API change.
+
+Preserve the existing blue-grey console tokens (#243341 text, #607384 secondary,
+#f3f6f8 canvas, #ffffff paper, #dbe3e9 borders, #26775f connection), Bahnschrift
+headings, Segoe UI body and Cascadia Code data. Use stacked import/inspection
+sections and per-record evidence/field-diff cards rather than a mobile-wide table.
+The signature is explicit suggestion vs Known/Empty/Unknown sink comparisons;
+no new hero, color scheme, font download, decorative animation or redesign.
+
+Keep drafts, current job ID and CSV transient. Users can reopen a known job ID;
+there is no list API. Poll queued/running jobs at bounded nonoverlapping cadence,
+stop on error/terminal/unmount, and guard abort/stale responses. Read one explicit
+attempt-bound ordinal page at a time; empty/sparse pages do not prove completion
+or hasMore, and progress means actual lifecycle/counts rather than percentage.
+Every result remains historical/non-executable even with current binding. Show
+all outcome kinds, identity claims, provenance, times and every field decision;
+review is inspection only because manual selection has no public API yet.
+
+Mutations occur only on user action, serialized and attempt-bound; no effect or
+StrictMode may submit/resume/cancel/delete. Reconcile applied=false and uncertain
+mutations with status, never fabricate state or retry. Admission errors with a
+validated ID retain it for inspection; lost receipts without ID remain unknown.
+Deletion requires explicit confirmation and only removes operational history.
+Warn that public catalog creation is possible but personal/source state is never
+written. Logout unmounts and aborts observation, not accepted Core work.
+
+Sol/medium owns PreviewPanel, its focused tests, minimal AccessPanel integration
+and preview-only CSS. Main owns task/spec changes, mock Chromium smoke, review,
+full validation and commit. No recursive delegation or agent commits. This
+checkpoint does not advertise connectorIds or close final mock restart/resume
+acceptance; all tests avoid actual accounts, keychains and native catalog fetch.
+
 ### E3a thin CLI preview commands
 
 Deliver CLI before WebUI as an independently verifiable checkpoint. Reuse the

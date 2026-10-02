@@ -7,7 +7,9 @@ real record producer in `crates/collector-core/src/preview_runner.rs`. It execut
 one explicitly invoked existing attempt, not an automatic background scheduler.
 Server [owned runtime](./preview-runtime.md) provides internal admission/cancellation;
 startup/recovery and retention configuration are wired through Server/CLI;
-public API/thin clients are implemented; screens/CLI commands remain E3. No new dependency,
+public API/thin clients, [CLI commands](./cli-preview.md) and
+[screens](../frontend/preview-panel.md) are implemented; final end-to-end acceptance
+remains pending. No new dependency,
 migration or public capability. Tests live in `src/preview_runner/tests.rs`.
 
 ## 2. Signatures

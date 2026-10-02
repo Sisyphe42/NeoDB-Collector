@@ -9,7 +9,9 @@ restart interruption and periodic retention cleanup. Public API/client delivery
 is owned by [Preview HTTP](./preview-http.md) and
 [Preview Management HTTP](./preview-management-http.md). E2b1 adds owned internal
 submission/resume; public CSV upload/resume is owned by
-[Preview Submission HTTP](./preview-submission-http.md), screens remain E3. No new runtime
+[Preview Submission HTTP](./preview-submission-http.md); screens are owned by
+[Historical Preview WebUI](../frontend/preview-panel.md). Final end-to-end acceptance
+remains pending. No new runtime
 dependency or migration.
 
 ## 2. Signatures

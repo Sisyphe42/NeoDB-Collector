@@ -72,3 +72,33 @@ code, dd { font-family: "Cascadia Code", "SFMono-Regular", Consolas, "Microsoft 
 @media (max-width: 640px) { .mapping-meta { grid-template-columns: 1fr; gap: 12px; } .mapping-rule { padding: 14px 12px; } .mapping-flow { grid-template-columns: minmax(0,1fr) 18px minmax(0,2fr); font-size: 12px; } .mapping-actions button { flex: 1 1 auto; } }
 @media (max-width: 640px) { .access-panel form > label { width: 100%; } .client-list li { align-items: flex-start; flex-direction: column; } }
 @media (max-width: 640px) { main { padding: 0 22px; } .masthead { height: 76px; } .intro { padding-top: 36px; } .status-panel { padding: 22px 18px; flex-direction: column; align-items: stretch; gap: 20px; } .status-panel button { align-self: flex-start; margin-left: 23px; } .details { grid-template-columns: 1fr; gap: 30px; margin-top: 34px; } footer { flex-direction: column; margin-top: 40px; } }
+
+/* Historical preview is an inspection surface, not a write/review workflow. */
+.preview-panel { margin: 30px 0; padding: 22px 0; border-block: 1px solid #dbe3e9; }
+.preview-panel h3, .preview-panel h4, .preview-panel h5 { font-family: "Bahnschrift", "Microsoft YaHei", sans-serif; margin: 0; }
+.preview-warning { background: #fff; border-left: 3px solid #8196a8; padding: 14px 16px; color: #607384; font-size: 13px; }
+.preview-notice { color: #26775f; font-size: 13px; }
+.preview-import fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.preview-import legend { font-size: 14px; font-weight: 600; padding: 0; }
+.preview-form-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(130px, .7fr); gap: 14px; align-items: end; margin-top: 16px; }
+.access-panel .preview-open, .access-panel .preview-page-form { display: flex; align-items: end; gap: 12px; margin: 20px 0; }
+.preview-open label { flex: 1; }
+.preview-job { margin-top: 24px; padding: 18px 20px; background: #fff; border: 1px solid #dbe3e9; }
+.preview-history { color: #607384; font-size: 12px; }
+.preview-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.preview-page-form label { flex: 0 1 180px; }
+.preview-page { margin-top: 24px; }
+.preview-result { background: #fff; border-left: 3px solid #8196a8; padding: 18px 20px; margin: 12px 0; min-width: 0; overflow-wrap: anywhere; }
+.preview-result dl, .preview-catalog dl, .preview-field dl { margin-top: 10px; }
+.preview-identities { margin-top: 14px; font-size: 12px; }
+.preview-identities ul { margin: 6px 0; padding-left: 20px; }
+.preview-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-top: 14px; }
+.preview-field, .preview-candidate { border: 1px solid #dbe3e9; padding: 14px; min-width: 0; }
+.preview-result a { color: #243341; overflow-wrap: anywhere; }
+@media (max-width: 720px) {
+  .preview-form-grid { grid-template-columns: 1fr; }
+  .access-panel .preview-open, .access-panel .preview-page-form { align-items: stretch; flex-direction: column; }
+  .preview-open label, .preview-page-form label { width: 100%; flex-basis: auto; }
+  .preview-actions button, .preview-open button, .preview-page-form button { width: 100%; }
+  .preview-job, .preview-result { padding: 15px 12px; }
+}

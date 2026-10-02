@@ -16,17 +16,15 @@ than silently substituting a different model. This does not remove review gates.
 
 ## Activation gate
 
-E2b2 next checkpoint (2026-10-02): Sol/medium owns Domain DTOs, Server upload/
-resume/type-erased submission dispatch, Rust tests, minimal CLI composition and
-existing workspace dependency/export registration. Main owns planning/specs,
-generated contracts, consumer mock/smoke integration, review/full verification and
-commit. Luna/max subsequently owns thin TS methods/error/exports/tests only.
-No parallel Cargo commands, recursive delegation or sub-agent commits. Required
-HTTP tests include authentication before body polling, chunked/exact/+1 byte caps,
-strict query/content type, CSV validation/skip counts and no raw persistence,
-immutable selection/full binding, truthful 202/admission failures with IDs,
-queue-full no mutation, attempt/resume eligibility and fresh owned execution.
-E3 client screens/end-to-end and PRD completion remain pending.
+E3a checkpoint (started 2026-10-02, verified 2026-10-03): Sol/medium owns CLI command parsing,
+client preview HTTP methods/output and Rust tests only. Main owns persisted
+design/specs, independent review, real-process smoke, full verification and commit.
+Read the E3a design and cli-client, foundation-runtime, preview HTTP/submission/
+management and repository-layout contracts. Reuse existing dependencies and
+Domain DTOs, no Core/Server/Storage/API/TS/UI changes, recursive delegation or
+sub-agent commits. Cargo commands remain serial. Report scoped CLI tests/fmt/
+Clippy, then stop edits/builds before main's gate. WebUI and end-to-end PRD
+completion remain pending, personal writes disabled and connectorIds empty.
 
 - [x] Inspect parent approval, implemented adapters and owning product contracts.
 - [x] Complete child design and ordered execution plan without expanding product scope.
@@ -567,10 +565,36 @@ Keep this child active, personal writes disabled and connectorIds empty until E3
 - [x] Add guarded import/status/results/cancel/resume/delete routes, body and
   pagination caps; test session CSRF, Bearer scopes, invalid input and redaction.
 - [ ] Add thin shared client, CLI commands and WebUI progress/diff/review controls.
+  - [x] E3a: Thin CLI import/status/one-page results/cancel/resume/delete commands.
+  - [ ] E3b: WebUI upload/progress/field-diff/explicit management controls.
 - [ ] Test generated-response validation, loading/error/cancellation flows and
   end-to-end CSV -> preview -> restart -> resume -> delete with mock NeoDB.
 - [ ] Enable truthful capability reporting only for delivered operations.
 - [ ] Commit coherent API/client checkpoints after their full validation.
+
+E3a verification (2026-10-03): Sol/medium implemented the six thin CLI commands,
+raw bounded file/stdin import, shared origin/health/OS-token preflight, exact
+Domain DTOs, generation-aware mutations, bounded response checks and focused
+loopback/fake-credential tests. Scoped CLI 28 tests, fmt and Clippy passed.
+Main reviewed all production/tests, strengthened independent invariant cases,
+otherwise-valid exact/+1 response caps, sparse paging and output preservation,
+and added path-normalization refusal, strict operation status codes, preflight
+ordering, unknown-error redaction and control/bidi output roundtrip tests.
+Final CLI count is 32 tests (17 new); no raw CSV persistence or client-side parser.
+
+Main's final `pnpm verify` after the last rendering change passed with
+`CARGO_BUILD_JOBS=1`: 273 Rust unit tests, two compile-fail doctests, 45 TS/UI
+tests, workspace fmt/Clippy, non-mutating generated contract drift, dependency
+boundaries, lint/typecheck, WebUI/CLI builds and actual CLI/HTTP/session/pairing/
+revocation/desktop-mobile Chromium smoke. Product YAML/34 evidence IDs and
+references and `git diff --check` passed. Real-process checks exercise shipped
+command help and syntax/unsafe-origin refusal before native keychain access;
+successful preview commands use loopback fixtures and fake credentials.
+No live NeoDB/native-fetch, real account or OS credential operation, dependency,
+migration, Core/Storage/Server/API/generated/TS/UI change. Specs and README now
+describe delivered CLI behavior; connectorIds remains empty and personal writes
+disabled. E3b WebUI, mock restart/resume end-to-end and broader child/parent
+acceptance remain pending. Keep this child active, not archived.
 
 ## Verification gates
 

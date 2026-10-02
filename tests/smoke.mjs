@@ -20,6 +20,42 @@ try {
   const badStatus = spawnSync(binary, ['status', '--core-url', 'https://example.com', '--format', 'json'], { env, encoding: 'utf8' });
   assert.equal(badStatus.status, 1);
   assert.equal(JSON.parse(badStatus.stdout).code, 'core_url_invalid');
+  // Exercise the shipped command tree without invoking the native keychain.
+  const previewHelp = spawnSync(binary, ['preview', '--help'], { env, encoding: 'utf8' });
+  assert.equal(previewHelp.status, 0);
+  for (const command of ['status', 'results', 'cancel', 'resume', 'delete']) {
+    assert(previewHelp.stdout.includes(command));
+  }
+  const importHelp = spawnSync(binary, ['import', 'imdb-ratings', '--help'], { env, encoding: 'utf8' });
+  assert.equal(importHelp.status, 0);
+  assert(importHelp.stdout.includes('--profile-id'));
+  assert(importHelp.stdout.includes('--profile-version'));
+  for (const command of [
+    ['import', 'imdb-ratings', '-', '--profile-id', 'imdb_ratings', '--profile-version', '1'],
+    ['preview', 'status', 'job:smoke'],
+    ['preview', 'results', 'job:smoke', '--attempt', '1', '--offset', '0', '--limit', '50'],
+    ['preview', 'cancel', 'job:smoke', '--expected-attempt', '1'],
+    ['preview', 'resume', 'job:smoke', '--expected-attempt', '1'],
+    ['preview', 'delete', 'job:smoke'],
+  ]) {
+    const denied = spawnSync(binary, [...command, '--core-url', 'https://example.com', '--format', 'json'], {
+      env, input: 'Const,Your Rating,Title Type\n', encoding: 'utf8', timeout: 5000,
+    });
+    assert.equal(denied.status, 1, denied.stderr || denied.stdout);
+    assert.equal(JSON.parse(denied.stdout).code, 'core_url_invalid');
+    assert(!denied.stdout.includes('Const,Your Rating'));
+  }
+  for (const command of [
+    ['import', 'imdb-ratings', '-', '--profile-id', 'imdb_ratings'],
+    ['import', 'imdb-ratings', '-', '--profile-id', 'imdb_ratings', '--profile-version', '0'],
+    ['preview', 'results', 'job:smoke'],
+    ['preview', 'results', 'job:smoke', '--attempt', '1', '--limit', '101'],
+    ['preview', 'cancel', 'job:smoke'],
+    ['preview', 'resume', 'job:smoke', '--expected-attempt', '0'],
+  ]) {
+    const denied = spawnSync(binary, command, { env, encoding: 'utf8', timeout: 5000 });
+    assert.equal(denied.status, 2, denied.stderr || denied.stdout);
+  }
   const doctor = spawnSync(binary, ['doctor', '--format', 'json', ...args], { env, encoding: 'utf8' });
   assert.equal(doctor.status, 0, doctor.stderr || doctor.stdout);
   assert.equal(JSON.parse(doctor.stdout).ok, true);

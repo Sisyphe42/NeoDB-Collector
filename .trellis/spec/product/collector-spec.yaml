@@ -199,7 +199,7 @@ service:
   implementation_status:
     milestone: preview_auth
     implemented_hosts: [cli_with_webui]
-    implemented_commands: [serve, doctor, pair, status]
+    implemented_commands: [serve, doctor, pair, status, import_imdb_ratings, preview_status, preview_results, preview_cancel, preview_resume, preview_delete]
     implemented_routes: [webui, health, capabilities, schema, session_bootstrap, session, pairings, pairing_exchange, clients, client_identity, neodb_settings, neodb_oauth, neodb_oauth_callback, mapping_validate, mapping_get, mapping_save, mapping_default, mapping_convert, preview_get, preview_results, preview_cancel, preview_delete, imdb_ratings_import, preview_resume]
     connector_ids: []
     writes_enabled: false
@@ -207,7 +207,7 @@ service:
     config: yaml_v1_cli_over_env_over_file_over_defaults
     exposure: loopback_only
     authentication: webui_session_csrf_and_transactional_client_pairing
-    pending: [general_imports, preview_cli_and_webui]
+    pending: [general_imports, preview_webui_and_end_to_end_acceptance]
     code_contract: .trellis/spec/backend/foundation-runtime.md
   routes:
     webui: /
@@ -279,7 +279,7 @@ storage:
   preview_retention:
     status: approved_for_imdb_preview_milestone
     implementation: internal_job_results_owned_submit_resume_and_runtime_retention
-    pending: [public_submission_resume_and_clients]
+    pending: [preview_webui_and_end_to_end_acceptance]
     management_contract: .trellis/spec/backend/preview-management-http.md
     default_days: 30
     configurable: true

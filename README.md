@@ -1,6 +1,6 @@
 # NeoDB Collector
 
-本地优先的媒体记录采集与同步工具。目前已实现基础服务及 IMDb CSV 的只读预览 API，**导入/预览界面与同步写入尚未开放**。当前产品方向是只读来源平台、写入 NeoDB；后续客户端与平台通过独立适配器扩展。
+本地优先的媒体记录采集与同步工具。目前已实现基础服务、IMDb CSV 的只读预览 API 和 CLI 命令，**预览 WebUI 与同步写入尚未开放**。当前产品方向是只读来源平台、写入 NeoDB；后续客户端与平台通过独立适配器扩展。
 
 ## 运行
 
@@ -41,7 +41,7 @@ cargo run --locked -p collector-cli -- serve --port 19424 --data-dir ./local-dat
 
 YAML 使用 `schema_version: 1`，其中相对路径相对 YAML 文件目录；CLI/环境变量相对路径相对工作目录。只允许 loopback IP（含 `::1`）；不接受公网/LAN 地址或主机名。端口 `0` 表示系统分配空闲端口，实际地址输出在 stderr。
 
-预览保留期为正整数天数，仅用于新任务，不改变已有任务的到期时间。预览运行时已接入启动恢复和每分钟清理，历史任务/结果读取、CSV 上传、恢复及取消/删除 API 已开放；导入命令及预览 UI 尚未开放。重启不会自动重跑任务。清理失败会明确报错并停止服务。`doctor` 不恢复或清理预览任务。
+预览保留期为正整数天数，仅用于新任务，不改变已有任务的到期时间。预览运行时已接入启动恢复和每分钟清理，历史任务/结果读取、CSV 上传、恢复及取消/删除 API 和 CLI 命令已开放；预览 UI 尚未开放。重启不会自动重跑任务。清理失败会明确报错并停止服务。`doctor` 不恢复或清理预览任务。
 
 同一数据目录只能由一个 `serve` 进程使用，即使选择不同端口。服务通过 `collector.serve.lock` 文件持有系统锁，退出后自动释放；不要在运行期间删除该文件。
 
@@ -94,6 +94,31 @@ status 确认本地客户端认证，不表示 NeoDB 已授权。
 
 每个 Core 地址保存一个当前 CLI 令牌；重新配对会替换本地选择，旧客户端可在 WebUI 撤销。
 若兑换成功但令牌保存失败，命令会提示在 WebUI 撤销该客户端并重新配对；不会将令牌写入文件或输出。
+
+## CLI 导入与预览
+
+先在 WebUI 完成 NeoDB 只读授权、保存禁用的 IMDb 映射版本，并为 CLI 配对。
+以下命令默认连接 `http://127.0.0.1:19423`；不同端口用 `--core-url` 指定。
+
+```sh
+collector import imdb-ratings ratings.csv --profile-id imdb_ratings --profile-version 1 --format json
+collector preview status JOB_ID --format json
+collector preview results JOB_ID --attempt 1 --offset 0 --limit 50 --format json
+collector preview cancel JOB_ID --expected-attempt 1 --format json
+collector preview resume JOB_ID --expected-attempt 1 --format json
+collector preview delete JOB_ID --format json
+```
+
+`FILE` 为文件路径或 `-`（管道标准输入），最多 10 MiB；CLI 原样发送 CSV，不自行解析。
+配置版本、结果 attempt、取消/恢复的 expected-attempt 必须显式指定。
+上传/恢复回执只表示接收成功，不表示处理完成；取消/删除返回实际 `applied` 值。
+结果每次只读取一页，offset 是原始记录序号；运行中空页不表示完成。
+历史证据包含字段建议、既有值及未知/空值区别，不是写入许可。
+
+CLI 不自动轮询或重试；上传/恢复失败若带 `jobId`、`attempt`，请查询真实状态。
+响应丢失也不意味着回滚。预览可能创建公共目录条目，但不会修改个人标记或来源平台。
+`--format json` 输出 API DTO，成功退出 0（包括 `applied=false`），失败退出 1；参数语法错误退出 2。
+客户端命令不读取服务 YAML/环境配置，也不读取数据库或保存原始 CSV。
 
 ## 开发与验证
 

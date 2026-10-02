@@ -30,6 +30,7 @@ The runnable foundation, local session/pairing, NeoDB OAuth HTTP/UI and CLI pair
 | [Internal Secret Values](./internal-secrets.md) | SecretString ports, explicit exposure and unchanged wire/credential boundaries |
 | [OAuth HTTP and WebUI](./oauth-http.md) | Session/CSRF routes, cookie-free callback and generated client |
 | [CLI Client](./cli-client.md) | Stdin pairing, OS-stored client token and authenticated status |
+| [CLI Preview](./cli-preview.md) | Thin bounded raw CSV upload, historical status/pages and explicit generation-aware management |
 | [Repository Layout and Dependency Boundaries](./repository-layout.md) | Monorepo directories, workspace ownership, dependency direction, and release isolation |
 
 ## Pre-Development / Quality Check

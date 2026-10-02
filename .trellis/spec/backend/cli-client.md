@@ -6,6 +6,9 @@ Implemented in collector-cli/src/client.rs. It is a thin versioned HTTP client,
 using domain wire DTOs and the OS credential adapter. No Core database access,
 browser sessions or administration rights are involved.
 
+Import and historical preview commands reuse this client's origin/health/credential
+boundary; their signatures and safety rules live in [CLI Preview](./cli-preview.md).
+
 ## 2. Signatures
 
 - `collector pair [--name "Collector CLI"] [--format human|json]`: reads a URI from stdin.
@@ -42,6 +45,8 @@ only for validation and Bearer encoding. Public reports and API DTOs are unchang
 
 HTTP uses no proxies, no redirects, 10-second request timeout and 64-KiB decoded
 response cap. Upstream bodies and transport errors are not echoed.
+The shared builder explicitly uses `reqwest::retry::never()`; reqwest's default
+protocol-nack retry is not the CLI's mutation policy.
 Pair/status use their explicit endpoint inputs; serve/doctor config is not loaded.
 
 ## 4. Validation & Error Matrix

@@ -620,6 +620,58 @@ injected shutdown/fakes. Run the full gate and keep public delivery E pending.
 
 ## 5. API and clients (later checkpoints)
 
+### E3a thin CLI preview commands
+
+Deliver CLI before WebUI as an independently verifiable checkpoint. Reuse the
+existing CLI literal-loopback origin, health compatibility preflight, OS-stored
+per-origin Bearer credential and bounded no-proxy/no-redirect reqwest client.
+No direct database reads, source parsing, matching, planning or new dependency.
+
+Library review: the already locked reqwest 0.12.28 implements default retry of
+protocol nacks; its published source `src/retry.rs` documents
+`reqwest::retry::never()` as the disabling policy. Set that on the existing shared
+CLI HTTP builder instead of adding a custom retry wrapper. No new version,
+feature, license or platform capability; the existing bounded response collection
+and no-proxy/no-redirect guards remain. Primary source:
+https://docs.rs/reqwest/0.12.28/reqwest/retry/fn.never.html.
+
+Commands are `import imdb-ratings FILE --profile-id ID --profile-version N`
+and `preview status|results|cancel|resume|delete ID`, with `--core-url` and
+`--format human|json`. Results require `--attempt`, use explicit ordinal
+`--offset`/`--limit` (1..100), and fetch exactly one page, never infer completion
+from an empty page. Cancel/resume require explicit `--expected-attempt`.
+No automatic polling, resume or mutation retry. Status reports the server's
+lifecycle/binding/counts, not a fabricated percentage or fresh snapshot.
+
+FILE is a path or `-` for noninteractive stdin. Collect at most 10 MiB plus one
+sentinel byte using standard bounded Read, send original bytes as text/csv;
+Core owns UTF-8/CSV validation. Do not persist/copy/log raw data or its path.
+Use 30-second bounded preview requests (Server has a strict ten-second budget),
+64 KiB response caps except results (existing 8 MiB HTTP cap). Deserialize Domain
+wire DTOs with strict serde shapes and check semantic safety/echoed request
+identity, positive generations, limits and historical/non-executable invariants.
+Never hand-maintain parallel wire types or a general schema parser.
+Reject any composed URL whose normalized path differs from the intended route;
+an ASCII-valid `.`/`..` job ID is not a safe URL path segment. This is a thin HTTP
+guard, not a change to shared Domain identifier grammar or profile query IDs.
+
+Successful commands return the actual Domain receipt/view/page/mutation DTO,
+exit 0; 202 means durable admission only and applied=false is not an exception.
+Admission failures preserve validated job ID/attempt in the existing Domain
+failure envelope, exit 1; errors have static sanitized diagnostics and never echo
+upstream messages/bodies/credentials. Lost responses do not prove rollback or
+permit retry. Human output states historical/non-executable and public catalog
+creation boundaries; render data through JSON escaping to avoid terminal control
+injection, retain every field diff, Known/Empty/Unknown and evidence claim.
+
+Tests use injected fake credential stores and loopback HTTP only: exact raw bytes,
+immutable query revision, all command methods/envelopes/one-page queries,
+authenticated reads, success/refusal/error/ambiguous admission, invalid DTOs,
+identity/attempt mismatches, strict CLI flags, input and response bounds,
+redirect/version/auth denial and sanitized output. No native keychain/account.
+WebUI screens, mock restart/resume end-to-end and runnable connectorIds remain
+pending until E3b/final acceptance; no public API/schema migration is required.
+
 ### E1 read-only job inspection before submission/client screens
 
 Expose GET `/api/v1/previews/{id}` and GET

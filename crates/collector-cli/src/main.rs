@@ -46,6 +46,82 @@ enum Command {
         #[arg(long, value_enum, default_value = "human")]
         format: Format,
     },
+    /// Submit an import to Core without changing source or personal NeoDB state.
+    Import {
+        #[command(subcommand)]
+        command: ImportCommand,
+    },
+    /// Inspect or explicitly manage historical preview jobs.
+    Preview {
+        #[command(subcommand)]
+        command: PreviewCommand,
+    },
+}
+
+#[derive(Subcommand)]
+enum ImportCommand {
+    /// Submit raw IMDb ratings CSV bytes for a saved mapping revision.
+    ImdbRatings {
+        /// CSV path, or '-' for piped standard input.
+        file: String,
+        #[arg(long, value_parser = client::preview::parse_id)]
+        profile_id: String,
+        #[arg(long, value_parser = clap::value_parser!(u32).range(1..))]
+        profile_version: u32,
+        #[arg(long, default_value = "http://127.0.0.1:19423")]
+        core_url: String,
+        #[arg(long, value_enum, default_value = "human")]
+        format: Format,
+    },
+}
+
+#[derive(Subcommand)]
+enum PreviewCommand {
+    /// Inspect historical preview job metadata.
+    Status(PreviewCommon),
+    /// Fetch exactly one ordered historical result page.
+    Results {
+        #[arg(value_parser = client::preview::parse_id)]
+        id: String,
+        #[arg(long, value_parser = clap::value_parser!(u32).range(1..))]
+        attempt: u32,
+        #[arg(long, default_value_t = 0)]
+        offset: u32,
+        #[arg(long, default_value_t = 50, value_parser = clap::value_parser!(u32).range(1..=100))]
+        limit: u32,
+        #[arg(long, default_value = "http://127.0.0.1:19423")]
+        core_url: String,
+        #[arg(long, value_enum, default_value = "human")]
+        format: Format,
+    },
+    /// Explicitly cancel one attempt; false is a successful refusal result.
+    Cancel(PreviewAttempt),
+    /// Explicitly resume from one current retained attempt.
+    Resume(PreviewAttempt),
+    /// Explicitly delete local preview operational state and history.
+    Delete(PreviewCommon),
+}
+
+#[derive(clap::Args)]
+struct PreviewCommon {
+    #[arg(value_parser = client::preview::parse_id)]
+    id: String,
+    #[arg(long, default_value = "http://127.0.0.1:19423")]
+    core_url: String,
+    #[arg(long, value_enum, default_value = "human")]
+    format: Format,
+}
+
+#[derive(clap::Args)]
+struct PreviewAttempt {
+    #[arg(value_parser = client::preview::parse_id)]
+    id: String,
+    #[arg(long, value_parser = clap::value_parser!(u32).range(1..))]
+    expected_attempt: u32,
+    #[arg(long, default_value = "http://127.0.0.1:19423")]
+    core_url: String,
+    #[arg(long, value_enum, default_value = "human")]
+    format: Format,
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -336,6 +412,90 @@ async fn main() -> ExitCode {
             client::status(&core_url, &collector_storage::credentials::OsSecretStore).await,
             format,
         ),
+        Command::Import { command } => match command {
+            ImportCommand::ImdbRatings {
+                file,
+                profile_id,
+                profile_version,
+                core_url,
+                format,
+            } => {
+                let secrets = collector_storage::credentials::OsSecretStore;
+                let result =
+                    match client::preview::PreviewClient::connect(&core_url, &secrets).await {
+                        Ok(client) => match client::preview::read_import_file(&file) {
+                            Ok(bytes) => {
+                                client
+                                    .import_imdb_ratings(bytes, &profile_id, profile_version)
+                                    .await
+                            }
+                            Err(error) => Err(error.into()),
+                        },
+                        Err(error) => Err(error.into()),
+                    };
+                print_preview(result, format)
+            }
+        },
+        Command::Preview { command } => {
+            let secrets = collector_storage::credentials::OsSecretStore;
+            match command {
+                PreviewCommand::Status(args) => {
+                    let result =
+                        match client::preview::PreviewClient::connect(&args.core_url, &secrets)
+                            .await
+                        {
+                            Ok(client) => client.status(&args.id).await,
+                            Err(error) => Err(error.into()),
+                        };
+                    print_preview(result, args.format)
+                }
+                PreviewCommand::Results {
+                    id,
+                    attempt,
+                    offset,
+                    limit,
+                    core_url,
+                    format,
+                } => {
+                    let result =
+                        match client::preview::PreviewClient::connect(&core_url, &secrets).await {
+                            Ok(client) => client.results(&id, attempt, offset, limit).await,
+                            Err(error) => Err(error.into()),
+                        };
+                    print_preview(result, format)
+                }
+                PreviewCommand::Cancel(args) => {
+                    let result =
+                        match client::preview::PreviewClient::connect(&args.core_url, &secrets)
+                            .await
+                        {
+                            Ok(client) => client.cancel(&args.id, args.expected_attempt).await,
+                            Err(error) => Err(error.into()),
+                        };
+                    print_preview(result, args.format)
+                }
+                PreviewCommand::Resume(args) => {
+                    let result =
+                        match client::preview::PreviewClient::connect(&args.core_url, &secrets)
+                            .await
+                        {
+                            Ok(client) => client.resume(&args.id, args.expected_attempt).await,
+                            Err(error) => Err(error.into()),
+                        };
+                    print_preview(result, args.format)
+                }
+                PreviewCommand::Delete(args) => {
+                    let result =
+                        match client::preview::PreviewClient::connect(&args.core_url, &secrets)
+                            .await
+                        {
+                            Ok(client) => client.delete(&args.id).await,
+                            Err(error) => Err(error.into()),
+                        };
+                    print_preview(result, args.format)
+                }
+            }
+        }
         Command::Serve => {
             let result = match resolve(&cli.overrides) {
                 Ok(config) => serve(config).await,
@@ -370,6 +530,44 @@ async fn main() -> ExitCode {
             } else {
                 ExitCode::FAILURE
             }
+        }
+    }
+}
+
+fn print_preview<T: Serialize>(
+    result: Result<T, client::preview::PreviewFailure>,
+    format: Format,
+) -> ExitCode {
+    match result {
+        Ok(value) => {
+            let rendered = client::preview::print_json(&value);
+            match format {
+                Format::Json => println!("{rendered}"),
+                Format::Human => {
+                    println!(
+                        "Preview receipt or historical review evidence; never executable. Preview may create public catalog entries, but does not change personal NeoDB marks or source data."
+                    );
+                    println!("{rendered}");
+                }
+            }
+            ExitCode::SUCCESS
+        }
+        Err(failure) => {
+            let rendered = match failure {
+                client::preview::PreviewFailure::Error(error) => {
+                    client::preview::print_json(&error)
+                }
+                client::preview::PreviewFailure::Admission(value) => {
+                    client::preview::print_json(&value)
+                }
+            };
+            match format {
+                Format::Json => println!("{rendered}"),
+                Format::Human => eprintln!(
+                    "Preview command failed; reconcile uncertain mutations or admissions through status, and do not retry automatically:\n{rendered}"
+                ),
+            }
+            ExitCode::FAILURE
         }
     }
 }
@@ -410,6 +608,120 @@ mod tests {
         mapping::{MappingRepository, imdb_default},
         preview_jobs::{PreviewJobRepository, PreviewJobStatus, PreviewSubmission},
     };
+
+    #[test]
+    fn preview_cli_requires_explicit_positive_revisions_attempts_and_bounded_pages() {
+        for args in [
+            vec![
+                "collector",
+                "import",
+                "imdb-ratings",
+                "input.csv",
+                "--profile-id",
+                "profile:1",
+            ],
+            vec![
+                "collector",
+                "import",
+                "imdb-ratings",
+                "input.csv",
+                "--profile-id",
+                "profile:1",
+                "--profile-version",
+                "0",
+            ],
+            vec!["collector", "preview", "results", "job:1", "--offset", "0"],
+            vec!["collector", "preview", "results", "job:1", "--attempt", "0"],
+            vec![
+                "collector",
+                "preview",
+                "results",
+                "job:1",
+                "--attempt",
+                "1",
+                "--limit",
+                "101",
+            ],
+            vec![
+                "collector",
+                "preview",
+                "results",
+                "bad/id",
+                "--attempt",
+                "1",
+            ],
+            vec!["collector", "preview", "cancel", "job:1"],
+            vec![
+                "collector",
+                "preview",
+                "resume",
+                "job:1",
+                "--expected-attempt",
+                "0",
+            ],
+            vec!["collector", "preview", "status", "bad/id"],
+            vec![
+                "collector",
+                "preview",
+                "results",
+                "job:1",
+                "--attempt",
+                "4294967296",
+            ],
+            vec![
+                "collector",
+                "preview",
+                "results",
+                "job:1",
+                "--attempt",
+                "1",
+                "--offset",
+                "-1",
+            ],
+            vec![
+                "collector",
+                "preview",
+                "results",
+                "job:1",
+                "--attempt",
+                "1",
+                "--limit",
+                "0",
+            ],
+        ] {
+            assert!(Cli::try_parse_from(args).is_err());
+        }
+        assert!(
+            Cli::try_parse_from([
+                "collector",
+                "import",
+                "imdb-ratings",
+                "-",
+                "--profile-id",
+                "profile:1",
+                "--profile-version",
+                "1",
+                "--format",
+                "json"
+            ])
+            .is_ok()
+        );
+        assert!(
+            Cli::try_parse_from([
+                "collector",
+                "preview",
+                "results",
+                "job:1",
+                "--attempt",
+                "2",
+                "--offset",
+                "7",
+                "--limit",
+                "100"
+            ])
+            .is_ok()
+        );
+    }
     #[tokio::test]
     async fn doctor_reports_assets_port_and_database() {
         let dir = tempfile::tempdir().unwrap();

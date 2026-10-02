@@ -6,7 +6,8 @@ E2b2 owns authenticated IMDb CSV upload and explicit retained-job resume.
 Domain `src/preview.rs` owns wire DTOs; Server `src/preview_submission_http.rs`
 composes the existing pure CSV adapter and one runtime shared with CLI. Tests live
 in `src/preview_submission_tests.rs`. The thin generated-contract TS client
-exposes these operations; upload/resume screens and CLI commands remain E3.
+exposes these operations; [CLI commands](./cli-preview.md) are delivered in E3a,
+while upload/resume screens remain E3b.
 No source write, personal NeoDB write, migration or automatic resume is added.
 Native catalog fetch during an accepted preview may create a public catalog item.
 

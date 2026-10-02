@@ -14,6 +14,11 @@ use std::{
 };
 use url::{Host, Url};
 
+pub mod preview;
+
+#[cfg(test)]
+mod preview_tests;
+
 fn error(code: &str, message: &str) -> ApiError {
     ApiError::new(code, message)
 }
@@ -97,6 +102,7 @@ fn reference(base: &Url) -> String {
 fn http() -> Result<Client, ApiError> {
     Client::builder()
         .redirect(Policy::none())
+        .retry(reqwest::retry::never())
         .no_proxy()
         .timeout(Duration::from_secs(10))
         .build()

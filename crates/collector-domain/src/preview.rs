@@ -21,6 +21,69 @@ pub struct PreviewMutationResult {
     pub applied: bool,
 }
 
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ToSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PreviewImportSelection {
+    #[schemars(length(min = 1, max = 128), regex(pattern = r"^[A-Za-z0-9_.:-]+$"))]
+    #[schema(min_length = 1, max_length = 128, pattern = r"^[A-Za-z0-9_.:-]+$")]
+    pub profile_id: String,
+    #[schemars(range(min = 1, max = 4294967295_u64))]
+    #[schema(minimum = 1, maximum = 4294967295_u64)]
+    pub profile_version: u32,
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ToSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PreviewResumeRequest {
+    #[schemars(range(min = 1, max = 4294967295_u64))]
+    #[schema(minimum = 1, maximum = 4294967295_u64)]
+    pub expected_attempt: u32,
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ToSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PreviewAccepted {
+    #[schemars(length(min = 1, max = 128), regex(pattern = r"^[A-Za-z0-9_.:-]+$"))]
+    #[schema(min_length = 1, max_length = 128, pattern = r"^[A-Za-z0-9_.:-]+$")]
+    pub job_id: String,
+    #[schemars(range(min = 1, max = 4294967295_u64))]
+    #[schema(minimum = 1, maximum = 4294967295_u64)]
+    pub attempt: u32,
+    #[schemars(extend("const" = false))]
+    #[schema(schema_with = non_executable_schema)]
+    pub executable: bool,
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ToSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PreviewImportAccepted {
+    pub preview: PreviewAccepted,
+    #[schemars(range(min = 0, max = 10000))]
+    #[schema(minimum = 0, maximum = 10000)]
+    pub observation_count: u32,
+    #[schemars(range(min = 0, max = 10000))]
+    #[schema(minimum = 0, maximum = 10000)]
+    pub skipped_row_count: u32,
+    #[schemars(range(min = 0, max = 10485760))]
+    #[schema(minimum = 0, maximum = 10485760)]
+    pub skipped_column_count: u32,
+    #[schemars(range(min = 0, max = 10000))]
+    #[schema(minimum = 0, maximum = 10000)]
+    pub duplicate_row_count: u32,
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ToSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PreviewAdmissionFailure {
+    #[schemars(length(min = 1, max = 128), regex(pattern = r"^[A-Za-z0-9_.:-]+$"))]
+    #[schema(min_length = 1, max_length = 128, pattern = r"^[A-Za-z0-9_.:-]+$")]
+    pub job_id: String,
+    #[schemars(range(min = 1, max = 4294967295_u64))]
+    #[schema(minimum = 1, maximum = 4294967295_u64)]
+    pub attempt: u32,
+    pub error: crate::ApiError,
+}
+
 fn historical_schema() -> utoipa::openapi::schema::Object {
     utoipa::openapi::schema::ObjectBuilder::new()
         .schema_type(utoipa::openapi::schema::Type::Boolean)

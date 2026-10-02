@@ -6,7 +6,8 @@ Checkpoint D1 owns the internal Core repository and SQLite migration/adapter.
 Submission, ordered reads and guarded lifecycle changes work without a worker.
 Runtime startup/configuration is owned by Server/CLI; historical HTTP inspection
 is owned by [Preview HTTP](./preview-http.md); cancel/delete dispatch is owned by
-[Preview Management HTTP](./preview-management-http.md). Submission/resume/client screens remain E.
+[Preview Management HTTP](./preview-management-http.md). Submission/resume is owned
+by [Preview Submission HTTP](./preview-submission-http.md); client screens remain E3.
 No completed job can be produced by D1 alone; the compatible
 [D2b1 result repository](./preview-results.md) owns insertion and completion.
 [D2a single-record production](./preview-records.md) composes resolution and
@@ -15,7 +16,7 @@ transactions are owned by D2b1; runtime startup/configuration is wired through S
 [D2b2a execution](./preview-runner.md) joins these ports for one explicit attempt;
 it does not enable automatic scheduling or startup recovery.
 Server's [owned runtime](./preview-runtime.md) manages explicitly selected jobs;
-startup recovery/retention hooks are implemented; public submission remains pending.
+startup recovery/retention and authenticated public submission/resume are implemented.
 
 ## 2. Signatures
 

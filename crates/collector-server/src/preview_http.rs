@@ -39,7 +39,7 @@ pub(crate) fn routes() -> Router<AccessState> {
         .layer(DefaultBodyLimit::max(4096))
 }
 
-async fn authorize(
+pub(crate) async fn authorize(
     state: &AccessState,
     headers: &HeaderMap,
     scope: &str,
@@ -410,7 +410,7 @@ fn json_response(value: &impl serde::Serialize) -> Result<Response, HttpError> {
         .map_err(|_| unavailable())
 }
 
-fn validate_id(id: &str) -> Result<(), HttpError> {
+pub(crate) fn validate_id(id: &str) -> Result<(), HttpError> {
     if id.is_empty()
         || id.len() > 128
         || !id

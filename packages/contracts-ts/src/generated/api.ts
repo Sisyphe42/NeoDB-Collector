@@ -79,6 +79,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/imports/imdb/ratings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["import_imdb_ratings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/mapping-profiles/defaults/imdb": {
         parameters: {
             query?: never;
@@ -249,6 +265,22 @@ export interface paths {
         get: operations["results"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/previews/{id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["resume_preview"];
         delete?: never;
         options?: never;
         head?: never;
@@ -476,6 +508,19 @@ export interface components {
             /** Format: double */
             value: number;
         };
+        PreviewAccepted: {
+            /** Format: int32 */
+            attempt: number;
+            /** @enum {boolean} */
+            executable: false;
+            jobId: string;
+        };
+        PreviewAdmissionFailure: {
+            /** Format: int32 */
+            attempt: number;
+            error: components["schemas"]["ApiError"];
+            jobId: string;
+        };
         /** @enum {string} */
         PreviewBindingState: "current" | "changed" | "disconnected";
         PreviewCancelRequest: {
@@ -511,6 +556,22 @@ export interface components {
         PreviewExternalIdClaim: {
             scheme: string;
             value: string;
+        };
+        PreviewImportAccepted: {
+            /** Format: int32 */
+            duplicateRowCount: number;
+            /** Format: int32 */
+            observationCount: number;
+            preview: components["schemas"]["PreviewAccepted"];
+            /** Format: int32 */
+            skippedColumnCount: number;
+            /** Format: int32 */
+            skippedRowCount: number;
+        };
+        PreviewImportSelection: {
+            profileId: string;
+            /** Format: int32 */
+            profileVersion: number;
         };
         /** @enum {string} */
         PreviewJobStatusView: "queued" | "running" | "interrupted" | "failed" | "cancelled" | "completed";
@@ -605,6 +666,10 @@ export interface components {
             sourceConnectorId: string;
             sourceFingerprint: string;
             sourceRecordId: string;
+        };
+        PreviewResumeRequest: {
+            /** Format: int32 */
+            expectedAttempt: number;
         };
         PreviewSearchCandidateView: {
             item: components["schemas"]["PreviewCatalogItemView"];
@@ -836,6 +901,104 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthDocument"];
+                };
+            };
+        };
+    };
+    import_imdb_ratings: {
+        parameters: {
+            query: {
+                profileId: string;
+                profileVersion: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "text/csv": string;
+            };
+        };
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreviewImportAccepted"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"] | components["schemas"]["PreviewAdmissionFailure"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"] | components["schemas"]["PreviewAdmissionFailure"];
+                };
+            };
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"] | components["schemas"]["PreviewAdmissionFailure"];
+                };
+            };
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"] | components["schemas"]["PreviewAdmissionFailure"];
                 };
             };
         };
@@ -1685,6 +1848,95 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    resume_preview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreviewResumeRequest"];
+            };
+        };
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreviewAccepted"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"] | components["schemas"]["PreviewAdmissionFailure"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"] | components["schemas"]["PreviewAdmissionFailure"];
+                };
+            };
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"] | components["schemas"]["PreviewAdmissionFailure"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"] | components["schemas"]["PreviewAdmissionFailure"];
                 };
             };
         };

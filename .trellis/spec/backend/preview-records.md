@@ -10,7 +10,8 @@ shape, activation or new dependency.
 Source owners: `crates/collector-core/src/preview_records.rs` and its `tests.rs`.
 [Single-attempt execution](./preview-runner.md) invokes this producer sequentially
 for claimed jobs; [owned runtime](./preview-runtime.md) supplies admission, startup
-recovery and retention cleanup. Public integration remains pending.
+recovery and retention cleanup. Public APIs/thin clients are implemented; screens
+and CLI import commands remain pending.
 
 ## 2. Signatures
 

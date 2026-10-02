@@ -187,6 +187,8 @@ struct ControlledJobs {
     mode: AtomicU8,
     mutations: AtomicUsize,
     entered: tokio::sync::Notify,
+    committed: tokio::sync::Notify,
+    commit_held: AtomicBool,
     gate: tokio::sync::Semaphore,
 }
 
@@ -197,6 +199,8 @@ impl ControlledJobs {
             mode: AtomicU8::new(0),
             mutations: AtomicUsize::new(0),
             entered: tokio::sync::Notify::new(),
+            committed: tokio::sync::Notify::new(),
+            commit_held: AtomicBool::new(false),
             gate: tokio::sync::Semaphore::new(0),
         })
     }
@@ -236,6 +240,8 @@ impl PreviewJobRepository for ControlledJobs {
             self.before_mutation().await?;
             let result = self.storage.submit(submission).await?;
             if self.mode.load(Ordering::SeqCst) == 5 {
+                self.commit_held.store(true, Ordering::SeqCst);
+                self.committed.notify_waiters();
                 self.gate.acquire().await.unwrap().forget();
             }
             Ok(result)
@@ -276,6 +282,8 @@ impl PreviewJobRepository for ControlledJobs {
             self.before_mutation().await?;
             let result = self.storage.resume(id, attempt, now).await?;
             if self.mode.load(Ordering::SeqCst) == 5 {
+                self.commit_held.store(true, Ordering::SeqCst);
+                self.committed.notify_waiters();
                 self.gate.acquire().await.unwrap().forget();
             }
             Ok(result)
@@ -301,6 +309,10 @@ pub(crate) struct HttpRuntimeFixture {
 
 impl HttpRuntimeFixture {
     pub(crate) fn management(&self) -> Arc<dyn PreviewManagement> {
+        self.runtime.clone()
+    }
+
+    pub(crate) fn submission(&self) -> Arc<dyn PreviewSubmissionRuntime> {
         self.runtime.clone()
     }
 
@@ -340,6 +352,66 @@ pub(crate) async fn http_fixture(
         runtime: Arc::new(fixture.runtime),
         transport: fixture.transport,
         jobs: fixture.jobs,
+    }
+}
+
+pub(crate) struct HttpControlledFixture {
+    _dir: tempfile::TempDir,
+    pub(crate) storage: Storage,
+    runtime: Arc<PreviewRuntime<Transport, IdentityFn>>,
+    jobs: Arc<ControlledJobs>,
+    saved_jobs: Vec<PreviewJob>,
+}
+
+impl HttpControlledFixture {
+    pub(crate) fn submission(&self) -> Arc<dyn PreviewSubmissionRuntime> {
+        self.runtime.clone()
+    }
+
+    pub(crate) fn job_id(&self, index: usize) -> &str {
+        self.saved_jobs[index].id()
+    }
+
+    pub(crate) async fn wait_for_commit_hold(&self) {
+        loop {
+            let committed = self.jobs.committed.notified();
+            if self.jobs.commit_held.load(Ordering::SeqCst) {
+                return;
+            }
+            committed.await;
+        }
+    }
+
+    pub(crate) fn release_mutation(&self) {
+        self.jobs.gate.add_permits(1);
+    }
+
+    pub(crate) async fn shutdown(&self) {
+        self.runtime.shutdown().await;
+    }
+}
+
+pub(crate) async fn controlled_http_fixture(
+    job_count: usize,
+    observations_per_job: usize,
+    mode: u8,
+) -> HttpControlledFixture {
+    let fixture = fixture_with_observations(job_count, observations_per_job).await;
+    let jobs = ControlledJobs::new(&fixture.storage);
+    jobs.mode.store(mode, Ordering::SeqCst);
+    let runtime = PreviewRuntime::new(
+        fixture.runtime.runner.clone(),
+        jobs.clone(),
+        fixture.clock,
+        fixture.transport,
+        catalog_identity as IdentityFn,
+    );
+    HttpControlledFixture {
+        _dir: fixture._dir,
+        storage: fixture.storage,
+        runtime: Arc::new(runtime),
+        jobs,
+        saved_jobs: fixture.jobs,
     }
 }
 

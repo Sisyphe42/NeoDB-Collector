@@ -32,6 +32,13 @@ pub trait PreviewManagement: Send + Sync {
     fn delete<'a>(&'a self, id: &'a str) -> PortFuture<'a, bool>;
 }
 
+/// Object-safe HTTP composition view over owned submission and resume admission.
+pub trait PreviewSubmissionRuntime: Send + Sync {
+    fn retention(&self) -> PreviewRetention;
+    fn submit(&self, submission: PreviewSubmission) -> Result<PreviewAdmissionObserver, ApiError>;
+    fn resume(&self, job: &PreviewJob) -> Result<PreviewAdmissionObserver, ApiError>;
+}
+
 pub struct PreviewRuntime<T, F> {
     runner: Arc<PreviewAttemptRunner>,
     jobs: Arc<dyn PreviewJobRepository>,
@@ -84,6 +91,23 @@ impl PreviewAdmissionObserver {
         self.receiver
             .await
             .unwrap_or_else(|_| Err((self.closed_error)()))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn delayed_test_error(delay: Duration, error: ApiError, submission: bool) -> Self {
+        let (sender, receiver) = oneshot::channel();
+        tokio::spawn(async move {
+            tokio::time::sleep(delay).await;
+            let _ = sender.send(Err(error));
+        });
+        Self {
+            receiver,
+            closed_error: if submission {
+                submit_failed
+            } else {
+                resume_failed
+            },
+        }
     }
 }
 
@@ -654,7 +678,7 @@ where
     .unwrap_or_else(|_| Err(worker_failed()))
 }
 
-fn sanitize_submit_error(error: ApiError) -> ApiError {
+pub(crate) fn sanitize_submit_error(error: ApiError) -> ApiError {
     match error.code.as_str() {
         "preview_job_invalid" => invalid_job(),
         "preview_observation_invalid" => ApiError::new(
@@ -681,7 +705,7 @@ fn sanitize_submit_error(error: ApiError) -> ApiError {
     }
 }
 
-fn sanitize_resume_error(error: ApiError) -> ApiError {
+pub(crate) fn sanitize_resume_error(error: ApiError) -> ApiError {
     match error.code.as_str() {
         "preview_attempt_exhausted" => attempt_exhausted(),
         "preview_transition_invalid" => ApiError::new(
@@ -711,6 +735,24 @@ where
 
     fn delete<'a>(&'a self, id: &'a str) -> PortFuture<'a, bool> {
         Box::pin(async move { PreviewRuntime::delete(self, id).await })
+    }
+}
+
+impl<T, F> PreviewSubmissionRuntime for PreviewRuntime<T, F>
+where
+    T: NeoDbCatalogTransport + NeoDbCatalogSearchTransport + Send + Sync + 'static,
+    F: Fn(&ObservedItem) -> Result<CatalogIdentity, ApiError> + Send + Sync + 'static,
+{
+    fn retention(&self) -> PreviewRetention {
+        PreviewRuntime::retention(self)
+    }
+
+    fn submit(&self, submission: PreviewSubmission) -> Result<PreviewAdmissionObserver, ApiError> {
+        PreviewRuntime::submit(self, submission)
+    }
+
+    fn resume(&self, job: &PreviewJob) -> Result<PreviewAdmissionObserver, ApiError> {
+        PreviewRuntime::resume(self, job)
     }
 }
 

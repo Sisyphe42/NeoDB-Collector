@@ -16,6 +16,18 @@ than silently substituting a different model. This does not remove review gates.
 
 ## Activation gate
 
+E2b2 next checkpoint (2026-10-02): Sol/medium owns Domain DTOs, Server upload/
+resume/type-erased submission dispatch, Rust tests, minimal CLI composition and
+existing workspace dependency/export registration. Main owns planning/specs,
+generated contracts, consumer mock/smoke integration, review/full verification and
+commit. Luna/max subsequently owns thin TS methods/error/exports/tests only.
+No parallel Cargo commands, recursive delegation or sub-agent commits. Required
+HTTP tests include authentication before body polling, chunked/exact/+1 byte caps,
+strict query/content type, CSV validation/skip counts and no raw persistence,
+immutable selection/full binding, truthful 202/admission failures with IDs,
+queue-full no mutation, attempt/resume eligibility and fresh owned execution.
+E3 client screens/end-to-end and PRD completion remain pending.
+
 - [x] Inspect parent approval, implemented adapters and owning product contracts.
 - [x] Complete child design and ordered execution plan without expanding product scope.
 - [x] User reviews these artifacts; then run `task.py start 09-16-preview-jobs`.
@@ -405,12 +417,12 @@ client/end-to-end PRD acceptance remain pending. Keep this child active, not arc
   Preserve identity/field evidence, strict attempt/ordinal pagination, binding
   state, retention and read races under a bounded management budget.
 - [x] E1: Thin shared TS GET client and wire/auth/redaction/timeout regression tests.
-- [ ] E2: Bounded CSV submission and explicit cancel/resume/delete through the
+- [x] E2: Bounded CSV submission and explicit cancel/resume/delete through the
   single owned runtime, without source or personal-state writes.
   - [x] E2a: Guarded cancel/delete API and generated thin-client management methods.
-  - [ ] E2b: Bounded CSV submission/resume with truthful runtime admission.
+  - [x] E2b: Bounded CSV submission/resume with truthful runtime admission.
     - [x] E2b1: Owned admission-before-persistence submission/resume internals.
-    - [ ] E2b2: CSV upload/resume HTTP contracts and thin generated clients.
+    - [x] E2b2: CSV upload/resume HTTP contracts and thin generated clients.
 - [ ] E3: CLI/WebUI import/progress/diff controls and mock end-to-end acceptance.
 
 E2b1 ownership: Sol/medium implements only Server `preview_runtime.rs` and its
@@ -520,8 +532,39 @@ capability was added. E2b1 is complete; E2b2 public CSV upload/resume and thin
 clients, E3 screens and end-to-end acceptance remain pending. Keep this child
 active; do not archive it or mark broader E complete.
 
-- [ ] Define domain DTOs and executable API contract; regenerate schemas/TS validators.
-- [ ] Add guarded import/status/results/cancel/resume/delete routes, body and
+E2b2 verification (2026-10-02): Sol/medium implemented Domain admission DTOs,
+Server raw text/csv upload and explicit resume with a narrow same-Arc runtime view,
+minimal CLI wiring and 13 focused HTTP tests. Luna/max implemented thin TS methods,
+typed sanitized reconciliation errors and nine tests. Main reviewed code/tests,
+required shared runtime error/ID validators and truthful post-reservation IDs,
+corrected paused-time SQL fixture ordering and BOM byte assertions, strengthened
+missing-revision refusal, regenerated contracts and aligned product/backend/frontend/
+README, consumer mocks and actual-process smoke. No Core/Storage or migration
+change; no source/personal-state writes, real account/keychain or live catalog fetch.
+
+HTTP tests prove authentication before body polling, streamed exact/+1 byte limits,
+strict query/Content-Type/JSON, UTF-8/BOM/CSV failures, bounded skip counts and only
+normalized storage, saved v1 selection despite v2, full binding, queue-full before
+mutation, fresh resume with fixed revision/expiry and wrong-attempt/ineligible refusal.
+Real post-commit held submit/resume tests return the known ID/next generation under
+timeout and inspect actual persisted state without asserting rollback. Ambiguous
+failures are sanitized envelopes; pre-admission failures never invent a job receipt.
+Standard typed http-body-util error classification distinguishes 413 from an ordinary
+broken stream; only already locked library versions were promoted to direct deps.
+
+Final main `pnpm verify` with `CARGO_BUILD_JOBS=1` passed after all code/test changes:
+256 Rust unit tests, two compile-fail doctests, 45 TS/UI tests, workspace fmt/Clippy,
+non-mutating contract drift, dependency boundaries, lint/typecheck, WebUI/CLI builds
+and actual CLI/HTTP/session/pairing/revocation/desktop-mobile Chromium smoke.
+Generated strict DTO bounds/fixed false/202 routes/error unions/unique operation IDs,
+product YAML/34 evidence IDs and references, and `git diff --check` passed separately.
+The shared client compares raw BOM bytes, defaults admission to 30 seconds without
+changing five-second GET defaults, validates actual receipts/failures and never retries.
+E2 is complete; E3 CLI commands/screens and mock end-to-end acceptance remain pending.
+Keep this child active, personal writes disabled and connectorIds empty until E3.
+
+- [x] Define domain DTOs and executable API contract; regenerate schemas/TS validators.
+- [x] Add guarded import/status/results/cancel/resume/delete routes, body and
   pagination caps; test session CSRF, Bearer scopes, invalid input and redaction.
 - [ ] Add thin shared client, CLI commands and WebUI progress/diff/review controls.
 - [ ] Test generated-response validation, loading/error/cancellation flows and

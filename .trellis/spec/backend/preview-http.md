@@ -6,8 +6,8 @@ E1 under `09-16-preview-jobs` exposes authenticated inspection only. Owners are
 Domain `src/preview.rs`, Server `src/preview_http.rs` and its tests, and the thin
 shared TS client. CLI serve composes the existing Storage job/result ports.
 Cancel/delete are owned by [Preview Management HTTP](./preview-management-http.md).
-Submission/resume, client screens and runnable IMDb capability
-remain separate checkpoints. No credential/network read or personal-state write
+[Submission/resume](./preview-submission-http.md) is delivered separately; client
+screens and runnable IMDb capability remain E3. No credential/network read or personal-state write
 is performed by inspection, and no migration or new dependency is required.
 
 ## 2. Signatures

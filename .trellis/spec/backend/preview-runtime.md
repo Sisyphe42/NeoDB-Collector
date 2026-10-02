@@ -8,7 +8,8 @@ D2b2b/c and E2b1 under `09-16-preview-jobs` add internal runtime admission and l
 restart interruption and periodic retention cleanup. Public API/client delivery
 is owned by [Preview HTTP](./preview-http.md) and
 [Preview Management HTTP](./preview-management-http.md). E2b1 adds owned internal
-submission/resume; public CSV upload/resume/screens remain E. No new runtime
+submission/resume; public CSV upload/resume is owned by
+[Preview Submission HTTP](./preview-submission-http.md), screens remain E3. No new runtime
 dependency or migration.
 
 ## 2. Signatures
@@ -17,7 +18,8 @@ dependency or migration.
 jobs: Arc<dyn PreviewJobRepository>, clock: Arc<dyn Clock>, transport: Arc<T>,
 identity: F)` requires the existing catalog/search ports and a pure trusted
 `Fn(&ObservedItem) -> Result<CatalogIdentity, ApiError> + Send + Sync` callback;
-T/F are Send/Sync/static. No connector dependency enters Server.
+T/F are Send/Sync/static. Runtime resolution uses this trusted callback;
+Server's HTTP composition also reuses the existing Connectors CSV parser.
 
 - `enqueue(&self, &PreviewJob) -> Result<PreviewAttemptObserver, ApiError>` accepts
   validated queued/unexpired metadata; copy only ID/attempt/expiry, not payloads/credentials.
@@ -43,8 +45,9 @@ T/F are Send/Sync/static. No connector dependency enters Server.
   unexpected task/channel failure is static `preview_maintenance_failed`.
 
 All are internal Rust APIs, not HTTP routes or public DTOs. A narrow Server
-management view type-erases cancel/delete only for authenticated HTTP dispatch;
-CLI composes the same runtime Arc, never another owner or repository bypass.
+management view type-erases cancel/delete for authenticated HTTP dispatch;
+a separate narrow submission view exposes submit/resume/retention. CLI composes
+both from the same runtime Arc, never another owner or repository bypass.
 CLI serve shares exactly one owner; recovery/cleanup never enqueue or resume saved jobs.
 
 ## 3. Contracts

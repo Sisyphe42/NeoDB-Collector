@@ -83,7 +83,7 @@ fn mapping_error(error: ApiError) -> HttpError {
     HttpError::from_parts(status, error)
 }
 
-fn valid_id(id: &str) -> Result<(), HttpError> {
+pub(crate) fn valid_id(id: &str) -> Result<(), HttpError> {
     if id.is_empty()
         || id.len() > 128
         || !id

@@ -4,8 +4,9 @@
 
 Implemented in collector-connectors/src/imdb.rs with csv 1.4.0 and SHA-256.
 Domain Observation/ObservedItem/ScalarValue live in collector-domain/src/observation.rs.
-This is an internal adapter checkpoint: no upload route, CLI import, persistence,
-enabled registry entry or public observation schema is exposed yet.
+The pure adapter is reused by [Preview Submission HTTP](./preview-submission-http.md)
+for normalized operational job storage. CLI import, client screens, an enabled
+registry entry and public general observation intake remain pending.
 
 ## 2. Signatures
 

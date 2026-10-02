@@ -33,6 +33,9 @@ mod preview_http_tests;
 #[cfg(test)]
 mod preview_management_tests;
 pub mod preview_runtime;
+mod preview_submission_http;
+#[cfg(test)]
+mod preview_submission_tests;
 pub mod resolution_control;
 
 pub const HEALTH_ROUTE: &str = "/api/v1/health";
@@ -94,6 +97,14 @@ async fn capabilities() -> Json<CapabilityDocument> {
                 "/api/v1/previews/{id}/cancel".into(),
             ),
             ("previewDelete".into(), "/api/v1/previews/{id}".into()),
+            (
+                "imdbRatingsImport".into(),
+                "/api/v1/imports/imdb/ratings".into(),
+            ),
+            (
+                "previewResume".into(),
+                "/api/v1/previews/{id}/resume".into(),
+            ),
         ]),
     })
 }
@@ -129,7 +140,9 @@ async fn schema() -> Json<utoipa::openapi::OpenApi> {
         preview_http::job,
         preview_http::results,
         preview_http::cancel_preview,
-        preview_http::delete_preview
+        preview_http::delete_preview,
+        preview_submission_http::import_imdb_ratings,
+        preview_submission_http::resume_preview
     ),
     components(schemas(
         ApiError,
@@ -166,7 +179,12 @@ async fn schema() -> Json<utoipa::openapi::OpenApi> {
         PreviewComparisonStatusView,
         PreviewProvenanceView,
         PreviewCancelRequest,
-        PreviewMutationResult
+        PreviewMutationResult,
+        PreviewImportSelection,
+        PreviewResumeRequest,
+        PreviewAccepted,
+        PreviewImportAccepted,
+        PreviewAdmissionFailure
     ))
 )]
 struct ApiDoc;
@@ -176,10 +194,45 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     for name in ["PreviewOutcomeView", "PreviewSinkView"] {
         strict_preview_tagged_variants(&mut doc, name);
     }
+    preview_admission_error_unions(&mut doc);
     doc.info.title = "NeoDB Collector Core".into();
     doc.info.version = env!("CARGO_PKG_VERSION").into();
     doc.info.license = None;
     doc
+}
+
+fn preview_admission_error_unions(doc: &mut utoipa::openapi::OpenApi) {
+    use utoipa::openapi::{
+        Ref, RefOr,
+        schema::{OneOfBuilder, Schema},
+    };
+    for path in [
+        "/api/v1/imports/imdb/ratings",
+        "/api/v1/previews/{id}/resume",
+    ] {
+        let Some(operation) = doc
+            .paths
+            .paths
+            .get_mut(path)
+            .and_then(|item| item.post.as_mut())
+        else {
+            continue;
+        };
+        for status in ["400", "409", "413", "503"] {
+            let Some(RefOr::T(response)) = operation.responses.responses.get_mut(status) else {
+                continue;
+            };
+            let Some(content) = response.content.get_mut("application/json") else {
+                continue;
+            };
+            content.schema = Some(RefOr::T(Schema::OneOf(
+                OneOfBuilder::new()
+                    .item(Ref::from_schema_name("ApiError"))
+                    .item(Ref::from_schema_name("PreviewAdmissionFailure"))
+                    .build(),
+            )));
+        }
+    }
 }
 
 fn strict_preview_tagged_variants(doc: &mut utoipa::openapi::OpenApi, name: &str) {
@@ -230,7 +283,12 @@ pub fn contract_documents() -> serde_json::Value {
             "PreviewResultPage": schemars::schema_for!(PreviewResultPage),
             "PreviewResultView": schemars::schema_for!(PreviewResultView),
             "PreviewCancelRequest": schemars::schema_for!(PreviewCancelRequest),
-            "PreviewMutationResult": schemars::schema_for!(PreviewMutationResult)
+            "PreviewMutationResult": schemars::schema_for!(PreviewMutationResult),
+            "PreviewImportSelection": schemars::schema_for!(PreviewImportSelection),
+            "PreviewResumeRequest": schemars::schema_for!(PreviewResumeRequest),
+            "PreviewAccepted": schemars::schema_for!(PreviewAccepted),
+            "PreviewImportAccepted": schemars::schema_for!(PreviewImportAccepted),
+            "PreviewAdmissionFailure": schemars::schema_for!(PreviewAdmissionFailure)
         }
     })
 }

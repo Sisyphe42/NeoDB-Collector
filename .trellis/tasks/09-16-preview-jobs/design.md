@@ -67,6 +67,68 @@ truthful ambiguous commits, registration reuse and no transport before persisten
 Public CSV submission/resume routes and generated clients remain E2b2; no API
 capability is advertised in E2b1.
 
+### E2b2 authenticated upload and explicit resume
+
+Expose POST `/api/v1/imports/imdb/ratings?profileId=...&profileVersion=N` with
+raw UTF-8 `text/csv` (optional UTF-8 charset), not JSON/multipart. Authenticate
+before reading the body: session mutations require exact Origin/CSRF; paired
+clients require `imports.submit`. Strict query DTO selects an existing immutable
+disabled revision; no default/latest/save is implicit. Bound the raw stream to
+the existing parser's 10 MiB, reuse `collector_connectors::imdb::parse_ratings`,
+and persist only its validated observations. Trusted observedAt is ingestion Unix
+seconds as a decimal string. Receipt reports bounded observation/skipped-row/
+skipped-column/duplicate-row counts, never raw unsupported values or header lists.
+
+Use a fresh cryptographic TokenSource ID and the shared runtime retention policy.
+Endpoint/profile reads, body collection and admission observation share one strict
+ten-second post-auth budget. The parser is a synchronous bounded pure adapter;
+check the control before/after it rather than spawn unbounded detached parse work.
+Core validates the normalized submission; the existing atomic repository checks
+binding/profile again. Compose a narrow Server submission view of the same CLI
+runtime Arc; no new Core parser port, scheduler, migration or third-party crate.
+Server may depend on the existing Connectors crate for this composition boundary;
+Core remains connector-independent and source adapters never call NeoDB.
+
+Dependency review: reuse the existing locked Hyperium
+[http-body project](https://github.com/hyperium/http-body), not a new streaming
+framework. `http-body-util` 0.1.5 is a direct Server dependency only to identify
+LengthLimitError through standard error sources (ordinary stream failure is not
+413); its default feature set is empty and this declaration enables neither
+channel nor full. `http-body` 1.1.0 is Server dev-only for a small controllable
+streaming test body. Locked published manifests declare MIT and Rust 1.61 for
+both; this is below the repository toolchain and does not introduce OS-specific
+code. Cargo.lock retains all previous versions/checksums; Core's allowlist is
+unchanged. Typed error classification and direct body-poll assertions justify
+these focused dependencies instead of error-string inspection or another parser/
+stream abstraction. Cross-platform CI remains separate from local Windows proof.
+
+Expose POST `/api/v1/previews/{id}/resume` with a strict 4 KiB JSON envelope
+`{expectedAttempt}`. Load retained metadata under the same bounded control,
+reject mismatched attempts and ineligible states; reserve through runtime.resume.
+The repository remains authoritative about exact endpoint/revision and lifecycle.
+Resume never extends expiry, rebinds an account, selects a newer profile, restores
+old results as fresh evidence or retries automatically.
+
+Domain owns PreviewImportSelection, PreviewResumeRequest, PreviewAccepted,
+PreviewImportAccepted and PreviewAdmissionFailure. Successful durable admission
+returns 202 with only jobId/attempt and executable=false, not execution status.
+After reservation, ambiguous failure includes `{jobId, attempt, error: ApiError}`
+so even a new submission can be reconciled through existing GET routes; it never
+asserts rollback. Known safe failures retain reconstructed static codes/messages.
+Pre-admission errors use ApiError; full admission is 429, local duplicate/conflict
+409 and closed/unavailable runtime 503. No accepted receipt is retried by clients.
+
+Regenerate contracts and add thin TS submitImdbRatings/resumePreview methods,
+raw-body serialization, generated response validation and a typed sanitized
+PreviewAdmissionClientError carrying reconciliation metadata. Preserve timeout,
+caller cancellation, in-memory CSRF and no automatic retry. These two admissions
+default to a bounded 30-second client timeout (explicit timeoutMs still overrides),
+so the ordinary five-second GET timeout does not cut short the Server's ten-second
+admission budget. Network loss/abort can still lose the entire receipt, with no
+recoverable ID; never interpret that as safe rollback or retry. Advertise delivered
+route keys only; connectorIds remains empty until E3 end-to-end delivery. No new
+CLI commands, upload/resume screens or personal-state writes in this checkpoint.
+
 ## 1. Native catalog-fetch boundary (first checkpoint)
 
 Add an internal catalog transport port with a single-attempt fetch operation and

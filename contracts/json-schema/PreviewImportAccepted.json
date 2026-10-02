@@ -1,0 +1,71 @@
+{
+  "$defs": {
+    "PreviewAccepted": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt": {
+          "format": "uint32",
+          "maximum": 4294967295,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "executable": {
+          "const": false,
+          "type": "boolean"
+        },
+        "jobId": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "jobId",
+        "attempt",
+        "executable"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "duplicateRowCount": {
+      "format": "uint32",
+      "maximum": 10000,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "observationCount": {
+      "format": "uint32",
+      "maximum": 10000,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "preview": {
+      "$ref": "#/$defs/PreviewAccepted"
+    },
+    "skippedColumnCount": {
+      "format": "uint32",
+      "maximum": 10485760,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "skippedRowCount": {
+      "format": "uint32",
+      "maximum": 10000,
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "preview",
+    "observationCount",
+    "skippedRowCount",
+    "skippedColumnCount",
+    "duplicateRowCount"
+  ],
+  "title": "PreviewImportAccepted",
+  "type": "object"
+}

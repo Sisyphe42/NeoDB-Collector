@@ -1,5 +1,5 @@
 import createClient from 'openapi-fetch';
-import { validateSessionView, validatePairingLink, validateClientList, validateActionResult, validateApiError, validateNeoDbStatus, validateNeoDbAuthorization, validateMappingProfile, validateMappingDocument, validatePreviewJobView, validatePreviewMutationResult, validatePreviewResultPage, type paths, type components } from '@neodb-collector/contracts';
+import { validateSessionView, validatePairingLink, validateClientList, validateActionResult, validateApiError, validateNeoDbStatus, validateNeoDbAuthorization, validateMappingProfile, validateMappingDocument, validatePreviewJobView, validatePreviewMutationResult, validatePreviewResultPage, validatePreviewAccepted, validatePreviewImportAccepted, validatePreviewAdmissionFailure, type paths, type components } from '@neodb-collector/contracts';
 
 export type SessionView = components['schemas']['SessionView'];
 export type PairedClient = components['schemas']['PairedClient'];
@@ -12,25 +12,44 @@ export type PreviewJobView = components['schemas']['PreviewJobView'];
 export type PreviewCancelRequest = components['schemas']['PreviewCancelRequest'];
 export type PreviewMutationResult = components['schemas']['PreviewMutationResult'];
 export type PreviewResultPage = components['schemas']['PreviewResultPage'];
+export type PreviewImportSelection = components['schemas']['PreviewImportSelection'];
+export type PreviewResumeRequest = components['schemas']['PreviewResumeRequest'];
+export type PreviewAccepted = components['schemas']['PreviewAccepted'];
+export type PreviewImportAccepted = components['schemas']['PreviewImportAccepted'];
+export type PreviewAdmissionFailure = components['schemas']['PreviewAdmissionFailure'];
 export class AccessClientError extends Error {
   constructor(public readonly code: string, public readonly field?: string) { super('Local access request failed.'); }
+}
+
+export class PreviewAdmissionClientError extends AccessClientError {
+  constructor(code: string, field: string | undefined, public readonly jobId: string, public readonly attempt: number) {
+    super(code, field);
+    this.name = 'PreviewAdmissionClientError';
+  }
 }
 
 export function createAccessClient(options: { baseUrl?: string; fetch?: typeof fetch; timeoutMs?: number } = {}) {
   const client = createClient<paths>({ ...options, credentials: 'same-origin', redirect: 'error' });
   let csrf: string | undefined;
-  const requestOptions = (callerSignal?: AbortSignal) => {
-    const timeout = AbortSignal.timeout(options.timeoutMs ?? 5000);
+  const requestOptions = (callerSignal?: AbortSignal, defaultTimeoutMs = 5000) => {
+    const timeout = AbortSignal.timeout(options.timeoutMs ?? defaultTimeoutMs);
     return { signal: callerSignal ? AbortSignal.any([callerSignal, timeout]) : timeout };
   };
   const mutationOptions = (callerSignal?: AbortSignal) => ({ ...requestOptions(callerSignal), headers: { 'X-CSRF-Token': csrf ?? '' } });
-  async function checked<T>(request: Promise<{ data?: unknown; error?: unknown; response: Response }>, validate: (value: unknown) => value is T): Promise<T> {
+  const admissionMutationOptions = (callerSignal?: AbortSignal) => ({ ...requestOptions(callerSignal, 30_000), headers: { 'X-CSRF-Token': csrf ?? '' } });
+  const rawBodySerializer = (body: string) => body;
+  async function checked<T>(request: Promise<{ data?: unknown; error?: unknown; response: Response }>, validate: (value: unknown) => value is T, expectedStatus?: number, failureValidate?: (value: unknown) => value is PreviewAdmissionFailure): Promise<T> {
     try {
       const result = await request;
       if (!result.response.ok) {
         if (result.response.status === 401) csrf = undefined;
+        if (failureValidate && failureValidate(result.error)) {
+          const failure = result.error;
+          throw new PreviewAdmissionClientError(failure.error.code, failure.error.field ?? undefined, failure.jobId, failure.attempt);
+        }
         throw new AccessClientError(validateApiError(result.error) ? result.error.code : 'request_failed', validateApiError(result.error) ? result.error.field ?? undefined : undefined);
       }
+      if (expectedStatus !== undefined && result.response.status !== expectedStatus) throw new AccessClientError('invalid_response');
       if (!validate(result.data)) throw new AccessClientError('invalid_response');
       return result.data;
     } catch (error) {
@@ -53,6 +72,33 @@ export function createAccessClient(options: { baseUrl?: string; fetch?: typeof f
     },
     async previewResults(id: string, query: NonNullable<paths['/api/v1/previews/{id}/results']['get']['parameters']['query']>, signal?: AbortSignal) {
       return checked(client.GET('/api/v1/previews/{id}/results', { ...requestOptions(signal), params: { path: { id }, query } }), validatePreviewResultPage);
+    },
+    async submitImdbRatings(csv: string, selection: PreviewImportSelection, signal?: AbortSignal) {
+      const optionsForRequest = admissionMutationOptions(signal);
+      return checked(
+        client.POST('/api/v1/imports/imdb/ratings', {
+          ...optionsForRequest,
+          headers: { ...optionsForRequest.headers, 'Content-Type': 'text/csv' },
+          params: { query: selection },
+          body: csv,
+          bodySerializer: rawBodySerializer,
+        }),
+        validatePreviewImportAccepted,
+        202,
+        validatePreviewAdmissionFailure,
+      );
+    },
+    async resumePreview(id: string, body: PreviewResumeRequest, signal?: AbortSignal) {
+      return checked(
+        client.POST('/api/v1/previews/{id}/resume', {
+          ...admissionMutationOptions(signal),
+          params: { path: { id } },
+          body,
+        }),
+        validatePreviewAccepted,
+        202,
+        validatePreviewAdmissionFailure,
+      );
     },
     async cancelPreview(id: string, expectedAttempt: number, signal?: AbortSignal) {
       return checked(client.POST('/api/v1/previews/{id}/cancel', { ...mutationOptions(signal), params: { path: { id } }, body: { expectedAttempt } }), validatePreviewMutationResult);

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "attempt": {
+      "format": "uint32",
+      "maximum": 4294967295,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "executable": {
+      "const": false,
+      "type": "boolean"
+    },
+    "jobId": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "jobId",
+    "attempt",
+    "executable"
+  ],
+  "title": "PreviewAccepted",
+  "type": "object"
+}

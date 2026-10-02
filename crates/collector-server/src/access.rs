@@ -21,6 +21,7 @@ pub struct AccessState {
     pub preview_jobs: Option<Arc<dyn collector_core::preview_jobs::PreviewJobRepository>>,
     pub preview_results: Option<Arc<dyn collector_core::preview_results::PreviewResultRepository>>,
     pub preview_management: Option<Arc<dyn crate::preview_runtime::PreviewManagement>>,
+    pub preview_submission: Option<Arc<dyn crate::preview_runtime::PreviewSubmissionRuntime>>,
     limiter: Arc<Mutex<(i64, u32)>>,
 }
 impl AccessState {
@@ -32,6 +33,7 @@ impl AccessState {
             preview_jobs: None,
             preview_results: None,
             preview_management: None,
+            preview_submission: None,
             limiter: Arc::new(Mutex::new((0, 0))),
         }
     }
@@ -289,6 +291,7 @@ pub(crate) fn routes(state: AccessState) -> Router {
         .layer(DefaultBodyLimit::max(4096))
         .merge(crate::mapping_http::routes())
         .merge(crate::preview_http::routes())
+        .merge(crate::preview_submission_http::routes())
         .with_state(state)
 }
 

@@ -1,6 +1,6 @@
 # NeoDB Collector
 
-本地优先的媒体记录采集与同步工具。目前已实现可运行基础层，**尚不支持平台接入、导入或同步**。当前产品方向是只读来源平台、写入 NeoDB；后续客户端与平台通过独立适配器扩展。
+本地优先的媒体记录采集与同步工具。目前已实现基础服务及 IMDb CSV 的只读预览 API，**导入/预览界面与同步写入尚未开放**。当前产品方向是只读来源平台、写入 NeoDB；后续客户端与平台通过独立适配器扩展。
 
 ## 运行
 
@@ -41,7 +41,7 @@ cargo run --locked -p collector-cli -- serve --port 19424 --data-dir ./local-dat
 
 YAML 使用 `schema_version: 1`，其中相对路径相对 YAML 文件目录；CLI/环境变量相对路径相对工作目录。只允许 loopback IP（含 `::1`）；不接受公网/LAN 地址或主机名。端口 `0` 表示系统分配空闲端口，实际地址输出在 stderr。
 
-预览保留期为正整数天数，仅用于新任务，不改变已有任务的到期时间。内部预览运行时已接入启动恢复和每分钟清理，历史任务/结果读取及取消/删除 API 已开放；导入、恢复及预览 UI 尚未开放。重启不会自动重跑任务。清理失败会明确报错并停止服务。`doctor` 不恢复或清理预览任务。
+预览保留期为正整数天数，仅用于新任务，不改变已有任务的到期时间。预览运行时已接入启动恢复和每分钟清理，历史任务/结果读取、CSV 上传、恢复及取消/删除 API 已开放；导入命令及预览 UI 尚未开放。重启不会自动重跑任务。清理失败会明确报错并停止服务。`doctor` 不恢复或清理预览任务。
 
 同一数据目录只能由一个 `serve` 进程使用，即使选择不同端口。服务通过 `collector.serve.lock` 文件持有系统锁，退出后自动释放；不要在运行期间删除该文件。
 
@@ -66,10 +66,14 @@ YAML 使用 `schema_version: 1`，其中相对路径相对 YAML 文件目录；C
 | `GET /api/v1/previews/{id}/results?attempt=N&offset=0&limit=50` | 历史条目证据及字段差异，limit 为 1–100，offset 为原始记录序号 |
 | `POST /api/v1/previews/{id}/cancel` | 显式取消指定 attempt，JSON 为 `{"expectedAttempt": 1}` |
 | `DELETE /api/v1/previews/{id}` | 删除任务及预览数据，不删除配置或凭据 |
+| `POST /api/v1/imports/imdb/ratings?profileId=ID&profileVersion=N` | 原始 UTF-8 `text/csv`，最多 10 MiB；选择已保存的禁用配置版本，202 返回任务回执及跳过数量 |
+| `POST /api/v1/previews/{id}/resume` | 显式恢复保留期内的中断/失败/取消任务，JSON 为 `{"expectedAttempt": 1}`，202 返回新 attempt |
 
-健康、能力和契约端点公开；本地管理接口要求 8 小时有效的 HttpOnly / SameSite=Strict 会话，修改操作还要求同源 Origin 与 CSRF 令牌。浏览器请求须同源，Host 仅允许实际监听地址或相同端口的 localhost。不开放 CORS。配对、CLI 认证状态与 NeoDB 只读 OAuth 已可用；WebUI 支持授权、账户状态及取消。令牌仅保存在系统凭据库中。媒体导入/同步尚未接入；配对客户端不能管理 OAuth 或其他客户端。
+健康、能力和契约端点公开；本地管理接口要求 8 小时有效的 HttpOnly / SameSite=Strict 会话，修改操作还要求同源 Origin 与 CSRF 令牌。浏览器请求须同源，Host 仅允许实际监听地址或相同端口的 localhost。不开放 CORS。配对、CLI 认证状态与 NeoDB 只读 OAuth 已可用；WebUI 支持授权、账户状态及取消。令牌仅保存在系统凭据库中。媒体同步尚未接入；配对客户端不能管理 OAuth 或其他客户端。
 
-预览读取要求会话或带 `imports.read` 权限的 Bearer。结果为历史证据，不是当前 NeoDB 状态或写入许可；账号绑定为 current 也不表示旧快照仍新鲜。过期/不存在任务返回 404，attempt 不匹配返回 409；运行中空结果页不表示完成。此阶段没有公开创建任务的入口，连接器能力列表仍为空。
+预览读取要求会话或带 `imports.read` 权限的 Bearer。结果为历史证据，不是当前 NeoDB 状态或写入许可；账号绑定为 current 也不表示旧快照仍新鲜。过期/不存在任务返回 404，attempt 不匹配返回 409；运行中空结果页不表示完成。连接器能力列表在客户端端到端交付前仍为空。
+
+上传/恢复要求同源会话与 CSRF，或带 `imports.submit` 权限的 Bearer。上传不会自动保存/选择最新配置；恢复保持原账号绑定、配置版本和到期时间，重新计算全部记录。202 仅表示持久化接收，不表示完成；断开客户端不会取消已接收工作。提交后的不确定失败返回 `jobId`、`attempt` 与嵌套 `error`，应通过读取接口查询真实状态，不自动重试。共享 TS 客户端保留这份校验后的查询信息。预览可能通过 NeoDB 原生抓取创建公共目录条目，但不修改来源数据或个人标记。
 
 取消/删除要求同源会话与 CSRF，或带 `imports.submit` 权限的 Bearer。返回 `{"applied": true/false}` 表示实际仓库结果，不伪造终止状态；超时/中断后应重新查询任务，不自动重试。取消只影响指定 attempt 的本地工作，不能撤销 NeoDB 已排队的公共目录创建；已有个人标记始终不会被修改。
 

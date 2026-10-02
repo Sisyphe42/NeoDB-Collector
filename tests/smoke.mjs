@@ -48,6 +48,8 @@ try {
   assert.equal(capabilities.routes.previewResults, '/api/v1/previews/{id}/results');
   assert.equal(capabilities.routes.previewCancel, '/api/v1/previews/{id}/cancel');
   assert.equal(capabilities.routes.previewDelete, '/api/v1/previews/{id}');
+  assert.equal(capabilities.routes.imdbRatingsImport, '/api/v1/imports/imdb/ratings');
+  assert.equal(capabilities.routes.previewResume, '/api/v1/previews/{id}/resume');
   assert.equal((await fetch(`${address}/api/v1/imports`)).status, 404);
   for (const path of ['/api/v1/previews/missing', '/api/v1/previews/missing/results?attempt=1']) {
     const response = await fetch(`${address}${path}`);
@@ -58,6 +60,8 @@ try {
   for (const [path, options] of [
     ['/api/v1/previews/missing', { method: 'DELETE' }],
     ['/api/v1/previews/missing/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedAttempt: 1 }) }],
+    ['/api/v1/previews/missing/resume', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedAttempt: 1 }) }],
+    ['/api/v1/imports/imdb/ratings?profileId=imdb_ratings&profileVersion=1', { method: 'POST', headers: { 'Content-Type': 'text/csv' }, body: 'Const,Your Rating,Title Type\n' }],
   ]) {
     const response = await fetch(`${address}${path}`, options);
     assert.equal(response.status, 401);
@@ -139,6 +143,21 @@ try {
     assert.equal((await response.json()).code, 'preview_job_not_found');
   }
   const mutationHeaders = { Authorization: `Bearer ${pairedToken.token}` };
+  const missingResume = await fetch(`${address}/api/v1/previews/missing/resume`, {
+    method: 'POST', headers: { ...mutationHeaders, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ expectedAttempt: 1 }),
+  });
+  assert.equal(missingResume.status, 404);
+  assert.equal((await missingResume.json()).code, 'preview_job_not_found');
+  // No account/keychain/catalog access: import refuses the disconnected endpoint.
+  const importPath = '/api/v1/imports/imdb/ratings?profileId=imdb_ratings&profileVersion=1';
+  const disconnectedImport = await fetch(`${address}${importPath}`, {
+    method: 'POST', headers: { ...mutationHeaders, 'Content-Type': 'text/csv' },
+    body: 'Const,Your Rating,Title Type\n',
+  });
+  assert.equal(disconnectedImport.status, 409);
+  assert.equal((await disconnectedImport.json()).code, 'neodb_not_connected');
+  assert.equal(disconnectedImport.headers.get('cache-control'), 'no-store');
   for (const [path, options] of [
     ['/api/v1/previews/missing', { method: 'DELETE', headers: mutationHeaders }],
     ['/api/v1/previews/missing/cancel', { method: 'POST', headers: { ...mutationHeaders, 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedAttempt: 1 }) }],
@@ -158,6 +177,12 @@ try {
   const revokedDelete = await fetch(`${address}/api/v1/previews/missing`, { method: 'DELETE', headers: mutationHeaders });
   assert.equal(revokedDelete.status, 401);
   assert.equal((await revokedDelete.json()).code, 'authentication_required');
+  const revokedImport = await fetch(`${address}${importPath}`, {
+    method: 'POST', headers: { ...mutationHeaders, 'Content-Type': 'text/csv' },
+    body: 'Const,Your Rating,Title Type\n',
+  });
+  assert.equal(revokedImport.status, 401);
+  assert.equal((await revokedImport.json()).code, 'authentication_required');
   await page.getByRole('button', { name: '重新检查' }).click();
   await page.getByRole('heading', { name: '本地服务已连接' }).waitFor();
   await page.getByRole('button', { name: '读取并替换表单' }).click();

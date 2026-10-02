@@ -17,10 +17,15 @@ export declare function validatePairingExchange(value: unknown): value is compon
 export declare function validatePairingLink(value: unknown): value is components['schemas']['PairingLink'];
 export declare function validatePairingRequest(value: unknown): value is components['schemas']['PairingRequest'];
 export declare function validatePairingToken(value: unknown): value is components['schemas']['PairingToken'];
+export declare function validatePreviewAccepted(value: unknown): value is components['schemas']['PreviewAccepted'];
+export declare function validatePreviewAdmissionFailure(value: unknown): value is components['schemas']['PreviewAdmissionFailure'];
 export declare function validatePreviewCancelRequest(value: unknown): value is components['schemas']['PreviewCancelRequest'];
+export declare function validatePreviewImportAccepted(value: unknown): value is components['schemas']['PreviewImportAccepted'];
+export declare function validatePreviewImportSelection(value: unknown): value is components['schemas']['PreviewImportSelection'];
 export declare function validatePreviewJobView(value: unknown): value is components['schemas']['PreviewJobView'];
 export declare function validatePreviewMutationResult(value: unknown): value is components['schemas']['PreviewMutationResult'];
 export declare function validatePreviewResultPage(value: unknown): value is components['schemas']['PreviewResultPage'];
 export declare function validatePreviewResultView(value: unknown): value is components['schemas']['PreviewResultView'];
+export declare function validatePreviewResumeRequest(value: unknown): value is components['schemas']['PreviewResumeRequest'];
 export declare function validateSaveMappingProfile(value: unknown): value is components['schemas']['SaveMappingProfile'];
 export declare function validateSessionView(value: unknown): value is components['schemas']['SessionView'];

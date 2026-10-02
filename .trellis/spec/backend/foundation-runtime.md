@@ -2,7 +2,7 @@
 
 ## 1. Scope / Trigger
 
-Applies to configuration, startup/doctor, SQLite baseline, health/capabilities/schema, generated contracts and status WebUI. Implemented sessions/pairing and read-only OAuth are specified in [Operational State and Pairing](./state-and-pairing.md). Internal preview startup/retention, [historical inspection API](./preview-http.md) and [cancel/delete API](./preview-management-http.md) are implemented; submission/resume/client screens, synchronization, scheduling, desktop and external integrations remain deferred.
+Applies to configuration, startup/doctor, SQLite baseline, health/capabilities/schema, generated contracts and status WebUI. Implemented sessions/pairing and read-only OAuth are specified in [Operational State and Pairing](./state-and-pairing.md). Preview startup/retention, [historical inspection API](./preview-http.md), [cancel/delete API](./preview-management-http.md) and [CSV submission/resume API](./preview-submission-http.md) are implemented; client screens/commands, synchronization, scheduling, desktop and external integrations remain deferred.
 
 Source owners: `crates/collector-domain`, `collector-core`, `collector-storage`, `collector-server`, `collector-cli`; `packages/contracts-ts`, `core-client-ts`; `apps/webui`.
 
@@ -20,7 +20,7 @@ GET /assets/*            -> static bundle assets
 
 `collector_core::StorageHealth::is_ready` returns a boxed Send future without requiring a concrete async runtime in Core. SQLx implements it with a real `SELECT 1`; the server uses that result, not a constant success flag.
 
-SQLite uses `{data_dir}/collector.db`; `0001_baseline.sql` establishes SQLx's migration ledger, `0002_access.sql` adds hashed local-access credentials and singleton endpoint metadata, `0003_mapping_profiles.sql` adds immutable disabled profile revisions, and `0004_preview_jobs.sql` adds bounded normalized preview inputs and lifecycle metadata. `0005_preview_results.sql` preserves v4 data while adding bounded historical result storage and guarded completed jobs. Internal preview runtime is composed at serve startup; public submission/resume remain pending. No raw payloads or plaintext secrets are stored. Existing databases are checked read-only for newer migration versions before writable migration startup.
+SQLite uses `{data_dir}/collector.db`; `0001_baseline.sql` establishes SQLx's migration ledger, `0002_access.sql` adds hashed local-access credentials and singleton endpoint metadata, `0003_mapping_profiles.sql` adds immutable disabled profile revisions, and `0004_preview_jobs.sql` adds bounded normalized preview inputs and lifecycle metadata. `0005_preview_results.sql` preserves v4 data while adding bounded historical result storage and guarded completed jobs. Preview runtime is composed at serve startup and shared by public submission/resume/management. No raw payloads or plaintext secrets are stored. Existing databases are checked read-only for newer migration versions before writable migration startup.
 
 ## 3. Contracts
 
@@ -41,7 +41,7 @@ SQLite uses `{data_dir}/collector.db`; `0001_baseline.sql` establishes SQLx's mi
   and maintenance failure gracefully stop HTTP. Normal/error paths signal/drain
   runtime before pool close/lease release; see [Owned Preview Runtime](./preview-runtime.md).
 - `doctor` creates the data directory and opens/migrates the DB; it is not a read-only operation. It never acquires the serve lease, interrupts preview jobs or launches maintenance. Checks are config, directory accessibility, database write/migration readiness, port availability and assets readability. Invalid config stops subsequent checks. JSON is a deterministic report `{ok, checks: [{name,status,code,message}]}`; success exits 0, failed checks exit 1. Running Core makes the same-port diagnostic fail by design.
-- Rust DTOs in `collector-domain` own wire fields. `HealthDocument` is camelCase with `status`, `coreVersion`, `apiVersion`, `schemaVersion`, `storage`. Capability `connectorIds` is empty until connectors are implemented. Media types stay strings, not Core enums.
+- Rust DTOs in `collector-domain` own wire fields. `HealthDocument` is camelCase with `status`, `coreVersion`, `apiVersion`, `schemaVersion`, `storage`. Capability `connectorIds` stays empty until complete connector client/end-to-end delivery is accepted; independently delivered APIs are advertised by route keys. Media types stay strings, not Core enums.
 - `tools/contracts.mjs` generates OpenAPI/JSON Schema/TS types and AJV standalone validators. Check mode compares bytes in memory and never rewrites artifacts. Rust schema integers include explicit bounds; AJV treats `uint32` as an annotation while integer/minimum/maximum enforce it. Keep TS within the shared peer range of openapi-typescript and typescript-eslint.
 - `packages/core-client-ts` consumes generated types and validates actual responses, checks API/schema compatibility, uses a bounded request timeout, and preserves health documents on HTTP 503. UI never reaches Rust internals.
 - Browser status has loading, connected, unreachable, incompatible, invalid-response and degraded states. Refresh cancels obsolete requests. No secret or status is persisted in browser storage.

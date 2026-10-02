@@ -112,3 +112,39 @@ Completed IMDb observations, declarative evaluator, strict YAML/JSON codec, immu
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: E3b historical preview WebUI checkpoint
+
+**Date**: 2026-10-03
+**Task**: E3b historical preview WebUI checkpoint
+**Branch**: `master`
+
+### Summary
+
+Delivered session-only preview UI and six-route capability gating; independent review races fixed; pnpm verify passed with 273 Rust unit, 2 doctests and 63 TS/UI tests plus actual/mocked browser smoke. Final backend restart/resume acceptance remains pending; task stays active.
+
+### Main Changes
+
+- Added explicit CSV/profile revision selection, bounded polling, historical evidence/field comparisons and generation-aware local management.
+- Main reviewed Sol/medium implementation, fixed observation/action races after independent Sol/medium review, and aligned executable specs.
+- Browser preview responses are schema-validated mocks; host/session/mapping behavior uses actual local Core. No live account, keychain or native-fetch tests.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `de967d2` | (see git log) |
+
+### Testing
+
+- Full pnpm verify passed: 273 Rust unit tests, 2 compile-fail doctests, 63 TS/UI tests, fmt/Clippy, generated contracts, boundaries, lint/typecheck, builds and browser smoke.
+- Product YAML/34 evidence IDs and references plus git diff --check passed. Actual desktop/mobile screenshots were inspected, with no overflow/browser storage.
+
+### Status
+
+[OK] **Checkpoint completed; preview-jobs task remains in_progress**
+
+### Next Steps
+
+- Complete mock backend CSV -> restart -> fresh resume -> delete acceptance before enabling connectorIds or closing the child/parent tasks.

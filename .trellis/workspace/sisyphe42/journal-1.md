@@ -18,7 +18,9 @@ Implemented Rust Core/CLI, YAML configuration, baseline operational SQLite, vers
 
 ### Main Changes
 
-- Detailed change bullets were not supplied; see the summary above.
+- Added mounted-receipt File/profile/job ownership, generated search/manual staging, sparse drafts and explicit new-preview submission; old jobs remain immutable and reopened history stays read-only.
+- Main review strengthened stale rejected paths, Unicode Cc reuse, off-page/Compared resets, encoded JSON exact/+1 limits, delayed File reads, aborts and identity-scoped inspection suppression; raw upload remains compatible.
+- Extended generated-schema Chromium fixtures and synchronized canonical specs/task acceptance; no new dependency, HTTP API/schema, CLI/Core/Server/Storage production behavior, capability or personal/source write.
 
 ### Git Commits
 
@@ -294,3 +296,37 @@ Implemented E4c source-bound JSON submission and generated TS client; full verif
 ### Next Steps
 
 - Add interactive search/manual selection to clients and finish real-client/simulated-upstream negative-path acceptance. Keep connector capabilities empty and personal/source writes disabled.
+
+
+## Session 9: WebUI preview resolution selection checkpoint
+
+**Date**: 2026-10-03
+**Task**: WebUI preview resolution selection checkpoint
+**Branch**: `master`
+
+### Summary
+
+Implemented E4d explicit source-bound WebUI search/manual staging and new-job resubmission; full verification passed; CLI choices and broader integration remain pending.
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6dc19df` | feat: stage explicit WebUI preview resolution choices |
+
+### Testing
+
+- Main final `pnpm verify`: 291 Rust unit tests, 2 compile-fail doctests, 85 TS/UI tests (35 panel cases), fmt/workspace Clippy, contracts/boundaries, lint/typecheck, builds and actual local CLI/HTTP/auth/browser smoke passed.
+- Product YAML/34 evidence IDs/decision/reference/disabled-capability checks and `git diff --check` passed; desktop/mobile draft/candidate screenshots inspected. Preview routes/upstream/accounts/credentials were fake, not live NeoDB or hosted three-platform evidence.
+
+### Status
+
+[OK] **E4d checkpoint committed; preview-jobs and its parent remain unfinished and unarchived.**
+
+### Next Steps
+
+- Add CLI resolution-choice inputs and finish real-client/simulated-upstream negative/end-to-end acceptance. Keep connector capabilities empty and personal/source writes disabled.

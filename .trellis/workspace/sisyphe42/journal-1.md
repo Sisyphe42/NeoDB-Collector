@@ -222,3 +222,39 @@ Implemented and independently reviewed E4a immutable explicit per-record search 
 ### Next Steps
 
 - Deliver public explicit search/manual selection and remaining integrated negative/client acceptance. Keep connectorIds empty, personal writes disabled and the child/parent unarchived until their full criteria pass.
+
+
+## Session 7: Preview manual input checkpoint
+
+**Date**: 2026-10-03
+**Task**: Preview manual input checkpoint
+**Branch**: `master`
+
+### Summary
+
+Implemented E4b immutable compact manual choices, unified resolution input and exact request proof; compatible v7 migration preserves old history. Main pnpm verify passed 288 Rust tests, 2 doctests and 63 TS/UI tests plus contracts/boundaries/builds/smoke. Public search/manual actions and broader acceptance remain pending; tasks remain active.
+
+### Main Changes
+
+- Validated compact manual references and immutable mutually exclusive input plans; fresh manual detail on each attempt.
+- Unified Native/Search/Manual repository reads and exact private requested-reference/mode proof, including redirected evidence and corruption guards.
+- Compatible v7 migration preserves native/search inputs and old manual history; canonical specs and task evidence updated without public API/client changes.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9c8f931` | feat: persist explicit preview manual selections |
+
+### Testing
+
+- Main `pnpm verify`: 288 Rust unit tests, 2 compile-fail doctests, 63 TS/UI tests, fmt/workspace Clippy, contracts/boundaries, lint/typecheck, builds and actual local CLI/HTTP/auth/browser smoke passed.
+- Product YAML/34 evidence IDs, decision/reference/disabled-capability checks and `git diff --check` passed. All upstream/accounts/credentials were fake; local Windows evidence is not hosted three-platform CI.
+
+### Status
+
+[OK] **E4b checkpoint committed; preview-jobs and its parent remain unfinished and unarchived.**
+
+### Next Steps
+
+- Deliver public search/manual selection API and clients, then remaining integrated negative/upstream acceptance. Keep connector capabilities empty and personal/source writes disabled.

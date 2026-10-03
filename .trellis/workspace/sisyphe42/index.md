@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 6
+- **Total Sessions**: 7
 - **Last Active**: 2026-10-03
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~224 | Active |
+| `journal-1.md` | ~260 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 7 | 2026-10-03 | Preview manual input checkpoint | `9c8f931` | `master` |
 | 6 | 2026-10-03 | Immutable preview search input checkpoint | `79300bd` | `master` |
 | 5 | 2026-10-03 | Preview backend restart acceptance | `d3cc8dc` | `master` |
 | 4 | 2026-10-03 | E3b historical preview WebUI checkpoint | `de967d2` | `master` |

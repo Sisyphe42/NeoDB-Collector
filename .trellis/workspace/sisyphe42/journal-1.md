@@ -148,3 +148,40 @@ Delivered session-only preview UI and six-route capability gating; independent r
 ### Next Steps
 
 - Complete mock backend CSV -> restart -> fresh resume -> delete acceptance before enabling connectorIds or closing the child/parent tasks.
+
+
+## Session 5: Preview backend restart acceptance
+
+**Date**: 2026-10-03
+**Task**: Preview backend restart acceptance
+**Branch**: `master`
+
+### Summary
+
+Verified E3c routed CSV/real runner/SQLite close-reopen/fresh resume/delete with fake upstream ports; repaired state-driven WebUI test fixture; final pnpm verify passed 274 Rust plus 2 doctests and 63 TS/UI. Child remains in progress; public search/manual and composed client/upstream acceptance pending.
+
+### Main Changes
+
+- Sol/medium implemented routed backend restart acceptance; main strengthened full binding, upstream/secret counts, preserved evidence, fixed revision/expiry and fresh comparison assertions.
+- Luna/max repaired the existing WebUI response-queue race with explicit remote state, without production UI changes or timeout padding.
+- Aligned owning contracts and recorded PRD evidence gaps in the active task's acceptance.md; no source/personal writes or capability enablement.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d3cc8dc` | test: verify authenticated preview restart and fresh resume |
+
+### Testing
+
+- Main's final pnpm verify passed: 274 Rust unit tests, 2 compile-fail doctests, 63 TS/UI tests, fmt/Clippy, generated contracts, dependency boundaries, lint/typecheck, builds and actual CLI/local HTTP/session/pairing/revocation/browser smoke.
+- Scoped backend restart test, all 15 panel tests and five repeated attempt-change test runs passed. The first full gate's WebUI fixture failure was repaired before the final gate.
+- Product YAML/34 evidence IDs, unique/disjoint decisions and references, plus git diff --check passed. Fake ports/temporary SQLite/loopback only, not live accounts/keychains or full client-to-NeoDB-adapter end-to-end evidence.
+
+### Status
+
+[OK] **Checkpoint completed; preview-jobs task remains in_progress**
+
+### Next Steps
+
+- Deliver public explicit search/manual selection and remaining integrated negative/client acceptance; keep connectorIds empty and do not archive the child/parent yet.

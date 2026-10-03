@@ -2,6 +2,7 @@
 use crate::{
     access::{Endpoint, PortFuture},
     catalog::valid_imdb_title_id,
+    catalog_resolver::validate_catalog_search_query,
     mapping,
 };
 use collector_domain::{
@@ -196,6 +197,7 @@ pub struct PreviewSubmission {
     binding: Endpoint,
     profile: MappingProfile,
     observations: Vec<Observation>,
+    search_queries: Vec<(u32, String)>,
     created_at: i64,
     expires_at: i64,
 }
@@ -233,9 +235,33 @@ impl PreviewSubmission {
             binding,
             profile,
             observations,
+            search_queries: Vec::new(),
             created_at,
             expires_at,
         })
+    }
+
+    pub fn with_search_queries(
+        mut self,
+        search_queries: Vec<(u32, String)>,
+    ) -> Result<Self, ApiError> {
+        if search_queries.len() > self.observations.len() {
+            return Err(invalid_search_plan());
+        }
+        let mut normalized = Vec::with_capacity(search_queries.len());
+        for (ordinal, query) in search_queries {
+            if ordinal as usize >= self.observations.len() {
+                return Err(invalid_search_plan());
+            }
+            let query = validate_catalog_search_query(&query)?.to_owned();
+            normalized.push((ordinal, query));
+        }
+        normalized.sort_unstable_by_key(|(ordinal, _)| *ordinal);
+        if normalized.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+            return Err(invalid_search_plan());
+        }
+        self.search_queries = normalized;
+        Ok(self)
     }
 
     pub fn id(&self) -> &str {
@@ -250,6 +276,12 @@ impl PreviewSubmission {
     pub fn observations(&self) -> &[Observation] {
         &self.observations
     }
+    pub fn search_query(&self, ordinal: u32) -> Option<&str> {
+        self.search_queries
+            .binary_search_by_key(&ordinal, |(saved, _)| *saved)
+            .ok()
+            .map(|index| self.search_queries[index].1.as_str())
+    }
     pub fn created_at(&self) -> i64 {
         self.created_at
     }
@@ -263,6 +295,7 @@ pub trait PreviewJobRepository: Send + Sync {
     fn load(&self, id: String) -> PortFuture<'_, Option<PreviewJob>>;
     fn observations(&self, id: String, offset: u32, limit: u32)
     -> PortFuture<'_, Vec<Observation>>;
+    fn search_query(&self, id: String, ordinal: u32) -> PortFuture<'_, Option<String>>;
     fn claim(&self, id: String, attempt: u32, now: i64) -> PortFuture<'_, bool>;
     fn cancel(&self, id: String, attempt: u32, now: i64) -> PortFuture<'_, bool>;
     fn interrupt_running(&self, now: i64) -> PortFuture<'_, u64>;
@@ -373,6 +406,13 @@ fn invalid_retention() -> ApiError {
     ApiError::new(
         "preview_retention_invalid",
         "Preview retention must be a positive whole number of days with a valid expiry.",
+    )
+}
+
+fn invalid_search_plan() -> ApiError {
+    ApiError::new(
+        "preview_search_plan_invalid",
+        "Preview search inputs must identify distinct submitted records.",
     )
 }
 

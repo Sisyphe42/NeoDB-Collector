@@ -26,7 +26,10 @@ metadata in `preview_jobs` and `preview_observations`; see
 [Persistent Preview Jobs](./preview-jobs.md). Migration `0005_preview_results.sql`
 preserves v4 inputs/lifecycle, permits completed preview jobs and adds bounded
 normalized historical evidence in `preview_results`; see
-[Persistent Preview Results](./preview-results.md). Repositories remain internal:
+[Persistent Preview Results](./preview-results.md). Migration
+`0006_preview_search_inputs.sql` adds bounded nullable explicit query input to
+observation rows; existing jobs remain native and no raw payload is added.
+Repositories remain internal:
 owned runtime/startup recovery/retention and historical inspection read ports are
 composed in CLI serve; [Preview HTTP](./preview-http.md) owns safe wire projections.
 Explicit cancel/delete use the same owned runtime via

@@ -14,7 +14,7 @@ Owners: `crates/collector-core/src/preview_results.rs`,
 `crates/collector-storage/src/preview_results.rs` and their `tests.rs`.
 [Single-attempt execution](./preview-runner.md) consumes these operations internally;
 startup composition, public API/thin clients and screens are implemented;
-final mock restart/resume acceptance remains pending.
+public search/manual selection and broader integrated acceptance remain pending.
 The [owned runtime](./preview-runtime.md) adds bounded explicit admission and
 cancel/delete/shutdown/startup/retention and shared authenticated dispatch.
 
@@ -24,6 +24,8 @@ Internal contracts in `collector-core/src/preview_results.rs`:
 
 - `PreviewResultWrite::new(job_id, ordinal, attempt, committed_at, PreviewRecord)`
   constructs a validated write containing a private service record/input proof.
+- `search_query_proof() -> Option<&str>` exposes the producer's normalized explicit
+  query to trusted Storage only; this private proof is not historical JSON.
 - `PreviewResultRepository::store(PreviewResultWrite) -> PortFuture<bool>`.
 - `results(job_id, attempt, offset, limit) -> PortFuture<Vec<StoredPreviewResult>>`.
 - `complete(job_id, attempt, now) -> PortFuture<bool>`.
@@ -62,15 +64,20 @@ This is an internal persistence format, not a generated/public API contract.
 
 - A write consumes an immutable service-produced record. Carry a private bounded
   full-input equality proof in memory: the exact normalized Observation and disabled
-  MappingProfile, not only their IDs/version/fingerprint. Never serialize that
-  proof, duplicate profile/source payloads in result JSON, or expose credential
+  MappingProfile and normalized explicit search query, not only their
+  IDs/version/fingerprint. Never serialize that proof, duplicate profile/source
+  payloads in result JSON, or expose credential
   references in historical results, diagnostics or public DTOs. Internal write
   proof getters are trusted adapter inputs, like the existing Endpoint port.
 - Decoded historical review types must remain distinct from AccountMarkSnapshot
   and PreviewRecord. A load cannot construct a fresh-read record or execute writes.
 - Mutations use SQLx-managed `BEGIN IMMEDIATE`. In the transaction verify a running
   job, exact attempt/ordinal, non-regressing time before expiry, current full
-  endpoint/account/credential reference, exact valid profile and observation proof.
+  endpoint/account/credential reference, exact valid profile, observation and
+  stored ordinal search-query proof. A Search record for another query or a
+  Native/Manual record for a search-enabled ordinal is refused, even when the
+  resulting item/outcome is identical. Native/Manual internal records retain
+  their existing behavior for NULL query slots; this is not manual-plan delivery.
   Old workers, deleted jobs and duplicate ordinal inserts cannot overwrite/create
   evidence. Hold no transaction over network/OS credential reads.
   Successful insertion advances `updated_at` atomically. Duplicate writes do not
@@ -120,7 +127,7 @@ This is an internal persistence format, not a generated/public API contract.
 | Invalid write metadata | `preview_result_invalid` before repository I/O |
 | Invalid attempt/time or page limit | Existing `preview_transition_invalid` / `preview_page_invalid` |
 | Stale status/attempt, cancelled/recovered/deleted/expired job | `false`; no result or completion accepted |
-| Changed live endpoint/profile or mismatched full producer inputs | `false`; results/status unchanged |
+| Changed live endpoint/profile or mismatched full producer inputs/search query | `false`; results/status unchanged |
 | Duplicate ordinal result | `false`; no overwrite; concurrent writers have one winner |
 | Missing ordinal result at completion | `false`; no completed transition |
 | Corrupt result extent or decoded JSON/binding/comparison | `database_unavailable`; no affected mutation/read/completion |
@@ -155,6 +162,13 @@ and completion; reject malformed/oversized stored JSON. Test 64 KiB exact/+1 and
 JSON escaping, 32 MiB aggregate boundaries, sparse pages and damaged later rows.
 Upgrade populated v4 plus v1-v3 fixtures; check foreign keys, ledger,
 existing operational rows, newer-schema refusal and absence of raw/token columns.
+E4a additionally checks exact search proof mismatch, native/search mode mismatch,
+corrupt stored query rejection and v5 evidence preservation under the v6 upgrade.
+`result_write_requires_the_exact_stored_search_query_proof` asserts refused
+Native/Manual/different-query writes, accepted normalized matching proof, no query
+in historical result JSON, and corrupt query refusal in reads/store/completion
+without advancing status/time. `populated_exact_v5_schema_upgrades_native_rows_with_null_search_query`
+asserts retained historical evidence and native defaults after reopen/upgrade.
 Run scoped Core/Storage tests, fmt/Clippy, `pnpm verify`, product YAML/evidence
 validation and `git diff --check`. Report local Windows evidence separately from
 hosted three-platform CI.

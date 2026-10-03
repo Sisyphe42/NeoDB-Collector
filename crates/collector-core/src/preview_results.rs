@@ -71,6 +71,9 @@ impl PreviewResultWrite {
     pub fn observation_proof(&self) -> &Observation {
         self.record.observation_proof()
     }
+    pub fn search_query_proof(&self) -> Option<&str> {
+        self.record.search_query_proof()
+    }
 }
 
 pub trait PreviewResultRepository: Send + Sync {

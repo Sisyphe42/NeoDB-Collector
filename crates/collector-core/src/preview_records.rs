@@ -65,6 +65,7 @@ pub struct PreviewRecord {
 struct PreviewRecordProof {
     profile: MappingProfile,
     observation: Observation,
+    search_query: Option<String>,
 }
 
 impl PreviewRecord {
@@ -117,6 +118,10 @@ impl PreviewRecord {
     pub(crate) fn observation_proof(&self) -> &Observation {
         &self.proof.observation
     }
+
+    pub(crate) fn search_query_proof(&self) -> Option<&str> {
+        self.proof.search_query.as_deref()
+    }
 }
 
 pub struct PreviewRecordService {
@@ -139,6 +144,12 @@ impl PreviewRecordService {
         C: ResolutionControl,
     {
         validate_request(&request)?;
+        let search_query = match request.mode {
+            PreviewResolutionMode::Search { query } => {
+                Some(validate_catalog_search_query(query)?.to_owned())
+            }
+            PreviewResolutionMode::Native | PreviewResolutionMode::Manual { .. } => None,
+        };
         let deadline = control
             .now()
             .checked_add(RESOLUTION_BUDGET)
@@ -233,6 +244,7 @@ impl PreviewRecordService {
                         proof: PreviewRecordProof {
                             profile: request.profile.clone(),
                             observation: request.observation.clone(),
+                            search_query,
                         },
                     })
                 }),

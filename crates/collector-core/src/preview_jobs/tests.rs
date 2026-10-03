@@ -128,6 +128,86 @@ fn submission_reuses_mapping_validation_and_enforces_count() {
 }
 
 #[test]
+fn explicit_search_plan_is_sparse_normalized_bounded_and_unique() {
+    let values = vec![observation(), observation()];
+    let submission = PreviewSubmission::new(
+        "job:search".into(),
+        endpoint(),
+        imdb_default(),
+        values.clone(),
+        1,
+        2,
+    )
+    .unwrap()
+    .with_search_queries(vec![(1, "  second title  ".into()), (0, "first".into())])
+    .unwrap();
+    assert_eq!(submission.search_query(0), Some("first"));
+    assert_eq!(submission.search_query(1), Some("second title"));
+    assert_eq!(submission.search_query(2), None);
+
+    for (plan, expected) in [
+        (
+            vec![(0, "one".into()), (0, "two".into())],
+            "preview_search_plan_invalid",
+        ),
+        (
+            vec![(0, "one".into()), (1, "two".into()), (1, "three".into())],
+            "preview_search_plan_invalid",
+        ),
+        (vec![(2, "outside".into())], "preview_search_plan_invalid"),
+        (vec![(0, "\n".into())], "catalog_search_query_invalid"),
+        (vec![(0, "   ".into())], "catalog_search_query_invalid"),
+        (
+            vec![(0, format!("{} ", "x".repeat(512)))],
+            "catalog_search_query_invalid",
+        ),
+        (
+            vec![(0, format!("{}a", "é".repeat(256)))],
+            "catalog_search_query_invalid",
+        ),
+    ] {
+        let error = PreviewSubmission::new(
+            "job:invalid-search".into(),
+            endpoint(),
+            imdb_default(),
+            values.clone(),
+            1,
+            2,
+        )
+        .unwrap()
+        .with_search_queries(plan)
+        .err()
+        .unwrap();
+        assert_eq!(error.code, expected);
+    }
+
+    let exact = PreviewSubmission::new(
+        "job:exact-search".into(),
+        endpoint(),
+        imdb_default(),
+        vec![observation()],
+        1,
+        2,
+    )
+    .unwrap()
+    .with_search_queries(vec![(0, "x".repeat(512))])
+    .unwrap();
+    assert_eq!(exact.search_query(0).unwrap().len(), 512);
+    let exact_utf8 = PreviewSubmission::new(
+        "job:exact-search-utf8".into(),
+        endpoint(),
+        imdb_default(),
+        vec![observation()],
+        1,
+        2,
+    )
+    .unwrap()
+    .with_search_queries(vec![(0, "é".repeat(256))])
+    .unwrap();
+    assert_eq!(exact_utf8.search_query(0).unwrap().len(), 512);
+}
+
+#[test]
 fn job_and_transition_metadata_fail_closed() {
     assert_eq!(
         PreviewJob::from_stored(

@@ -1,6 +1,7 @@
 use crate::{Storage, database_error};
 use collector_core::{
     access::{Endpoint, PortFuture},
+    catalog_resolver::validate_catalog_search_query,
     mapping,
     preview_jobs::{
         MAX_PREVIEW_OBSERVATION_BYTES, MAX_PREVIEW_TOTAL_BYTES, PreviewJob, PreviewJobIdentity,
@@ -73,6 +74,37 @@ pub(crate) async fn load_profile(
         return Err(database_error());
     }
     Ok(Some(profile))
+}
+
+pub(crate) async fn load_search_query(
+    conn: &mut SqliteConnection,
+    id: &str,
+    ordinal: u32,
+) -> Result<Option<Option<String>>, ApiError> {
+    let row =
+        sqlx::query("SELECT search_query FROM preview_observations WHERE job_id=? AND ordinal=?")
+            .bind(id)
+            .bind(ordinal)
+            .fetch_optional(conn)
+            .await
+            .map_err(|_| database_error())?;
+    let Some(row) = row else {
+        return Ok(None);
+    };
+    let query: Option<String> = row.try_get("search_query").map_err(|_| database_error())?;
+    decode_search_query(query).map(Some)
+}
+
+pub(crate) fn decode_search_query(query: Option<String>) -> Result<Option<String>, ApiError> {
+    query
+        .map(|query| {
+            let normalized = validate_catalog_search_query(&query).map_err(|_| database_error())?;
+            if normalized != query {
+                return Err(database_error());
+            }
+            Ok(query)
+        })
+        .transpose()
 }
 
 pub(crate) async fn load_job(
@@ -231,10 +263,13 @@ impl PreviewJobRepository for Storage {
                 .await
                 .map_err(|_| database_error())?;
             for (ordinal, json) in encoded.into_iter().enumerate() {
-                sqlx::query("INSERT INTO preview_observations(job_id,ordinal,observation_json) VALUES(?,?,?)")
+                let ordinal = u32::try_from(ordinal).map_err(|_| database_error())?;
+                let search_query = submission.search_query(ordinal);
+                sqlx::query("INSERT INTO preview_observations(job_id,ordinal,observation_json,search_query) VALUES(?,?,?,?)")
                     .bind(submission.id())
-                    .bind(i64::try_from(ordinal).map_err(|_| database_error())?)
+                    .bind(ordinal)
                     .bind(json)
+                    .bind(search_query)
                     .execute(&mut *tx)
                     .await
                     .map_err(|_| database_error())?;
@@ -272,7 +307,7 @@ impl PreviewJobRepository for Storage {
             let profile = load_profile(&mut tx, job.profile_id(), job.profile_version())
                 .await?
                 .ok_or_else(database_error)?;
-            let rows = sqlx::query("SELECT ordinal,observation_json FROM preview_observations WHERE job_id=? AND ordinal>=? ORDER BY ordinal LIMIT ?")
+            let rows = sqlx::query("SELECT ordinal,observation_json,search_query FROM preview_observations WHERE job_id=? AND ordinal>=? ORDER BY ordinal LIMIT ?")
                 .bind(&id)
                 .bind(offset)
                 .bind(limit)
@@ -299,11 +334,29 @@ impl PreviewJobRepository for Storage {
                         serde_json::from_str(&json).map_err(|_| database_error())?;
                     validate_imdb_observation(&observation).map_err(|_| database_error())?;
                     mapping::evaluate(&profile, &observation).map_err(|_| database_error())?;
+                    let search_query: Option<String> =
+                        row.try_get("search_query").map_err(|_| database_error())?;
+                    decode_search_query(search_query)?;
                     Ok(observation)
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             tx.commit().await.map_err(|_| database_error())?;
             Ok(observations)
+        })
+    }
+
+    fn search_query(&self, id: String, ordinal: u32) -> PortFuture<'_, Option<String>> {
+        Box::pin(async move {
+            if ordinal as usize >= collector_core::preview_jobs::MAX_PREVIEW_OBSERVATIONS {
+                return Err(ApiError::new(
+                    "preview_search_plan_invalid",
+                    "Preview search inputs must identify distinct submitted records.",
+                ));
+            }
+            let mut tx = self.pool.begin().await.map_err(|_| database_error())?;
+            let query = load_search_query(&mut tx, &id, ordinal).await?.flatten();
+            tx.commit().await.map_err(|_| database_error())?;
+            Ok(query)
         })
     }
 

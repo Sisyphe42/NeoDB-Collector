@@ -216,6 +216,15 @@ impl PreviewAttemptRunner {
                                 return Ok(RecordStep::Stopped);
                             }
                             let catalog_identity = identity(&observation.item)?;
+                            let search_query =
+                                self.jobs.search_query(job.id().to_owned(), ordinal).await?;
+                            if !self.still_running(job, expected, attempt).await? {
+                                return Ok(RecordStep::Stopped);
+                            }
+                            let mode = match search_query.as_deref() {
+                                Some(query) => PreviewResolutionMode::Search { query },
+                                None => PreviewResolutionMode::Native,
+                            };
                             let record = self
                                 .producer
                                 .preview(
@@ -226,7 +235,7 @@ impl PreviewAttemptRunner {
                                         profile,
                                         observation: &observation,
                                         identity: &catalog_identity,
-                                        mode: PreviewResolutionMode::Native,
+                                        mode,
                                     },
                                 )
                                 .await?;

@@ -5,7 +5,10 @@
 Internal movie/TV fallback for preview identity resolution. Core owns the fallback
 decision in `crates/collector-core/src/catalog_resolver.rs`; the NeoDB adapter owns
 the catalog-search request and normalized evidence. No public HTTP route, saved
-manual mapping, background job, personal-state read/write or new dependency.
+manual mapping, background job, personal-state read/write or new dependency in
+this resolver slice. The separate [job contract](./preview-jobs.md) now persists
+explicit per-record search opt-ins for the existing runner; public search/manual
+actions remain pending.
 
 ## 2. Signatures
 

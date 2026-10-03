@@ -16,6 +16,19 @@ than silently substituting a different model. This does not remove review gates.
 
 ## Activation gate
 
+E4a checkpoint (2026-10-03): Sol/medium owns Core/Storage search-input types,
+repository/runner/proof integration, compatible v6 migration, tests and minimal
+trait-implementation updates in Server test fixtures only. Main owns task/spec
+edits, independent review, full gate and commit. Read E4a design and backend
+preview-jobs/records/results/runner, catalog-search, mapping-storage,
+state-and-pairing and repository-layout contracts. Reuse existing validation and
+strict serde/SQLx; no new dependencies, public API/Domain/client changes, manual
+selection persistence, recursive delegation or agent commits. Cargo is serial.
+Stop after scoped Core/Storage tests/fmt/Clippy for main review and full gate.
+
+- [x] E4a: Immutable explicit per-record search queries survive reopen/resume;
+  the existing runner and result proof consume the exact stored query.
+
 E3c checkpoint (2026-10-03): Sol/medium owns a new test-only Server integration
 module and its minimal `#[cfg(test)]` registration. Exercise authenticated raw CSV
 import -> real comparison -> drained shutdown/SQLite reopen -> production startup
@@ -628,6 +641,31 @@ disabled. E3b WebUI, mock restart/resume end-to-end and broader child/parent
 acceptance remain pending. Keep this child active, not archived.
 
 ## Verification gates
+
+E4a verification (2026-10-03): Sol/medium implemented immutable sparse query
+inputs, compatible v6 migration, repository/runner/record proof integration and
+tests; main independently reviewed production and test diffs. Main review required
+shared stored-query decoding across observation/history/store/completion reads,
+bounded plan length before allocation, exact error and UTF-8 byte assertions,
+matching trimmed-request proof insertion, explicit nonempty exact-ID candidates
+remaining review-only, fresh query forwarding, and query-phase cancel/timeout/
+rebind/delete guards. Native defaults and existing internal Manual/NULL behavior
+remain unchanged; no public search/manual action or advertised capability exists.
+
+Scoped Core 86 unit + 2 compile-fail doctests and Storage 40 unit tests passed;
+Server fixtures compiled, scoped fmt/Clippy and diff checks passed. Main's full
+`pnpm verify` after all code/test changes passed with `CARGO_BUILD_JOBS=1`:
+282 Rust unit tests, 2 compile-fail doctests, 63 TS/UI tests, workspace fmt/Clippy,
+non-mutating generated-contract drift, dependency boundaries, lint/typecheck,
+WebUI/CLI builds and actual CLI/local HTTP/session/pairing/revocation/desktop-mobile
+Chromium smoke. Product YAML/34 evidence IDs, unique/disjoint decision IDs and
+references plus final `git diff --check` passed separately. All fixtures are fake
+ports/temporary SQLite/loopback, not live NeoDB/native fetch, accounts or OS
+credentials. Existing v1-v4 fixtures and populated exact-v5 upgrade preserve
+operational state; raw payloads/tokens are not added. No dependency, public API,
+Domain/client or production Server change. Keep this child active, connectorIds
+empty and personal writes disabled; public search/manual and broader acceptance
+remain pending rather than marking E/PRD complete.
 
 E3c verification (2026-10-03): Sol/medium implemented the new test-only routed
 restart scenario; main reviewed it and strengthened production identity-helper

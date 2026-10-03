@@ -320,26 +320,32 @@ fn decode(
     .map_err(|_| database_error())
 }
 
-async fn stored_observation(
+async fn stored_input(
     conn: &mut SqliteConnection,
     job: &str,
     ordinal: u32,
-) -> Result<Option<Observation>, ApiError> {
-    let json: Option<String> = sqlx::query_scalar(
-        "SELECT observation_json FROM preview_observations WHERE job_id=? AND ordinal=?",
+) -> Result<Option<(Observation, Option<String>)>, ApiError> {
+    let row = sqlx::query(
+        "SELECT observation_json,search_query FROM preview_observations WHERE job_id=? AND ordinal=?",
     )
     .bind(job)
     .bind(ordinal)
     .fetch_optional(conn)
     .await
     .map_err(|_| database_error())?;
-    json.map(|json| {
+    row.map(|row| {
+        let json: String = row
+            .try_get("observation_json")
+            .map_err(|_| database_error())?;
         if json.len() > MAX_PREVIEW_OBSERVATION_BYTES {
             return Err(database_error());
         }
         let value: Observation = serde_json::from_str(&json).map_err(|_| database_error())?;
         validate_imdb_observation(&value).map_err(|_| database_error())?;
-        Ok(value)
+        let search_query: Option<String> =
+            row.try_get("search_query").map_err(|_| database_error())?;
+        let search_query = super::preview_jobs::decode_search_query(search_query)?;
+        Ok((value, search_query))
     })
     .transpose()
 }
@@ -460,12 +466,15 @@ impl PreviewResultRepository for Storage {
             if profile != *write.profile_proof() {
                 return Ok(false);
             }
-            let Some(observation) =
-                stored_observation(&mut tx, write.job_id(), write.ordinal()).await?
+            let Some((observation, search_query)) =
+                stored_input(&mut tx, write.job_id(), write.ordinal()).await?
             else {
                 return Ok(false);
             };
             if observation != *write.observation_proof() {
+                return Ok(false);
+            }
+            if search_query.as_deref() != write.search_query_proof() {
                 return Ok(false);
             }
             validate_extent(&mut tx, &job).await?;
@@ -560,7 +569,7 @@ impl PreviewResultRepository for Storage {
                     row.try_get("committed_at").map_err(|_| database_error())?;
                 let json: String = row.try_get("result_json").map_err(|_| database_error())?;
                 let value = decode(&json, ordinal, saved_attempt, committed_at)?;
-                let observation = stored_observation(&mut tx, &job_id, ordinal)
+                let (observation, _) = stored_input(&mut tx, &job_id, ordinal)
                     .await?
                     .ok_or_else(database_error)?;
                 coherent(&job, &profile, &observation, &value)?;
@@ -618,7 +627,7 @@ impl PreviewResultRepository for Storage {
                     row.try_get("committed_at").map_err(|_| database_error())?;
                 let json: String = row.try_get("result_json").map_err(|_| database_error())?;
                 let value = decode(&json, ordinal, saved_attempt, committed_at)?;
-                let observation = stored_observation(&mut tx, &job_id, ordinal)
+                let (observation, _) = stored_input(&mut tx, &job_id, ordinal)
                     .await?
                     .ok_or_else(database_error)?;
                 coherent(&job, &profile, &observation, &value)?;

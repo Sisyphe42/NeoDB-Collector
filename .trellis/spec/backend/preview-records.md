@@ -12,8 +12,9 @@ Source owners: `crates/collector-core/src/preview_records.rs` and its `tests.rs`
 for claimed jobs; [owned runtime](./preview-runtime.md) supplies admission, startup
 recovery and retention cleanup. Public import/history/management APIs, thin
 clients, CLI commands and preview screens are implemented. The batch runner is
-native-only: public search/manual selection and broader integrated acceptance
-remain pending; internal resolution modes do not imply client delivery.
+native by default with immutable per-record explicit search opt-in: public
+search/manual selection and broader integrated acceptance remain pending;
+internal resolution modes do not imply client delivery.
 
 ## 2. Signatures
 
@@ -77,7 +78,8 @@ no execution operation or credential-reference accessor.
 - Records are immutable historical evidence for one source fingerprint/profile
   revision/account generation. No raw payload, token, completed-job state or write
   authority is produced. D2b1 adds a private in-memory proof of the exact normalized
-  observation/full profile for result insertion; that proof is never serialized.
+  observation/full profile for result insertion; E4a also records the normalized
+  explicit search query (None for Native/Manual). That proof is never serialized.
   The result write exposes it only to trusted storage adapters. Result transactions must recheck live job attempt,
   account/profile and expiry; this service cannot make those future checks atomic.
 

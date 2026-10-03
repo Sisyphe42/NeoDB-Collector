@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     access::{AccessRecord, ChallengeMatch, PortFuture, SecretStore},
-    catalog::{CatalogFetch, CatalogItem, CatalogSearchPage},
+    catalog::{CatalogFetch, CatalogItem, CatalogSearchCandidate, CatalogSearchPage},
     marks::{MarkRead, NeoDbMarkTransport},
     oauth::{NeoDbOAuthTransport, OAuthApp, OAuthIdentity, OAuthToken},
     secrets::SecretString,
@@ -97,6 +97,11 @@ struct JobState {
     pending_dropped: Arc<AtomicBool>,
     oversized_page: bool,
     fail_deletes: bool,
+    search_queries: BTreeMap<u32, String>,
+    query_calls: Vec<u32>,
+    pending_query: bool,
+    rebind_after_query: bool,
+    delete_after_query: bool,
 }
 
 struct Jobs {
@@ -177,6 +182,32 @@ impl PreviewJobRepository for Jobs {
                 observations.push(observations[0].clone());
             }
             Ok(observations)
+        })
+    }
+
+    fn search_query(&self, _: String, ordinal: u32) -> PortFuture<'_, Option<String>> {
+        Box::pin(async move {
+            let (query, pending_drop, rebind, delete) = {
+                let mut state = self.state.lock().unwrap();
+                state.query_calls.push(ordinal);
+                (
+                    state.search_queries.get(&ordinal).cloned(),
+                    state.pending_query.then(|| state.pending_dropped.clone()),
+                    state.rebind_after_query,
+                    state.delete_after_query,
+                )
+            };
+            if let Some(dropped) = pending_drop {
+                let _flag = DropFlag(dropped);
+                return pending().await;
+            }
+            if rebind {
+                self.state.lock().unwrap().binding_ref = "credential-b".into();
+            }
+            if delete {
+                self.state.lock().unwrap().present = false;
+            }
+            Ok(query)
         })
     }
 
@@ -269,6 +300,8 @@ struct Results {
     pending_complete: AtomicBool,
     pending_dropped: Arc<AtomicBool>,
     complete_calls: AtomicUsize,
+    outcomes: Mutex<Vec<&'static str>>,
+    exact_candidates: AtomicUsize,
 }
 
 impl PreviewResultRepository for Results {
@@ -287,6 +320,29 @@ impl PreviewResultRepository for Results {
             ) {
                 self.compared.fetch_add(1, Ordering::SeqCst);
             }
+            if let crate::preview_records::PreviewRecordOutcome::SearchCandidates(page) =
+                write.record().outcome()
+                && page.candidates.iter().any(|candidate| {
+                    candidate
+                        .item
+                        .external_ids
+                        .iter()
+                        .any(|(scheme, id)| scheme == "imdb:title" && id == "tt0000002")
+                })
+            {
+                self.exact_candidates.fetch_add(1, Ordering::SeqCst);
+            }
+            self.outcomes
+                .lock()
+                .unwrap()
+                .push(match write.record().outcome() {
+                    crate::preview_records::PreviewRecordOutcome::Compared(_) => "compared",
+                    crate::preview_records::PreviewRecordOutcome::NeedsReview { .. } => "review",
+                    crate::preview_records::PreviewRecordOutcome::SearchCandidates(_) => "search",
+                    crate::preview_records::PreviewRecordOutcome::Unsupported => "unsupported",
+                    crate::preview_records::PreviewRecordOutcome::RateLimited => "rate_limited",
+                    crate::preview_records::PreviewRecordOutcome::Unavailable => "unavailable",
+                });
             self.stored
                 .lock()
                 .unwrap()
@@ -468,6 +524,8 @@ impl Drop for DropFlag {
 
 struct Transport {
     calls: AtomicUsize,
+    search_calls: AtomicUsize,
+    search_queries: Mutex<Vec<String>>,
     advance: u64,
     control: Arc<Control>,
     cancel_on_fetch: bool,
@@ -508,8 +566,21 @@ impl NeoDbCatalogTransport for Transport {
 }
 
 impl NeoDbCatalogSearchTransport for Transport {
-    fn search(&self, _: String, _: String, _: String) -> PortFuture<'_, CatalogSearchPage> {
-        Box::pin(async { unreachable!() })
+    fn search(&self, _: String, query: String, _: String) -> PortFuture<'_, CatalogSearchPage> {
+        Box::pin(async move {
+            self.search_calls.fetch_add(1, Ordering::SeqCst);
+            self.search_queries.lock().unwrap().push(query);
+            Ok(CatalogSearchPage {
+                candidates: vec![CatalogSearchCandidate {
+                    title: "Exact-ID candidate".into(),
+                    item: CatalogItem {
+                        external_ids: vec![("imdb:title".into(), "tt0000002".into())],
+                        ..catalog_item()
+                    },
+                }],
+                more_available: false,
+            })
+        })
     }
 }
 
@@ -552,6 +623,11 @@ fn fixture(count: usize) -> Fixture {
         pending_dropped: Arc::new(AtomicBool::new(false)),
         oversized_page: false,
         fail_deletes: false,
+        search_queries: BTreeMap::new(),
+        query_calls: vec![],
+        pending_query: false,
+        rebind_after_query: false,
+        delete_after_query: false,
     }));
     let control = Arc::new(Control::default());
     let jobs = Arc::new(Jobs {
@@ -568,6 +644,8 @@ fn fixture(count: usize) -> Fixture {
         pending_complete: AtomicBool::new(false),
         pending_dropped: Arc::new(AtomicBool::new(false)),
         complete_calls: AtomicUsize::new(0),
+        outcomes: Mutex::new(vec![]),
+        exact_candidates: AtomicUsize::new(0),
     });
     let clock = Arc::new(TestClock(AtomicI64::new(100)));
     let access = Arc::new(Access {
@@ -600,6 +678,8 @@ fn fixture(count: usize) -> Fixture {
     let dropped = Arc::new(AtomicBool::new(false));
     let transport = Transport {
         calls: AtomicUsize::new(0),
+        search_calls: AtomicUsize::new(0),
+        search_queries: Mutex::new(vec![]),
         advance: 0,
         control: control.clone(),
         cancel_on_fetch: false,
@@ -722,6 +802,197 @@ fn empty_and_multipage_attempts_complete_in_stable_order() {
         );
         assert_eq!(f.transport.calls.load(Ordering::SeqCst), count);
     }
+}
+
+#[test]
+fn mixed_native_and_explicit_search_inputs_run_in_ordinal_order() {
+    let f = fixture(2);
+    f.state
+        .lock()
+        .unwrap()
+        .search_queries
+        .insert(1, "Chosen title".into());
+    let mut future = Box::pin(f.runner.run(
+        "job:one",
+        1,
+        &f.transport,
+        f.control.as_ref(),
+        &catalog_identity,
+    ));
+    assert_eq!(
+        ready(poll(future.as_mut())).unwrap(),
+        PreviewAttemptOutcome::Completed
+    );
+    assert_eq!(f.state.lock().unwrap().query_calls, vec![0, 1]);
+    assert_eq!(f.transport.calls.load(Ordering::SeqCst), 2);
+    assert_eq!(f.transport.search_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        f.transport.search_queries.lock().unwrap().as_slice(),
+        ["Chosen title"]
+    );
+    assert_eq!(f.secrets.0.load(Ordering::SeqCst), 0);
+    assert_eq!(f.marks.0.load(Ordering::SeqCst), 0);
+    assert_eq!(
+        f.results.stored.lock().unwrap().as_slice(),
+        [(0, 1), (1, 1)]
+    );
+    assert_eq!(
+        f.results.outcomes.lock().unwrap().as_slice(),
+        ["unsupported", "search"]
+    );
+    assert_eq!(f.results.exact_candidates.load(Ordering::SeqCst), 1);
+
+    {
+        let mut state = f.state.lock().unwrap();
+        state.status = PreviewJobStatus::Queued;
+        state.attempt = 2;
+        state.query_calls.clear();
+    }
+    f.results.stored.lock().unwrap().clear();
+    f.results.outcomes.lock().unwrap().clear();
+    let mut future = Box::pin(f.runner.run(
+        "job:one",
+        2,
+        &f.transport,
+        f.control.as_ref(),
+        &catalog_identity,
+    ));
+    assert_eq!(
+        ready(poll(future.as_mut())).unwrap(),
+        PreviewAttemptOutcome::Completed
+    );
+    assert_eq!(f.state.lock().unwrap().query_calls, vec![0, 1]);
+    assert_eq!(
+        f.transport.search_queries.lock().unwrap().as_slice(),
+        ["Chosen title", "Chosen title"]
+    );
+    assert_eq!(
+        f.results.stored.lock().unwrap().as_slice(),
+        [(0, 2), (1, 2)]
+    );
+    assert_eq!(
+        f.results.outcomes.lock().unwrap().as_slice(),
+        ["unsupported", "search"]
+    );
+    assert_eq!(f.results.exact_candidates.load(Ordering::SeqCst), 2);
+}
+
+#[test]
+fn saved_search_query_never_overrides_a_native_terminal_result() {
+    let mut f = fixture(1);
+    f.state
+        .lock()
+        .unwrap()
+        .search_queries
+        .insert(0, "Chosen title".into());
+    f.transport.matched = true;
+    let mut future = Box::pin(f.runner.run(
+        "job:one",
+        1,
+        &f.transport,
+        f.control.as_ref(),
+        &catalog_identity,
+    ));
+    assert_eq!(
+        ready(poll(future.as_mut())).unwrap(),
+        PreviewAttemptOutcome::Completed
+    );
+    assert_eq!(f.transport.calls.load(Ordering::SeqCst), 1);
+    assert_eq!(f.transport.search_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(f.results.compared.load(Ordering::SeqCst), 1);
+    assert_eq!(f.results.outcomes.lock().unwrap().as_slice(), ["compared"]);
+}
+
+#[test]
+fn search_query_read_is_bounded_and_followed_by_a_fresh_live_guard() {
+    let f = fixture(1);
+    {
+        let mut state = f.state.lock().unwrap();
+        state.search_queries.insert(0, "Chosen title".into());
+        state.rebind_after_query = true;
+    }
+    let mut future = Box::pin(f.runner.run(
+        "job:one",
+        1,
+        &f.transport,
+        f.control.as_ref(),
+        &catalog_identity,
+    ));
+    assert_eq!(
+        ready(poll(future.as_mut())).unwrap(),
+        PreviewAttemptOutcome::Stopped
+    );
+    assert_eq!(f.state.lock().unwrap().query_calls, vec![0]);
+    assert_eq!(f.transport.calls.load(Ordering::SeqCst), 0);
+    assert_eq!(f.transport.search_calls.load(Ordering::SeqCst), 0);
+
+    let f = fixture(1);
+    {
+        let mut state = f.state.lock().unwrap();
+        state.search_queries.insert(0, "Chosen title".into());
+        state.delete_after_query = true;
+    }
+    let mut future = Box::pin(f.runner.run(
+        "job:one",
+        1,
+        &f.transport,
+        f.control.as_ref(),
+        &catalog_identity,
+    ));
+    assert_eq!(
+        ready(poll(future.as_mut())).unwrap(),
+        PreviewAttemptOutcome::Stopped
+    );
+    assert_eq!(f.state.lock().unwrap().query_calls, vec![0]);
+    assert_eq!(f.transport.calls.load(Ordering::SeqCst), 0);
+
+    let f = fixture(1);
+    {
+        let mut state = f.state.lock().unwrap();
+        state.search_queries.insert(0, "Chosen title".into());
+        state.pending_query = true;
+    }
+    let dropped = f.state.lock().unwrap().pending_dropped.clone();
+    let mut future = Box::pin(f.runner.run(
+        "job:one",
+        1,
+        &f.transport,
+        f.control.as_ref(),
+        &catalog_identity,
+    ));
+    assert!(poll(future.as_mut()).is_pending());
+    f.control.cancelled.store(true, Ordering::SeqCst);
+    assert_eq!(
+        ready(poll(future.as_mut())).unwrap_err().code,
+        "catalog_resolution_cancelled"
+    );
+    assert!(dropped.load(Ordering::SeqCst));
+    assert_eq!(f.transport.calls.load(Ordering::SeqCst), 0);
+    assert_eq!(f.transport.search_calls.load(Ordering::SeqCst), 0);
+
+    let f = fixture(1);
+    {
+        let mut state = f.state.lock().unwrap();
+        state.search_queries.insert(0, "Chosen title".into());
+        state.pending_query = true;
+    }
+    let dropped = f.state.lock().unwrap().pending_dropped.clone();
+    let mut future = Box::pin(f.runner.run(
+        "job:one",
+        1,
+        &f.transport,
+        f.control.as_ref(),
+        &catalog_identity,
+    ));
+    assert!(poll(future.as_mut()).is_pending());
+    f.control.now.store(120, Ordering::SeqCst);
+    assert_eq!(
+        ready(poll(future.as_mut())).unwrap_err().code,
+        "catalog_resolution_timeout"
+    );
+    assert!(dropped.load(Ordering::SeqCst));
+    assert_eq!(f.transport.calls.load(Ordering::SeqCst), 0);
+    assert_eq!(f.transport.search_calls.load(Ordering::SeqCst), 0);
 }
 
 #[test]

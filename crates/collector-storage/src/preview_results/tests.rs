@@ -257,6 +257,19 @@ async fn produce_with_ids(
     manual: bool,
     ids: Vec<(String, String)>,
 ) -> collector_core::preview_records::PreviewRecord {
+    let query = matches!(kind, ResolutionKind::Search).then_some("Exact title");
+    produce_with_ids_and_query(profile, observation, kind, mark, manual, ids, query).await
+}
+
+async fn produce_with_ids_and_query(
+    profile: &MappingProfile,
+    observation: &Observation,
+    kind: ResolutionKind,
+    mark: Mark,
+    manual: bool,
+    ids: Vec<(String, String)>,
+    search_query: Option<&str>,
+) -> collector_core::preview_records::PreviewRecord {
     let snapshots = Arc::new(PreviewSnapshotService::new(
         Arc::new(Repo(Mutex::new(Some(binding("credential-a"))))),
         Arc::new(Secrets),
@@ -281,10 +294,8 @@ async fn produce_with_ids(
         PreviewResolutionMode::Manual {
             reference: "/api/tv/Resolved123",
         }
-    } else if matches!(kind, ResolutionKind::Search) {
-        PreviewResolutionMode::Search {
-            query: "Exact title",
-        }
+    } else if let Some(query) = search_query {
+        PreviewResolutionMode::Search { query }
     } else {
         PreviewResolutionMode::Native
     };
@@ -331,6 +342,28 @@ async fn running(storage: &Storage, id: &str, profile: MappingProfile, values: V
         )
         .await
         .unwrap();
+    assert!(storage.claim(id.into(), 1, 105).await.unwrap());
+}
+
+async fn running_with_search(
+    storage: &Storage,
+    id: &str,
+    profile: MappingProfile,
+    values: Vec<Observation>,
+    query: &str,
+) {
+    let submission = PreviewSubmission::new(
+        id.into(),
+        binding("credential-a"),
+        profile,
+        values,
+        100,
+        1_000,
+    )
+    .unwrap()
+    .with_search_queries(vec![(0, query.into())])
+    .unwrap();
+    storage.submit(submission).await.unwrap();
     assert!(storage.claim(id.into(), 1, 105).await.unwrap());
 }
 
@@ -477,7 +510,18 @@ async fn every_outcome_and_comparison_state_remains_normalized_history() {
     ];
     for (name, kind, mark, manual) in cases {
         let id = format!("job:{name}");
-        running(&storage, &id, profile.clone(), vec![observed.clone()]).await;
+        if matches!(kind, ResolutionKind::Search) {
+            running_with_search(
+                &storage,
+                &id,
+                profile.clone(),
+                vec![observed.clone()],
+                "Exact title",
+            )
+            .await;
+        } else {
+            running(&storage, &id, profile.clone(), vec![observed.clone()]).await;
+        }
         let record = produce(&profile, &observed, kind, mark, manual).await;
         let expected_compared = match record.outcome() {
             PreviewRecordOutcome::Compared(value) => Some((
@@ -751,6 +795,150 @@ async fn exact_input_and_live_binding_guards_reject_forged_or_late_records() {
             .await
             .unwrap();
     }
+    storage.close().await;
+}
+
+#[tokio::test]
+async fn result_write_requires_the_exact_stored_search_query_proof() {
+    let (_dir, storage, profile) = setup().await;
+    let observed = observation("tt1234567", 8);
+    running_with_search(
+        &storage,
+        "job:search-proof",
+        profile.clone(),
+        vec![observed.clone()],
+        "Exact title",
+    )
+    .await;
+
+    let native = produce(
+        &profile,
+        &observed,
+        ResolutionKind::Unsupported,
+        Mark::Missing,
+        false,
+    )
+    .await;
+    assert!(
+        !storage
+            .store(PreviewResultWrite::new("job:search-proof".into(), 0, 1, 110, native).unwrap())
+            .await
+            .unwrap()
+    );
+
+    let manual = produce(
+        &profile,
+        &observed,
+        ResolutionKind::Matched,
+        Mark::Present(Some(8)),
+        true,
+    )
+    .await;
+    assert!(
+        !storage
+            .store(PreviewResultWrite::new("job:search-proof".into(), 0, 1, 110, manual).unwrap())
+            .await
+            .unwrap()
+    );
+
+    let different = produce_with_ids_and_query(
+        &profile,
+        &observed,
+        ResolutionKind::Search,
+        Mark::Missing,
+        false,
+        vec![("imdb:title".into(), "tt1234567".into())],
+        Some("Different title"),
+    )
+    .await;
+    assert!(
+        !storage
+            .store(
+                PreviewResultWrite::new("job:search-proof".into(), 0, 1, 110, different).unwrap()
+            )
+            .await
+            .unwrap()
+    );
+
+    let count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM preview_results WHERE job_id='job:search-proof'")
+            .fetch_one(&storage.pool)
+            .await
+            .unwrap();
+    assert_eq!(count, 0);
+
+    let matching = produce_with_ids_and_query(
+        &profile,
+        &observed,
+        ResolutionKind::Search,
+        Mark::Missing,
+        false,
+        vec![("imdb:title".into(), "tt1234567".into())],
+        Some(" Exact title "),
+    )
+    .await;
+    let matching = PreviewResultWrite::new("job:search-proof".into(), 0, 1, 110, matching).unwrap();
+    assert_eq!(matching.search_query_proof(), Some("Exact title"));
+    assert!(storage.store(matching).await.unwrap());
+    let json: String = sqlx::query_scalar(
+        "SELECT result_json FROM preview_results WHERE job_id='job:search-proof'",
+    )
+    .fetch_one(&storage.pool)
+    .await
+    .unwrap();
+    assert!(!json.contains("searchQuery"));
+    assert!(!json.contains("search_query"));
+    sqlx::query(
+        "UPDATE preview_observations SET search_query=' padded ' WHERE job_id='job:search-proof'",
+    )
+    .execute(&storage.pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        storage
+            .results("job:search-proof".into(), 1, 0, 100)
+            .await
+            .err()
+            .unwrap()
+            .code,
+        "database_unavailable"
+    );
+    let late = produce(
+        &profile,
+        &observed,
+        ResolutionKind::Search,
+        Mark::Missing,
+        false,
+    )
+    .await;
+    assert_eq!(
+        storage
+            .store(PreviewResultWrite::new("job:search-proof".into(), 0, 1, 111, late).unwrap())
+            .await
+            .unwrap_err()
+            .code,
+        "database_unavailable"
+    );
+    assert_eq!(
+        storage
+            .complete("job:search-proof".into(), 1, 120)
+            .await
+            .unwrap_err()
+            .code,
+        "database_unavailable"
+    );
+    let job = PreviewJobRepository::load(&storage, "job:search-proof".into())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(job.status(), PreviewJobStatus::Running);
+    assert_eq!(job.updated_at(), 110);
+    let count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM preview_results WHERE job_id='job:search-proof'")
+            .fetch_one(&storage.pool)
+            .await
+            .unwrap();
+    assert_eq!(count, 1);
     storage.close().await;
 }
 
@@ -1587,7 +1775,7 @@ async fn populated_exact_v4_schema_upgrades_without_losing_operational_state() {
         .await
         .unwrap();
     sqlx::raw_sql(
-        "DROP TABLE preview_results; DROP TABLE preview_observations; DROP TABLE preview_jobs; DELETE FROM _sqlx_migrations WHERE version=5;",
+        "DROP TABLE preview_results; DROP TABLE preview_observations; DROP TABLE preview_jobs; DELETE FROM _sqlx_migrations WHERE version>=5;",
     )
     .execute(&storage.pool)
     .await
@@ -1615,7 +1803,7 @@ async fn populated_exact_v4_schema_upgrades_without_losing_operational_state() {
         .fetch_one(&storage.pool)
         .await
         .unwrap();
-    assert_eq!(latest, 5);
+    assert_eq!(latest, 6);
     let job = PreviewJobRepository::load(&storage, "job:v4".into())
         .await
         .unwrap()
@@ -1694,4 +1882,57 @@ async fn populated_exact_v4_schema_upgrades_without_losing_operational_state() {
             .unwrap();
     assert_eq!(result_count, 0);
     storage.close().await;
+}
+
+#[tokio::test]
+async fn populated_exact_v5_schema_upgrades_native_rows_with_null_search_query() {
+    let (dir, storage, profile) = setup().await;
+    let observed = observation("tt1234567", 8);
+    running(&storage, "job:v5", profile.clone(), vec![observed.clone()]).await;
+    let record = produce(
+        &profile,
+        &observed,
+        ResolutionKind::Unsupported,
+        Mark::Missing,
+        false,
+    )
+    .await;
+    assert!(
+        storage
+            .store(PreviewResultWrite::new("job:v5".into(), 0, 1, 110, record).unwrap())
+            .await
+            .unwrap()
+    );
+    sqlx::raw_sql(
+        "ALTER TABLE preview_observations DROP COLUMN search_query; DELETE FROM _sqlx_migrations WHERE version>=6;",
+    )
+    .execute(&storage.pool)
+    .await
+    .unwrap();
+    storage.close().await;
+
+    let reopened = Storage::open(dir.path()).await.unwrap();
+    let latest: i64 = sqlx::query_scalar("SELECT max(version) FROM _sqlx_migrations")
+        .fetch_one(&reopened.pool)
+        .await
+        .unwrap();
+    assert_eq!(latest, 6);
+    let job = PreviewJobRepository::load(&reopened, "job:v5".into())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(job.status(), PreviewJobStatus::Running);
+    assert_eq!(job.profile_version(), 1);
+    assert_eq!(job.expires_at(), 1_000);
+    assert_eq!(
+        reopened.search_query("job:v5".into(), 0).await.unwrap(),
+        None
+    );
+    let rows = reopened.results("job:v5".into(), 1, 0, 100).await.unwrap();
+    assert_eq!(rows.len(), 1);
+    assert!(matches!(
+        rows[0].outcome(),
+        StoredPreviewOutcome::Unsupported
+    ));
+    reopened.close().await;
 }

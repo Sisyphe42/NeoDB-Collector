@@ -26,9 +26,14 @@ implements them in `crates/collector-storage/src/preview_jobs.rs`.
 
 - `PreviewSubmission::new(id, Endpoint, MappingProfile, Vec<Observation>,
   created_at, expires_at) -> Result<PreviewSubmission, ApiError>` validates input.
+- `with_search_queries(self, Vec<(u32, String)>) -> Result<Self, ApiError>` attaches
+  an explicit sparse ordinal/query plan; `search_query(ordinal) -> Option<&str>`
+  exposes normalized internal input. The ordinary constructor remains native.
 - `PreviewJobRepository::submit(PreviewSubmission) -> PortFuture<PreviewJob>`.
 - `load(id: String) -> PortFuture<Option<PreviewJob>>`.
 - `observations(id: String, offset: u32, limit: u32) -> PortFuture<Vec<Observation>>`.
+- `search_query(id: String, ordinal: u32) -> PortFuture<Option<String>>` reads one
+  validated stored query; NULL means native, not a guessed title query.
 - `claim/cancel/fail(id: String, attempt: u32, now: i64) -> PortFuture<bool>`.
 - `resume(id: String, attempt: u32, now: i64) -> PortFuture<Option<u32>>`.
 - `interrupt_running(now: i64) -> PortFuture<u64>` interrupts queued **and** running.
@@ -57,6 +62,9 @@ preview_observations(job_id, ordinal, observation_json)
 
 `0005_preview_results.sql` transactionally rebuilds the two v4 tables to permit
 completed jobs and adds the normalized result table; see the result contract.
+`0006_preview_search_inputs.sql` adds nullable `search_query` to each observation
+row. Existing rows default to NULL. Queries are bounded to 512 UTF-8 bytes and
+remain normalized operational input, not raw source metadata or workflow code.
 
 Rows are keyed by `(job_id, ordinal)` with zero-based stable ordering and a job
 foreign key; profile references target `(id, version)`. Observation JSON encodes the
@@ -76,6 +84,14 @@ existing strict Domain schema and is never a raw import/response document.
 - Bound submission at 10,000 observations, 16 KiB per encoded observation and
   32 MiB total encoded observation bytes. Pagination accepts at most 100 records.
   Core declares bounds without acquiring a JSON/runtime/database dependency.
+- Explicit search plans reject duplicate/out-of-range ordinals and invalid queries
+  using `catalog_resolver::validate_catalog_search_query`; retain trimmed strings
+  only. At most one 512-byte query per observation bounds additional storage.
+  Query plans cannot be changed through repository methods. A different query
+  requires a new submission; resume retains the original queries, profile,
+  account binding and fixed expiry. Do not derive queries from title hints.
+  Read-side query validation requires exact normalization and rejects corruption
+  with `database_unavailable`, never silently trimming or returning native mode.
 - Insert metadata and all ordered rows in one transaction. The singleton endpoint
   must still equal base/account/credential reference and the exact selected profile
   must exist and remain disabled/valid. Failure leaves no partial job or rows.
@@ -126,6 +142,8 @@ existing strict Domain schema and is never a raw import/response document.
 | Condition | Required outcome |
 |---|---|
 | Invalid submission / observation | `preview_job_invalid` / `preview_observation_invalid`; no insertion |
+| Duplicate/out-of-range search ordinal | `preview_search_plan_invalid`; no submission accepted |
+| Blank/control-containing/over-512-byte query | `catalog_search_query_invalid`; no submission accepted |
 | Count / record bytes / total bytes over bounds | `preview_submission_too_large` / `preview_observation_too_large`; no insertion |
 | Invalid page size / transition metadata | `preview_page_invalid` / `preview_transition_invalid` |
 | Stale or missing endpoint/profile | `preview_binding_changed` / `preview_profile_changed`; no job or rows accepted |
@@ -157,6 +175,14 @@ ordered bounded pagination, atomic rollback, duplicate claims, stale binding and
 attempts, cancel/interruption/resume, delete/expiry, corruption, persistence/reopen
 and migration from all committed prior versions. Audit stored schema/payload fields
 and prove profiles/auth/account metadata survive deletion and cleanup.
+E4a adds sparse-plan validation, atomic query persistence/rollback, native defaults,
+query corruption, fresh resume/reopen preservation and populated exact-v5 upgrade.
+Core `explicit_search_plan_is_sparse_normalized_bounded_and_unique` covers ordinal
+and ASCII/UTF-8 byte boundaries. Storage
+`search_inputs_survive_reopen_and_resume_without_changing_native_slots` preserves
+v1/full binding/fixed expiry despite v2, while
+`corrupt_search_input_fails_closed_instead_of_becoming_native` rejects padded or
+invalid query inputs without publishing a normalized observation page.
 Run scoped Core/Storage tests, full `pnpm verify`, YAML and `git diff --check`.
 
 ## 7. Wrong vs Correct
@@ -168,3 +194,7 @@ Wrong: old worker inserts output after cancellation/deletion/resume.
 Correct: every future D2 result commit must be conditional on live running attempt
 and account/profile binding in the same transaction; D2b1 provides that guarded
 insertion port, not an unguarded row write.
+
+Wrong: recover a missing/invalid search query from `title_hint`.
+Correct: only an explicit validated stored query opts that ordinal into search;
+corrupt input fails closed and original native jobs stay native.

@@ -109,6 +109,123 @@ async fn submission_pages_and_reopen_preserve_only_normalized_ordered_rows() {
 }
 
 #[tokio::test]
+async fn search_inputs_survive_reopen_and_resume_without_changing_native_slots() {
+    let (dir, storage, profile) = setup().await;
+    let values = vec![
+        observation("tt1234567", 8),
+        observation("tt1234568", 9),
+        observation("tt1234569", 10),
+    ];
+    let submission = submission("job:search", profile.clone(), values, 1_000)
+        .with_search_queries(vec![
+            (2, "  Third title  ".into()),
+            (0, "First title".into()),
+        ])
+        .unwrap();
+    storage.submit(submission).await.unwrap();
+    assert_eq!(
+        storage
+            .search_query("job:search".into(), 0)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("First title")
+    );
+    assert_eq!(
+        storage.search_query("job:search".into(), 1).await.unwrap(),
+        None
+    );
+    assert_eq!(
+        storage
+            .search_query("job:search".into(), 2)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("Third title")
+    );
+    assert!(storage.cancel("job:search".into(), 1, 110).await.unwrap());
+    let mut newer = profile;
+    newer.version = 2;
+    newer.rules[1].enabled = true;
+    storage.save(newer, 1).await.unwrap();
+    assert_eq!(
+        storage.resume("job:search".into(), 1, 120).await.unwrap(),
+        Some(2)
+    );
+    storage.close().await;
+
+    let reopened = Storage::open(dir.path()).await.unwrap();
+    let job = load_job_view(&reopened, "job:search").await.unwrap();
+    assert_eq!(job.attempt(), 2);
+    assert_eq!(job.profile_version(), 1);
+    assert_eq!(job.expires_at(), 1_000);
+    assert!(job.is_bound_to(&binding("credential-a")));
+    assert_eq!(
+        reopened
+            .search_query("job:search".into(), 0)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("First title")
+    );
+    assert_eq!(
+        reopened.search_query("job:search".into(), 1).await.unwrap(),
+        None
+    );
+    assert_eq!(
+        reopened
+            .search_query("job:search".into(), 2)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("Third title")
+    );
+    reopened.close().await;
+}
+
+#[tokio::test]
+async fn corrupt_search_input_fails_closed_instead_of_becoming_native() {
+    let (_dir, storage, profile) = setup().await;
+    storage
+        .submit(
+            submission(
+                "job:corrupt-search",
+                profile,
+                vec![observation("tt1234567", 8)],
+                1_000,
+            )
+            .with_search_queries(vec![(0, "Exact title".into())])
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    sqlx::query(
+        "UPDATE preview_observations SET search_query=' padded ' WHERE job_id='job:corrupt-search'",
+    )
+    .execute(&storage.pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        storage
+            .search_query("job:corrupt-search".into(), 0)
+            .await
+            .unwrap_err()
+            .code,
+        "database_unavailable"
+    );
+    assert_eq!(
+        storage
+            .observations("job:corrupt-search".into(), 0, 1)
+            .await
+            .err()
+            .unwrap()
+            .code,
+        "database_unavailable"
+    );
+    storage.close().await;
+}
+
+#[tokio::test]
 async fn concurrent_claim_has_one_winner_and_exact_expiry_is_not_live() {
     let (_dir, storage, profile) = setup().await;
     storage
@@ -406,12 +523,16 @@ async fn failed_row_insert_rolls_back_job_and_all_observations() {
         .execute(&storage.pool).await.unwrap();
     assert_eq!(
         storage
-            .submit(submission(
-                "job:rollback",
-                profile,
-                vec![observation("tt1234567", 8), observation("tt1234568", 9)],
-                1_000,
-            ))
+            .submit(
+                submission(
+                    "job:rollback",
+                    profile,
+                    vec![observation("tt1234567", 8), observation("tt1234568", 9)],
+                    1_000,
+                )
+                .with_search_queries(vec![(0, "First title".into()), (1, "Second title".into())])
+                .unwrap()
+            )
             .await
             .err()
             .unwrap()

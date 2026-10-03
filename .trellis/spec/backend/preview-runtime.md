@@ -63,7 +63,9 @@ CLI serve shares exactly one owner; recovery/cleanup never enqueue or resume sav
   an unbounded list of futures. A cancellable single semaphore serializes work.
 - Use existing Tokio/tokio-util primitives, not a second processor port, generic
   workflow engine, polling database scheduler or custom future race. The runner
-  retains native-only, exact binding/profile and per-record deadline semantics.
+  retains exact binding/profile and per-record deadlines, using native resolution
+  by default and only immutable explicit search inputs from the job repository.
+  Runtime ownership/admission is unchanged by E4a; no public query action exists.
 - Serialize registration/spawn with the closed-state check. TaskTracker close
   alone does not prohibit later spawns. Release task registration and permits
   before delivering a normal result; panic/drop must release them through RAII.

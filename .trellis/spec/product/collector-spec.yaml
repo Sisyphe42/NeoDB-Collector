@@ -373,7 +373,9 @@ core_pipeline:
     whole_record_deadline_seconds: 120
     publication: historical_non_executable_evidence
     job_result_persistence: internal_guarded_repository_only
-    job_attempt_runner: internal_sequential_native_only
+    job_attempt_runner: internal_sequential_native_with_explicit_search_inputs
+    job_search_queries: immutable_explicit_per_observation_never_inferred_from_title
+    public_search_and_manual_selection: pending
     job_attempt_contract: .trellis/spec/backend/preview-runner.md
     runtime_worker: internal_explicit_owned_runtime_only
     runtime_contract: .trellis/spec/backend/preview-runtime.md

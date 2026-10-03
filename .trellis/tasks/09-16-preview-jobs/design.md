@@ -808,6 +808,42 @@ Show that preview may create public catalog entries but changes no personal mark
 
 ## Compatibility and rollback
 
+### E4a: immutable explicit search inputs (2026-10-03)
+
+Before exposing per-record search/review actions, extend internal submission with
+an optional sparse ordinal -> explicit query plan. Existing submissions and saved
+v5 rows remain native-only. Validate each ordinal against observation count,
+reject duplicates, and reuse `validate_catalog_search_query` before persistence;
+retain its trimmed, bounded query, never infer one from an observation title.
+The plan is immutable for a job. Choosing another query requires a new submission;
+resume preserves queries, original observations, binding, revision and expiry.
+
+Ship migration v6 with compatible Core/Storage/runner behavior. Store nullable
+`search_query` on the existing observation row, not another scheduler or generic
+workflow document. NULL means native; non-NULL must be normalized and valid.
+Use the existing atomic submission/read/lifecycle transactions and validate query
+data on reads. Core gains no runtime/serializer/database dependency. Add a narrow
+repository query read for one ordinal; the runner reads it within the same record
+deadline, then rechecks live guards before any catalog operation. Query failure,
+corruption or cancellation must not silently fall back to Native.
+
+The private produced-record proof also retains the explicit normalized search
+query (if any). Result insertion checks it against the stored ordinal input in
+the existing guarded transaction, refusing a native result for a search input or
+a result produced with another query. Historical result JSON remains unchanged
+and cannot reconstruct fresh producer authority. Manual resolution remains the
+existing internal producer operation; persistent manual selection is not delivered
+or inferred by this search-only checkpoint.
+
+Use fake ports/clock/credentials and temporary SQLite only. Cover validation,
+native defaults, mixed native/search ordinal order, Unsupported-only fallback,
+review-only candidates with zero secrets, fresh resume/reopen preserving queries,
+query mismatch proof refusal, corrupt queries and bounded pending query reads.
+Upgrade populated exact-v5 and all existing prior-schema fixtures, preserve
+historical evidence/config/auth and prove atomic rollback. No public DTO/route,
+client screen, live NeoDB/native fetch, capability or personal/source write change.
+Public search/manual actions and broader acceptance remain pending.
+
 ### E3c: backend restart acceptance (2026-10-03)
 
 Add a test-only authenticated router integration using the real IMDb CSV parser,

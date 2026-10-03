@@ -261,6 +261,10 @@ impl PreviewJobRepository for ControlledJobs {
         self.storage.observations(id, offset, limit)
     }
 
+    fn search_query(&self, id: String, ordinal: u32) -> PortFuture<'_, Option<String>> {
+        self.storage.search_query(id, ordinal)
+    }
+
     fn claim(&self, id: String, attempt: u32, now: i64) -> PortFuture<'_, bool> {
         self.storage.claim(id, attempt, now)
     }
@@ -1435,6 +1439,9 @@ impl PreviewJobRepository for MaintenanceJobs {
     fn observations(&self, _: String, _: u32, _: u32) -> PortFuture<'_, Vec<Observation>> {
         Box::pin(async { unreachable!() })
     }
+    fn search_query(&self, _: String, _: u32) -> PortFuture<'_, Option<String>> {
+        Box::pin(async { unreachable!() })
+    }
     fn claim(&self, _: String, _: u32, _: i64) -> PortFuture<'_, bool> {
         Box::pin(async { unreachable!() })
     }
@@ -1510,6 +1517,9 @@ impl PreviewJobRepository for FailingManagementJobs {
         Box::pin(async { unreachable!() })
     }
     fn observations(&self, _: String, _: u32, _: u32) -> PortFuture<'_, Vec<Observation>> {
+        Box::pin(async { unreachable!() })
+    }
+    fn search_query(&self, _: String, _: u32) -> PortFuture<'_, Option<String>> {
         Box::pin(async { unreachable!() })
     }
     fn claim(&self, _: String, _: u32, _: i64) -> PortFuture<'_, bool> {

@@ -185,3 +185,40 @@ Verified E3c routed CSV/real runner/SQLite close-reopen/fresh resume/delete with
 ### Next Steps
 
 - Deliver public explicit search/manual selection and remaining integrated negative/client acceptance; keep connectorIds empty and do not archive the child/parent yet.
+
+
+## Session 6: Immutable preview search input checkpoint
+
+**Date**: 2026-10-03
+**Task**: Immutable preview search input checkpoint
+**Branch**: `master`
+
+### Summary
+
+Implemented and independently reviewed E4a immutable explicit per-record search inputs, compatible v6 migration and exact private query proof. Final pnpm verify passed 282 Rust unit tests, 2 compile-fail doctests and 63 TS/UI tests plus all contracts/boundaries/build/smoke gates. Public search/manual actions and broader acceptance remain pending; preview-jobs stays active.
+
+### Main Changes
+
+- Sol/medium implemented sparse immutable ordinal/query inputs, compatible v6 NULL defaults, bounded runner query reads and private exact-query result proofs; main reviewed the complete production/test diff.
+- Main review strengthened shared stored-query decoding across all input/evidence paths, exact errors/UTF-8 limits, proof matching, candidate review-only behavior, fresh attempts and cancellation/rebind/delete guards.
+- Aligned owning Trellis product/backend contracts and acceptance evidence; no public API/UI, dependency, production Server or source/personal-write capability changed.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `79300bd` | feat: persist explicit preview search inputs |
+
+### Testing
+
+- Main's final pnpm verify passed: 282 Rust unit tests, 2 compile-fail doctests, 63 TS/UI tests, workspace fmt/Clippy, generated contracts, dependency boundaries, lint/typecheck, WebUI/CLI builds and actual local CLI/HTTP/session/pairing/revocation/desktop-mobile Chromium smoke.
+- Scoped Core 86 and Storage 40 unit tests plus Core 2 doctests, scoped Clippy/fmt, and Server fixture compilation passed before main's full gate. Exact-v5 and all prior-schema upgrades, query corruption/proof mismatch/rollback, reopen/fresh attempts and bounded query reads are covered.
+- Product YAML/34 evidence IDs, unique/disjoint decision IDs/references and final git diff --check passed. Temporary SQLite/fake ports/loopback only; no live NeoDB/native fetch, real account/keychain or three-OS verification is implied.
+
+### Status
+
+[OK] **Checkpoint completed; preview-jobs task remains in_progress**
+
+### Next Steps
+
+- Deliver public explicit search/manual selection and remaining integrated negative/client acceptance. Keep connectorIds empty, personal writes disabled and the child/parent unarchived until their full criteria pass.

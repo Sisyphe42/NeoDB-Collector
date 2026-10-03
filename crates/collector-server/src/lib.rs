@@ -32,6 +32,8 @@ mod preview_http;
 mod preview_http_tests;
 #[cfg(test)]
 mod preview_management_tests;
+#[cfg(test)]
+mod preview_restart_tests;
 pub mod preview_runtime;
 mod preview_submission_http;
 #[cfg(test)]

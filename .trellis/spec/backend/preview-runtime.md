@@ -11,7 +11,7 @@ is owned by [Preview HTTP](./preview-http.md) and
 submission/resume; public CSV upload/resume is owned by
 [Preview Submission HTTP](./preview-submission-http.md); screens are owned by
 [Historical Preview WebUI](../frontend/preview-panel.md). Final end-to-end acceptance
-remains pending. No new runtime
+remains pending beyond the verified mock-port backend restart chain. No new runtime
 dependency or migration.
 
 ## 2. Signatures
@@ -216,6 +216,19 @@ Concrete regressions include
 The extended `runner_failure_releases_admission_and_preserves_partial_results`
 proves changed-binding refusal keeps attempt-1 history, and successful resume after
 profile v2 exists still uses v1, restarts from ordinal zero and obtains fresh results.
+
+E3c `crates/collector-server/src/preview_restart_tests.rs::authenticated_import_restart_resume_and_delete_preserve_unrelated_state`
+composes authenticated routes, the actual CSV/identity adapter, SQLite, real
+snapshot/producer/runner and production `start`, with fake upstream/credential/time
+ports. It commits one equal comparison before holding the next fetch, drains and
+drops old owners, closes/reopens SQLite and proves startup interruption preserves
+the exact historical HTTP item with no upstream/secret access or automatic resume.
+Explicit resume refetches both original ordinals, clears prior history and retains
+v1/fixed expiry despite a semantically changed disabled v2; changed marks yield
+fresh conflicting comparisons. HTTP deletion removes job data only, preserving
+the full endpoint tuple, both revisions, session and paired-client authentication.
+This is backend integration evidence, not CLI/browser-to-real-NeoDB-client
+end-to-end or live-account evidence. Public search/manual integration remains pending.
 
 ## 7. Wrong vs Correct
 

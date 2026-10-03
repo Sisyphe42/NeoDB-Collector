@@ -16,6 +16,29 @@ than silently substituting a different model. This does not remove review gates.
 
 ## Activation gate
 
+E3c checkpoint (2026-10-03): Sol/medium owns a new test-only Server integration
+module and its minimal `#[cfg(test)]` registration. Exercise authenticated raw CSV
+import -> real comparison -> drained shutdown/SQLite reopen -> production startup
+interruption -> explicit fresh resume -> deletion, with fake upstream/secret/time
+ports only. Read E3c design and backend preview submission/HTTP/management/runtime,
+jobs/results/runner/comparison, state-and-pairing, mapping-storage, imdb-csv and
+repository-layout contracts. No production behavior/API/dependency/migration/
+capability changes, recursive delegation or agent commits. Cargo commands remain
+serial. Main owns task/spec edits, independent review, full gate and commit.
+
+- [x] E3c: Real backend mock-port restart/resume/delete integration acceptance.
+- [x] Audit broader PRD evidence; do not equate internal search/manual support
+  or browser-only mocks with delivered public behavior.
+  Evidence and remaining public/client acceptance: [acceptance.md](./acceptance.md).
+
+E3c gate repair: the first full gate passed all Rust tests and contracts, then
+found a PreviewPanel mock sequencing race. Page-read actions deliberately trigger
+an inspection after settlement; a two-response mock may be exhausted before the
+explicit status click. Luna/max owns only this focused test fixture, modelling
+the current remote job explicitly instead of timing-dependent once responses.
+Do not change production UI behavior or increase wait timeouts to hide the issue.
+Main reviews the fix and reruns the full gate before committing E3c.
+
 E3b checkpoint (2026-10-03): Sol/medium owns WebUI PreviewPanel and focused tests,
 minimal AccessPanel integration and preview-only CSS. Main owns design/specs,
 mock Chromium smoke, independent review, full verification and commit. Read E3b
@@ -605,6 +628,34 @@ disabled. E3b WebUI, mock restart/resume end-to-end and broader child/parent
 acceptance remain pending. Keep this child active, not archived.
 
 ## Verification gates
+
+E3c verification (2026-10-03): Sol/medium implemented the new test-only routed
+restart scenario; main reviewed it and strengthened production identity-helper
+reuse, valid catalog UUID/path evidence, full endpoint/token guards, upstream and
+credential counters, shutdown-vs-cancel distinction, historical item roundtrip,
+immutable v1 semantics despite changed v2, fresh timestamps/known sink conflicts,
+obsolete-attempt refusal, provenance/identity and post-delete session/Bearer auth.
+The scoped test passed after final assertions. No production behavior, API,
+dependency, migration, personal/source write or capability change was introduced.
+
+The first full gate passed Rust/contracts/boundaries/lint/typecheck but exposed an
+existing PreviewPanel once-response mock race. Luna/max replaced only that test's
+fixture with explicit remote state and settlement checks; main reviewed the fix.
+All 15 panel tests and five repeated target runs passed, without timeout padding
+or production UI changes. The owning frontend contract captures the fixture rule.
+
+Main's final `pnpm verify` passed after all code/test edits, with
+`CARGO_BUILD_JOBS=1`: 274 Rust unit tests, two compile-fail doctests, 63 TS/UI tests,
+workspace fmt/Clippy, non-mutating contract drift, dependency boundaries,
+lint/typecheck, WebUI/CLI builds and actual CLI/local HTTP/session/pairing/
+revocation/desktop-mobile Chromium smoke. Product YAML/34 evidence IDs, unique
+and disjoint decision IDs/references and `git diff --check` passed separately.
+Fixtures use temporary SQLite/fake ports/loopback only, not live NeoDB/native
+fetch, real accounts or OS credentials. E3c is backend mock-port integration,
+not full CLI/browser-to-real-NeoDB-adapter end-to-end evidence. Broader PRD gaps
+are recorded in `acceptance.md`; public search/manual selection, integrated
+negative paths and parent client acceptance remain pending. Keep the child
+active, connectorIds empty and personal writes disabled; do not archive it.
 
 E3b verification (2026-10-03): Sol/medium implemented the session-only preview
 panel, focused tests, AccessPanel integration and responsive styles. Main owns

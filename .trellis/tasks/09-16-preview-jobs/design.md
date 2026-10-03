@@ -808,6 +808,33 @@ Show that preview may create public catalog entries but changes no personal mark
 
 ## Compatibility and rollback
 
+### E3c: backend restart acceptance (2026-10-03)
+
+Add a test-only authenticated router integration using the real IMDb CSV parser,
+SQLite repositories, Core snapshot/record producer/runner and production
+`PreviewRuntime::start`. Only upstream catalog/mark/identity, credentials and
+clock are fake ports; this is backend integration evidence, not a live NeoDB or
+real-process browser-to-upstream test. Reuse existing test helpers/dependencies.
+
+Import at least two normalized ratings through HTTP. Gate the second upstream
+operation after the first comparison is committed, then shutdown/drain and close
+SQLite. Reopen the same data directory and start a new owner: unfinished work
+becomes interrupted, partial history survives and startup accesses neither
+transport nor credentials. Existing session/client authentication remains valid.
+
+Create a newer disabled profile revision, then explicitly resume through HTTP.
+The attempt increments, old results clear, original observations restart from
+ordinal zero, original revision and expiry remain fixed, and changed mock marks
+produce fresh snapshot times/diffs. Delete through HTTP and prove job-only removal
+with profiles, endpoint and authentication preserved; fake secrets are read-only.
+Use deterministic notifications/semaphores and bounded waits, not timing sleeps.
+
+No API/schema, production bypass, dependency, migration, capability advertisement
+or personal/source write is added by this checkpoint. Broader PRD search/manual
+selection and negative-path acceptance must be audited separately before enabling
+connectorIds or archiving the child; isolated/internal evidence is not public
+delivery. Main owns that audit, specification alignment and final verification.
+
 No migration is needed for catalog transport or pure resolver/comparison slices.
 Later migrations ship with compatible repositories and upgrade/reopen tests;
 newer database versions retain the existing fail-closed startup behavior. Revert

@@ -100,6 +100,11 @@ all outcomes/evidence/diffs, sparse and empty pages, loading/error/auth states,
 polling/abort/stale response and StrictMode safety, attempt-aware management,
 refusal and ambiguous admission reconciliation without retries. App tests prove
 all route declarations are required and incompatible status cannot mount access.
+For attempt-change tests, model mutable remote job state rather than a finite
+`mockResolvedValueOnce` queue: a page-read action restarts inspection after
+settlement, so both reconciliation and an explicit refresh may read status.
+Keep the old attempt until the test deliberately changes the remote state;
+assert the new attempt clears old evidence without an error or timeout padding.
 `tests/smoke.mjs` exercises actual local host/session/mapping and browser UI;
 preview-specific browser responses use clearly isolated mocks, not real NeoDB or
 OS credentials. Capture preview desktop/mobile screenshots and check overflow,

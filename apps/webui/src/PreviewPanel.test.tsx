@@ -231,9 +231,8 @@ describe('PreviewPanel', () => {
   });
 
   it('clears an old page when a refreshed attempt changes and explains empty sparse pages truthfully', async () => {
-    const previewJob = vi.fn()
-      .mockResolvedValueOnce(job())
-      .mockResolvedValueOnce(job({ attempt: 3, status: 'interrupted' }));
+    let currentJob = job();
+    const previewJob = vi.fn().mockImplementation(() => Promise.resolve(currentJob));
     const api = mockClient({ previewJob, previewResults: vi.fn().mockResolvedValue({ ...resultPage, items: [] }) });
     render(<PreviewPanel client={api} />);
     fireEvent.change(screen.getByLabelText('已有任务 ID'), { target: { value: 'preview_1' } });
@@ -241,9 +240,15 @@ describe('PreviewPanel', () => {
     await screen.findByText('任务 preview_1');
     fireEvent.click(screen.getByRole('button', { name: '读取该尝试的一页结果' }));
     expect(await screen.findByText(/本页为空；这不表示任务完成/)).toBeTruthy();
+    await waitFor(() => expect(previewJob.mock.calls.length).toBeGreaterThanOrEqual(2));
+    await waitFor(() => expect((screen.getByRole('button', { name: '读取状态' }) as HTMLButtonElement).disabled).toBe(false));
+    expect(screen.getByText('尝试').nextElementSibling?.textContent).toBe('2');
+    expect(screen.queryByRole('alert')).toBeNull();
+    currentJob = job({ attempt: 3, status: 'interrupted' });
     fireEvent.click(screen.getByRole('button', { name: '读取状态' }));
     await waitFor(() => expect(screen.getByText('尝试').nextElementSibling?.textContent).toBe('3'));
     expect(screen.queryByLabelText('历史结果页')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('prevents same-tick duplicate submission and never submits after a deferred file read is unmounted', async () => {

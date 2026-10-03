@@ -258,3 +258,39 @@ Implemented E4b immutable compact manual choices, unified resolution input and e
 ### Next Steps
 
 - Deliver public search/manual selection API and clients, then remaining integrated negative/upstream acceptance. Keep connector capabilities empty and personal/source writes disabled.
+
+
+## Session 8: Structured preview resolution submission checkpoint
+
+**Date**: 2026-10-03
+**Task**: Structured preview resolution submission checkpoint
+**Branch**: `master`
+
+### Summary
+
+Implemented E4c source-bound JSON submission and generated TS client; full verification passed; interactive selection and broader acceptance remain pending.
+
+### Main Changes
+
+- Added strict source-bound Search/Manual JSON inputs on the existing import route; preserved raw CSV, immutable new jobs, authentication, deadlines and truthful admission.
+- Generated Domain/OpenAPI/JSON Schema/TS contracts and a thin validated client; no new dependencies, migrations, standalone catalog route or UI/CLI selection behavior.
+- Main strengthened no-admission/I/O rejection, count/UTF-8/numeric/nested-field boundaries, exact fresh-read resume and caller-abort evidence; canonical specs/task acceptance synchronized.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1e7890f` | feat: expose source-bound preview resolution submission |
+
+### Testing
+
+- Main final `pnpm verify`: 291 Rust unit tests, 2 compile-fail doctests, 65 TS/UI tests, fmt/workspace Clippy, generated contract drift, dependency boundaries, lint/typecheck, builds and actual local CLI/HTTP/auth/browser smoke passed after all code/test edits.
+- Product YAML/34 evidence IDs, decision/reference/disabled-capability checks and `git diff --check` passed. Upstream/account/credential ports were fake; local Windows evidence is not hosted three-platform CI or live NeoDB proof.
+
+### Status
+
+[OK] **E4c checkpoint committed; preview-jobs and its parent remain unfinished and unarchived.**
+
+### Next Steps
+
+- Add interactive search/manual selection to clients and finish real-client/simulated-upstream negative-path acceptance. Keep connector capabilities empty and personal/source writes disabled.

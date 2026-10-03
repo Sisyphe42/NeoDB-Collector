@@ -40,8 +40,9 @@ NeoDB-adapter end-to-end suite. Audit was read-only and did not run tests.
 
 ### Next acceptance checkpoints
 
-- Integrate approved explicit search/manual selection into public preview work;
-  never turn title hints or a singleton candidate into automatic identity proof.
+- Finish interactive search/manual selection in clients after E4c's structured
+  submission API/shared client; never turn title hints or a singleton candidate
+  into automatic identity proof. E4c evidence is recorded below once verified.
 - Audit upstream timeout/429/auth/redirect and migration through the integrated
   path, distinguishing prior component evidence from end-to-end coverage.
 - Finish parent CLI/WebUI integration review against a simulated upstream server.
@@ -133,3 +134,49 @@ evidence IDs, decision/reference/capability checks and `git diff --check` passed
 No public search/selection route, UI/CLI action, dependency, capability or personal/
 source write is delivered. Broader public and client/upstream acceptance remains
 pending; this child stays active. All upstream/account/credential tests are fake.
+
+## E4c structured public submission evidence
+
+The existing authenticated CSV import now also accepts strict JSON containing CSV
+and explicit per-record Search/Manual choices. Generated Domain/OpenAPI/JSON Schema
+and TS request validators close both variants and nested references. Raw `text/csv`
+and existing receipts/auth/deadlines/ambiguous acceptance remain compatible.
+`submitImdbRatingsWithResolution` is a thin generated-contract client, not a new
+identity policy or workflow owner. Structured resubmission creates a new job;
+there is no retained-input/history mutation or automatic candidate matching.
+
+Server `preview_submission_tests.rs::structured_submission_persists_source_bound_native_search_and_manual_inputs`
+drives the real runtime/producer/SQLite: missing choices stay Native, explicit
+search yields review-only candidates, and manual choice reads fresh detail and
+personal state with Manual provenance. Exact counters show only manual comparison
+reads a token/mark. `structured_submission_binds_ordinals_after_skip_and_dedup_and_rejects_bad_plans`
+binds choices to normalized ordinals and exact source IDs, rejects count > actual
+observations and >10,000, negative/fractional/overflow ordinals, duplicate/cross-kind
+plans, mismatched IDs/models, unsafe references, blank/control/513-byte UTF-8 queries,
+unknown fields/kinds and duplicate JSON fields. The submit spy and external-read
+counters stay unchanged through rejection.
+
+`routed_resume_retains_structured_manual_and_search_modes` commits one manual
+result, holds later catalog work, cancels via HTTP and explicitly resumes attempt 2.
+Exact counters prove a second detail/token/mark read, original choices survive,
+attempt-1 evidence is cleared and expiry/profile/full endpoint binding stay fixed.
+Shared runtime fakes require explicit opt-in for detail/search/identity/secret/mark
+access, preserving prior native-only tests' no-I/O guards. Chunked JSON at exactly
+10 MiB is valid and admitted; +1 is rejected. Authentication precedes body polling.
+TS tests cover generated pre-fetch rejection, JSON/query/CSRF, invalid receipts,
+sanitized uncertain metadata, timeout/caller abort and no retries, retaining native
+Request objects in pending mocks.
+
+Scoped Server submission tests (16), fmt/Clippy, generation/drift, lint/typecheck
+and focused TS tests (14) passed. Main's final full `pnpm verify`, after review
+strengthening, passed: 291 Rust unit tests, two compile-fail doctests, 65 TS/UI
+tests, workspace fmt/Clippy, contracts/boundaries, lint/typecheck, builds and actual
+local CLI/HTTP/session/pairing/revocation plus desktop/mobile browser smoke.
+Product YAML/34 evidence IDs/decision/reference/capability checks and diff check
+also passed. Windows-local evidence is not three-platform CI or live NeoDB proof.
+
+No new dependency, migration, Core/Storage production logic, standalone search
+route, UI/CLI interactive choice, capability advertisement or personal/source write.
+Interactive selection and broader real-client/simulated-upstream negative-path
+acceptance remain open; keep this task active. All upstream/account/keychain ports
+are fake, with no live native catalog fetch.

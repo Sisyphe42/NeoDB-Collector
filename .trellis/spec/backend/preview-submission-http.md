@@ -1,4 +1,4 @@
-# Preview CSV submission and explicit resume HTTP
+# Preview CSV/resolution submission and explicit resume HTTP
 
 ## 1. Scope / Trigger
 
@@ -10,23 +10,32 @@ exposes these operations; [CLI commands](./cli-preview.md) are delivered in E3a,
 and [upload/resume screens](../frontend/preview-panel.md) in E3b. E3c verifies
 routed CSV -> real runner/SQLite -> close/reopen -> explicit fresh resume ->
 delete with fake upstream ports. Broader client/NeoDB-adapter end-to-end acceptance
-and public search/manual selection remain pending.
+remains pending. E4c adds structured search/manual inputs to the same submission
+route and thin client; interactive selection screens/commands remain pending.
 No source write, personal NeoDB write, migration or automatic resume is added.
 Native catalog fetch during an accepted preview may create a public catalog item.
 
 ## 2. Signatures
 
 - POST `/api/v1/imports/imdb/ratings?profileId=ID&profileVersion=N`:
-  UTF-8 `text/csv` -> 202 `PreviewImportAccepted`.
+  UTF-8 `text/csv` or `application/json` `PreviewImdbResolutionRequest` ->
+  202 `PreviewImportAccepted`.
 - POST `/api/v1/previews/{id}/resume`: `PreviewResumeRequest` ->
   202 `PreviewAccepted`.
 - `PreviewImportSelection` selects a saved profile ID and positive u32 revision.
+- `PreviewImdbResolutionRequest` is strict `{csv, resolutionInputs}`.
+  `PreviewResolutionChoice` is tagged `search` with `ordinal`, `sourceRecordId`,
+  `query`, or `manual` with `ordinal`, `sourceRecordId`, `item`.
+  `PreviewCatalogReferenceRequest` is strict `{uuid, mediaType, model}`;
+  media/model are open bounded strings, not global closed Core enums.
+  Missing ordinals use Native; there is no explicit Native wire variant.
 - `PreviewAccepted` carries `jobId`, positive `attempt`, fixed `executable=false`.
 - `PreviewImportAccepted` carries `preview` plus `observationCount`,
   `skippedRowCount`, `skippedColumnCount` and `duplicateRowCount`.
 - Post-reservation failures carry `PreviewAdmissionFailure`:
   `{jobId, attempt, error: ApiError}`. Pre-reservation errors use ordinary ApiError.
-- `createAccessClient.submitImdbRatings(csv, selection, signal?)` and
+- `createAccessClient.submitImdbRatings(csv, selection, signal?)`,
+  `submitImdbRatingsWithResolution(body, selection, signal?)` and
   `resumePreview(id, {expectedAttempt}, signal?)` validate actual responses.
 - `AccessState.preview_submission: Option<Arc<dyn PreviewSubmissionRuntime>>`
   in Server type-erases synchronous `submit(PreviewSubmission)` and
@@ -35,12 +44,16 @@ Native catalog fetch during an accepted preview may create a public catalog item
 
 ## 3. Contracts
 
-Authorize before consuming the raw upload body. Session mutations require exact
+Authorize before consuming either upload body. Session mutations require exact
 Origin and CSRF; paired clients require `imports.submit`. Authorization presence
 selects Bearer exclusively. Reuse shared Host/Origin/security/no-store boundaries.
-Content-Type is `text/csv`, optionally unquoted UTF-8 charset; unsupported/duplicate
-headers are rejected. A manually bounded body collection handles chunked uploads
-as well as Content-Length, with the parser's existing 10 MiB cap. Resume JSON stays 4 KiB.
+Content-Type is `text/csv`, optionally unquoted UTF-8 charset, or exact
+`application/json`; unsupported/duplicate headers are rejected. Bounded body
+collection handles chunked uploads as well as Content-Length: both raw CSV and
+the encoded JSON envelope have a 10 MiB cap. Decoded CSV retains the parser's
+10 MiB UTF-8 byte cap. Escaping and resolution inputs consume JSON envelope
+space; a near-limit raw CSV need not fit in JSON. Do not enlarge the limit.
+Resume JSON stays 4 KiB.
 Classify typed `http_body_util::LengthLimitError` through standard error sources
 as 413; an ordinary broken stream is sanitized 400, not an invented size failure.
 
@@ -52,6 +65,20 @@ Reuse `collector_connectors::imdb::parse_ratings`, including UTF-8/BOM, strict C
 Unix seconds. Unsupported values/raw rows/header lists are never persisted or
 returned; skip/duplicate counts keep the receipt bounded. Domain schemas close
 envelopes and fix non-executability; Core and Storage remain validation authorities.
+
+Structured choices bind to zero-based normalized observation ordinals AFTER
+parser skips/deduplication and must match that observation's exact sourceRecordId.
+Cap inputs at 10,000 and the actual observation count. Reject unknown fields/kinds,
+invalid integers, duplicates (including cross-kind), out-of-range/source-mismatched
+choices, invalid queries and catalog references before admission/catalog/secret I/O.
+Reuse Core submission builders, query validation and `CatalogReference::from_stored`;
+do not duplicate identity policy in Server or TS. Search is explicit and native
+Unsupported-only, never automatic matching. Manual choice derives a safe detail
+path and re-reads detail with manual provenance, never trusts supplied identity.
+Each submission creates a new immutable job; no old history/input is edited.
+Raw CSV and request JSON are never persisted. Generated JSON Schemas and OpenAPI
+close envelopes and both tagged choice variants; the focused OpenAPI closure fix
+does not become a generic schema postprocessor.
 
 Use TokenSource-generated IDs and the same runtime's configured PreviewRetention.
 Post-auth body collection, endpoint/profile/job reads and admission observation
@@ -74,6 +101,8 @@ temporary absence is not a retry instruction. Shared TS
 `PreviewAdmissionClientError` retains validated IDs/attempt/code/field, not arbitrary
 server diagnostic text; it inherits AccessClientError. No automatic retries.
 Raw upload uses an explicit identity body serializer, not JSON string encoding.
+Structured upload uses generated request validation and JSON serialization;
+both share authentication, deadline, receipt and ambiguous-acceptance handling.
 Caller abort combines with a 30-second default admission timeout (explicit timeoutMs
 overrides; ordinary GET defaults remain five seconds), so the ten-second Server
 budget can finish. Network loss/abort can still lose the whole receipt: no ID or
@@ -86,9 +115,10 @@ absence of an error envelope proves rollback. CSRF remains in memory only.
 | Missing/invalid/revoked authentication | 401 authentication_required; upload body unconsumed |
 | Session mutation lacks Origin/CSRF | 403 origin_not_allowed / csrf_invalid |
 | Invalid query/envelope/attempt | 400, static field diagnostic |
-| Unsupported/duplicate CSV Content-Type | 415, no submission |
-| CSV stream exceeds 10 MiB / JSON exceeds 4 KiB | 413, no submission |
+| Unsupported/duplicate import Content-Type | 415, no submission |
+| Raw CSV / encoded import JSON exceeds 10 MiB; resume JSON exceeds 4 KiB | 413, no submission |
 | Invalid UTF-8/CSV/unsupported parser input | 400, static parser code; never echo data |
+| Invalid structured envelope, choice/source binding, query or reference | 400, static diagnostic; no admission/catalog/secret I/O |
 | Disconnected singleton endpoint | 409 neodb_not_connected |
 | Selected profile absent | 404 mapping_profile_not_found |
 | Missing/expired retained job | 404 preview_job_not_found |
@@ -100,10 +130,29 @@ absence of an error envelope proves rollback. CSRF remains in memory only.
 | Failure after reservation may follow commit | Admission failure envelope; inspect status, never auto-retry |
 | Confirmed persistence | 202, no execution-status claim |
 
+Malformed envelopes/kinds and source/ordinal/count binding failures use
+`request_invalid`. Existing Core semantic errors remain
+`catalog_search_query_invalid`, `preview_search_plan_invalid`,
+`preview_manual_plan_invalid`, `preview_resolution_plan_invalid` and
+`neodb_catalog_reference_invalid`; never echo the choice or CSV.
+
 ## 5. Good / Base / Bad Cases
 
 Good: upload selects saved v1 even if v2 exists; resume recomputes the same v1 job.
 Base: header-only CSV yields a valid zero-observation job without catalog requests.
+Structured example (query still selects the saved profile):
+
+```json
+{
+  "csv": "Const,Your Rating,Title,Title Type\ntt1234567,8,Example,movie\n",
+  "resolutionInputs": [
+    {"kind": "search", "ordinal": 0, "sourceRecordId": "tt1234567", "query": "Example"}
+  ]
+}
+```
+
+Manual inputs replace `query` with `item: {uuid, mediaType, model}` and
+`kind: "manual"`; they are explicit choices, not external-ID equivalence claims.
 Bad: return “rolled back” after a timed-out admission, or retry an unknown submission
 with a new random ID, creating duplicate work.
 
@@ -118,7 +167,12 @@ ineligible resume and generation guards. After uncertain acceptance, reconcile t
 returned ID without inferring rollback; dropping clients must not abandon work.
 `packages/core-client-ts/src/preview_submission.test.ts` asserts raw body/query/CSRF,
 generated validation/fixed false, sanitized typed failure metadata, caller abort,
-timeout and one request only. Actual-process
+timeout and one request only. Structured tests assert mixed Native/Search/Manual,
+skip/dedup ordinal/source binding, strict rejection before admission/I/O,
+encoded/streamed caps, fresh manual provenance and retained modes after resume.
+Thin-client tests validate requests before fetch, JSON body/query, generated
+response validation and the same abort/timeout/ambiguous acceptance contract.
+Actual-process
 smoke covers route advertisement/auth/revocation/disconnected import with no native
 keychain or remote account. Full gate: `pnpm verify`, YAML/evidence, diff check.
 

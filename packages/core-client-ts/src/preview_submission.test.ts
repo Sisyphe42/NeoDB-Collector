@@ -3,6 +3,8 @@ import {
   validatePreviewAccepted,
   validatePreviewAdmissionFailure,
   validatePreviewImportAccepted,
+  validatePreviewImdbResolutionRequest,
+  validatePreviewResolutionChoice,
 } from '@neodb-collector/contracts';
 import { createAccessClient, PreviewAdmissionClientError } from './access.js';
 
@@ -30,6 +32,11 @@ const selection = {
   profileVersion: 1,
 } as const;
 
+const structured = {
+  csv: 'Const,Your Rating,Title Type\n',
+  resolutionInputs: [{ kind: 'search' as const, ordinal: 0, sourceRecordId: 'tt1234567', query: 'Example' }],
+};
+
 const apiError = {
   code: 'preview_runtime_busy',
   message: 'private runtime detail',
@@ -37,6 +44,60 @@ const apiError = {
 } as const;
 
 describe('preview submission client', () => {
+  it('sends one strict structured submission with the existing query and mutation boundary', async () => {
+    const seen: Request[] = [];
+    const body = {
+      csv: 'Const,Your Rating,Date Rated,Title,URL,Title Type,IMDb Rating,Runtime (mins),Year,Genres,Num Votes,Release Date,Directors\ntt1234567,8,2026-01-01,Example,https://www.imdb.com/title/tt1234567/,movie,7.0,90,2020,Drama,10,2020-01-01,Director\n',
+      resolutionInputs: [
+        { kind: 'search', ordinal: 0, sourceRecordId: 'tt1234567', query: 'Example' },
+      ],
+    } satisfies import('./access.js').PreviewImdbResolutionRequest;
+    const client = createAccessClient({
+      baseUrl: 'http://localhost:19423',
+      fetch: async input => {
+        const request = input instanceof Request ? input : new Request(input);
+        seen.push(request);
+        if (request.url.endsWith('/session')) return Response.json({ csrfToken: 'csrf', expiresAt: 10_000 });
+        return Response.json(accepted, { status: 202 });
+      },
+    });
+
+    await client.session();
+    await expect(client.submitImdbRatingsWithResolution(body, selection)).resolves.toEqual(accepted);
+
+    const request = seen[1];
+    expect(request?.method).toBe('POST');
+    expect(request?.url).toBe('http://localhost:19423/api/v1/imports/imdb/ratings?profileId=imdb_ratings&profileVersion=1');
+    expect(request?.headers.get('content-type')).toContain('application/json');
+    expect(request?.headers.get('x-csrf-token')).toBe('csrf');
+    expect(await request?.json()).toEqual(body);
+    expect(seen).toHaveLength(2);
+  });
+
+  it('validates closed structured request variants before transport', async () => {
+    const search = { kind: 'search', ordinal: 0, sourceRecordId: 'tt1234567', query: 'Example' };
+    const manual = { kind: 'manual', ordinal: 1, sourceRecordId: 'tt7654321', item: { uuid: 'Item123', mediaType: 'tv', model: 'TVShow' } };
+    expect(validatePreviewResolutionChoice(search)).toBe(true);
+    expect(validatePreviewResolutionChoice(manual)).toBe(true);
+    expect(validatePreviewImdbResolutionRequest({ csv: 'header\n', resolutionInputs: [search, manual] })).toBe(true);
+    for (const invalid of [
+      { ...search, unexpected: true },
+      { ...search, kind: 'native' },
+      { ...search, ordinal: 10_000 },
+      { ...search, sourceRecordId: 'tt1' },
+      { ...manual, item: { ...manual.item, extra: true } },
+      { ...manual, item: { ...manual.item, uuid: '../item' } },
+    ]) expect(validatePreviewResolutionChoice(invalid)).toBe(false);
+
+    let calls = 0;
+    const client = createAccessClient({ fetch: async () => { calls++; return Response.json(accepted, { status: 202 }); } });
+    await expect(client.submitImdbRatingsWithResolution(
+      { csv: 'header\n', resolutionInputs: [{ ...search, kind: 'native' } as never] },
+      selection,
+    )).rejects.toMatchObject({ code: 'request_invalid' });
+    expect(calls).toBe(0);
+  });
+
   it('sends raw CSV bytes, strict selection query, CSRF and only accepts HTTP 202', async () => {
     const seen: Request[] = [];
     const csv = '\uFEFFtitle,rating\ntt1234567,8\n';
@@ -152,6 +213,10 @@ describe('preview submission client', () => {
         baseUrl: 'http://localhost',
         fetch: async () => Response.json(body, { status: 202 }),
       }).submitImdbRatings('title,rating\n', selection)).rejects.toMatchObject({ code: 'invalid_response' });
+      await expect(createAccessClient({
+        baseUrl: 'http://localhost',
+        fetch: async () => Response.json(body, { status: 202 }),
+      }).submitImdbRatingsWithResolution(structured, selection)).rejects.toMatchObject({ code: 'invalid_response' });
     }
 
     await expect(createAccessClient({
@@ -207,6 +272,19 @@ describe('preview submission client', () => {
       message: 'Local access request failed.',
     });
     expect(admissionCalls).toBe(1);
+
+    let structuredAdmissionCalls = 0;
+    const structuredAdmission = createAccessClient({
+      baseUrl: 'http://localhost',
+      fetch: async () => {
+        structuredAdmissionCalls++;
+        return Response.json(failure, { status: 503 });
+      },
+    });
+    await expect(structuredAdmission.submitImdbRatingsWithResolution(structured, selection)).rejects.toMatchObject({
+      code: 'preview_persistence_uncertain', jobId: 'preview_42', attempt: 2,
+    });
+    expect(structuredAdmissionCalls).toBe(1);
 
     let resumeAdmissionCalls = 0;
     const resumeAdmission = createAccessClient({
@@ -292,11 +370,16 @@ describe('preview submission client', () => {
     });
 
     await expect(client.submitImdbRatings('title,rating\n', selection)).rejects.toMatchObject({ code: 'unavailable' });
+    await expect(client.submitImdbRatingsWithResolution(structured, selection)).rejects.toMatchObject({ code: 'unavailable' });
+    const structuredController = new AbortController();
+    const cancelledStructured = client.submitImdbRatingsWithResolution(structured, selection, structuredController.signal);
+    structuredController.abort();
+    await expect(cancelledStructured).rejects.toMatchObject({ code: 'unavailable' });
     const controller = new AbortController();
     const cancelled = client.resumePreview('preview_1', { expectedAttempt: 1 }, controller.signal);
     controller.abort();
     await expect(cancelled).rejects.toMatchObject({ code: 'unavailable' });
-    expect(pendingRequests).toHaveLength(2);
+    expect(pendingRequests).toHaveLength(4);
     expect(pendingRequests.every(request => request.signal.aborted)).toBe(true);
   });
 
@@ -312,6 +395,7 @@ describe('preview submission client', () => {
         fetch: async () => Response.json(accepted, { status: 202 }),
       });
       await client.submitImdbRatings('title,rating\n', selection);
+      await client.submitImdbRatingsWithResolution(structured, selection);
       await expect(client.previewJob('preview_1')).rejects.toMatchObject({ code: 'invalid_response' });
 
       const overridden = createAccessClient({
@@ -320,7 +404,7 @@ describe('preview submission client', () => {
         fetch: async () => Response.json(preview, { status: 202 }),
       });
       await overridden.resumePreview('preview_1', { expectedAttempt: 1 });
-      expect(timeouts).toEqual([30_000, 5_000, 1_234]);
+      expect(timeouts).toEqual([30_000, 30_000, 5_000, 1_234]);
     } finally {
       timeoutSpy.mockRestore();
     }

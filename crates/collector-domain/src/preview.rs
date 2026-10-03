@@ -34,6 +34,58 @@ pub struct PreviewImportSelection {
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ToSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PreviewImdbResolutionRequest {
+    #[schemars(length(max = 10485760))]
+    #[schema(max_length = 10485760)]
+    pub csv: String,
+    #[schemars(length(max = 10000))]
+    #[schema(max_items = 10000)]
+    pub resolution_inputs: Vec<PreviewResolutionChoice>,
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ToSchema)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum PreviewResolutionChoice {
+    Search {
+        #[schemars(range(min = 0, max = 9999))]
+        #[schema(minimum = 0, maximum = 9999)]
+        ordinal: u32,
+        #[serde(rename = "sourceRecordId")]
+        #[schemars(length(min = 9, max = 18), regex(pattern = r"^tt[0-9]{7,16}$"))]
+        #[schema(min_length = 9, max_length = 18, pattern = r"^tt[0-9]{7,16}$")]
+        source_record_id: String,
+        #[schemars(length(min = 1, max = 512))]
+        #[schema(min_length = 1, max_length = 512)]
+        query: String,
+    },
+    Manual {
+        #[schemars(range(min = 0, max = 9999))]
+        #[schema(minimum = 0, maximum = 9999)]
+        ordinal: u32,
+        #[serde(rename = "sourceRecordId")]
+        #[schemars(length(min = 9, max = 18), regex(pattern = r"^tt[0-9]{7,16}$"))]
+        #[schema(min_length = 9, max_length = 18, pattern = r"^tt[0-9]{7,16}$")]
+        source_record_id: String,
+        item: PreviewCatalogReferenceRequest,
+    },
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ToSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PreviewCatalogReferenceRequest {
+    #[schemars(length(min = 1, max = 22), regex(pattern = r"^[A-Za-z0-9]+$"))]
+    #[schema(min_length = 1, max_length = 22, pattern = r"^[A-Za-z0-9]+$")]
+    pub uuid: String,
+    #[schemars(length(min = 1, max = 64), regex(pattern = r"^[A-Za-z0-9_.:-]+$"))]
+    #[schema(min_length = 1, max_length = 64, pattern = r"^[A-Za-z0-9_.:-]+$")]
+    pub media_type: String,
+    #[schemars(length(min = 1, max = 64), regex(pattern = r"^[A-Za-z0-9_.:-]+$"))]
+    #[schema(min_length = 1, max_length = 64, pattern = r"^[A-Za-z0-9_.:-]+$")]
+    pub model: String,
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ToSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PreviewResumeRequest {
     #[schemars(range(min = 1, max = 4294967295_u64))]
     #[schema(minimum = 1, maximum = 4294967295_u64)]

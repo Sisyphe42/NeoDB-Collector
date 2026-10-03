@@ -1,7 +1,7 @@
 use super::*;
 use collector_core::{
     access::{AccessRepository, Endpoint, PortFuture, SecretStore},
-    catalog::{CatalogFetch, CatalogItem, CatalogSearchPage},
+    catalog::{CatalogFetch, CatalogItem, CatalogSearchCandidate, CatalogSearchPage},
     mapping::{MappingRepository, imdb_default},
     marks::{MarkRead, NeoDbMarkTransport},
     oauth::{NeoDbOAuthTransport, OAuthApp, OAuthIdentity, OAuthToken},
@@ -32,7 +32,16 @@ impl Clock for FixedClock {
     }
 }
 
-struct Secrets;
+#[derive(Default)]
+struct ResolutionCalls {
+    enabled: AtomicBool,
+    secrets: AtomicUsize,
+    marks: AtomicUsize,
+    searches: AtomicUsize,
+    details: AtomicUsize,
+}
+
+struct Secrets(Arc<ResolutionCalls>);
 
 impl SecretStore for Secrets {
     fn set(&self, _: String, _: SecretString) -> PortFuture<'_, ()> {
@@ -40,6 +49,8 @@ impl SecretStore for Secrets {
     }
 
     fn get(&self, _: String) -> PortFuture<'_, SecretString> {
+        assert!(self.0.enabled.load(Ordering::SeqCst));
+        self.0.secrets.fetch_add(1, Ordering::SeqCst);
         Box::pin(async { Ok("token".into()) })
     }
 
@@ -48,7 +59,7 @@ impl SecretStore for Secrets {
     }
 }
 
-struct Identity;
+struct Identity(Arc<ResolutionCalls>);
 
 impl NeoDbOAuthTransport for Identity {
     fn canonical_base(&self, _: String) -> PortFuture<'_, String> {
@@ -80,11 +91,16 @@ impl NeoDbOAuthTransport for Identity {
     }
 
     fn identity<'a>(&'a self, _: String, _: &'a SecretString) -> PortFuture<'a, OAuthIdentity> {
-        Box::pin(async { unreachable!() })
+        assert!(self.0.enabled.load(Ordering::SeqCst));
+        Box::pin(async {
+            Ok(OAuthIdentity {
+                username: "alice".into(),
+            })
+        })
     }
 }
 
-struct Marks;
+struct Marks(Arc<ResolutionCalls>);
 
 impl NeoDbMarkTransport for Marks {
     fn read_mark<'a>(
@@ -94,7 +110,9 @@ impl NeoDbMarkTransport for Marks {
         _: String,
         _: &'a CatalogItem,
     ) -> PortFuture<'a, MarkRead> {
-        Box::pin(async { unreachable!() })
+        assert!(self.0.enabled.load(Ordering::SeqCst));
+        self.0.marks.fetch_add(1, Ordering::SeqCst);
+        Box::pin(async { Ok(MarkRead::MissingShelf) })
     }
 }
 
@@ -118,10 +136,11 @@ struct Transport {
     max_active: AtomicUsize,
     fetch_dropped: AtomicBool,
     fail_on_call: AtomicUsize,
+    resolution_calls: Arc<ResolutionCalls>,
 }
 
 impl Transport {
-    fn held() -> Self {
+    fn held(resolution_calls: Arc<ResolutionCalls>) -> Self {
         Self {
             mode: AtomicU8::new(0),
             gate: tokio::sync::Semaphore::new(0),
@@ -131,6 +150,7 @@ impl Transport {
             max_active: AtomicUsize::new(0),
             fetch_dropped: AtomicBool::new(false),
             fail_on_call: AtomicUsize::new(0),
+            resolution_calls,
         }
     }
 
@@ -162,14 +182,67 @@ impl NeoDbCatalogTransport for Transport {
         })
     }
 
-    fn detail(&self, _: String, _: String) -> PortFuture<'_, CatalogItem> {
-        Box::pin(async { unreachable!() })
+    fn detail(&self, base: String, reference: String) -> PortFuture<'_, CatalogItem> {
+        assert!(self.resolution_calls.enabled.load(Ordering::SeqCst));
+        self.resolution_calls.details.fetch_add(1, Ordering::SeqCst);
+        Box::pin(async move {
+            let (media_type, model, canonical_path) = if reference.starts_with("/api/movie/") {
+                ("movie", "Movie", "/movie/")
+            } else if reference.starts_with("/api/tv/season/") {
+                ("tv", "TVSeason", "/tv/season/")
+            } else if reference.starts_with("/api/tv/episode/") {
+                ("tv", "TVEpisode", "/tv/episode/")
+            } else {
+                ("tv", "TVShow", "/tv/")
+            };
+            let uuid = reference.rsplit('/').next().unwrap().to_owned();
+            Ok(CatalogItem {
+                uuid: uuid.clone(),
+                canonical_url: format!("{base}{canonical_path}{uuid}"),
+                detail_url: format!("{base}{reference}"),
+                media_type: media_type.into(),
+                model: model.into(),
+                parent_uuid: None,
+                external_ids: vec![],
+            })
+        })
     }
 }
 
 impl NeoDbCatalogSearchTransport for Transport {
-    fn search(&self, _: String, _: String, _: String) -> PortFuture<'_, CatalogSearchPage> {
-        Box::pin(async { unreachable!() })
+    fn search(
+        &self,
+        base: String,
+        query: String,
+        category: String,
+    ) -> PortFuture<'_, CatalogSearchPage> {
+        assert!(self.resolution_calls.enabled.load(Ordering::SeqCst));
+        self.resolution_calls
+            .searches
+            .fetch_add(1, Ordering::SeqCst);
+        Box::pin(async move {
+            let (media_type, model, path) = if category == "movie" {
+                ("movie", "Movie", "/movie/")
+            } else {
+                ("tv", "TVShow", "/tv/")
+            };
+            let uuid = "Search123".to_owned();
+            Ok(CatalogSearchPage {
+                candidates: vec![CatalogSearchCandidate {
+                    title: query,
+                    item: CatalogItem {
+                        uuid: uuid.clone(),
+                        canonical_url: format!("{base}{path}{uuid}"),
+                        detail_url: format!("{base}/api{path}{uuid}"),
+                        media_type: media_type.into(),
+                        model: model.into(),
+                        parent_uuid: None,
+                        external_ids: vec![],
+                    },
+                }],
+                more_available: false,
+            })
+        })
     }
 }
 
@@ -182,6 +255,7 @@ struct Fixture {
     transport: Arc<Transport>,
     clock: Arc<FixedClock>,
     jobs: Vec<PreviewJob>,
+    resolution_calls: Arc<ResolutionCalls>,
 }
 
 struct ControlledJobs {
@@ -311,6 +385,7 @@ pub(crate) struct HttpRuntimeFixture {
     runtime: Arc<PreviewRuntime<Transport, IdentityFn>>,
     transport: Arc<Transport>,
     jobs: Vec<PreviewJob>,
+    resolution_calls: Arc<ResolutionCalls>,
 }
 
 impl HttpRuntimeFixture {
@@ -342,6 +417,25 @@ impl HttpRuntimeFixture {
         self.transport.active.load(Ordering::SeqCst)
     }
 
+    pub(crate) fn enable_immediate_resolution(&self) {
+        self.enable_structured_resolution();
+        self.transport.mode.store(2, Ordering::SeqCst);
+    }
+
+    pub(crate) fn enable_structured_resolution(&self) {
+        self.resolution_calls.enabled.store(true, Ordering::SeqCst);
+    }
+
+    pub(crate) fn resolution_call_counts(&self) -> (usize, usize, usize, usize, usize) {
+        (
+            self.transport.calls.load(Ordering::SeqCst),
+            self.resolution_calls.searches.load(Ordering::SeqCst),
+            self.resolution_calls.details.load(Ordering::SeqCst),
+            self.resolution_calls.secrets.load(Ordering::SeqCst),
+            self.resolution_calls.marks.load(Ordering::SeqCst),
+        )
+    }
+
     pub(crate) async fn shutdown(&self) {
         self.runtime.shutdown().await;
     }
@@ -358,6 +452,7 @@ pub(crate) async fn http_fixture(
         runtime: Arc::new(fixture.runtime),
         transport: fixture.transport,
         jobs: fixture.jobs,
+        resolution_calls: fixture.resolution_calls,
     }
 }
 
@@ -433,12 +528,13 @@ async fn fixture_with_observations(job_count: usize, observations_per_job: usize
     let profile = imdb_default();
     storage.save(profile.clone(), 0).await.unwrap();
     let clock = Arc::new(FixedClock(AtomicI64::new(110)));
+    let resolution_calls = Arc::new(ResolutionCalls::default());
     let snapshots = Arc::new(PreviewSnapshotService::new(
         Arc::new(storage.clone()),
-        Arc::new(Secrets),
+        Arc::new(Secrets(resolution_calls.clone())),
         clock.clone(),
-        Arc::new(Identity),
-        Arc::new(Marks),
+        Arc::new(Identity(resolution_calls.clone())),
+        Arc::new(Marks(resolution_calls.clone())),
     ));
     let producer = Arc::new(PreviewRecordService::new(snapshots));
     let runner = Arc::new(PreviewAttemptRunner::new(
@@ -470,7 +566,7 @@ async fn fixture_with_observations(job_count: usize, observations_per_job: usize
                 .unwrap(),
         );
     }
-    let transport = Arc::new(Transport::held());
+    let transport = Arc::new(Transport::held(resolution_calls.clone()));
     let runtime = PreviewRuntime::new(
         runner,
         Arc::new(storage.clone()),
@@ -485,6 +581,7 @@ async fn fixture_with_observations(job_count: usize, observations_per_job: usize
         transport,
         clock,
         jobs,
+        resolution_calls,
     }
 }
 

@@ -45,7 +45,9 @@ validated Snapshot; `previewAvailable(snapshot)` checks every required route.
   point-in-time only; changed/disconnected evidence stays historical.
   Canonical URLs are clickable only for HTTPS; malformed/unsafe URLs remain inert
   text. Schema-valid timestamps outside Date's range use a Unix-number fallback.
-- Review means inspection only: no public manual-selection endpoint exists yet.
+- Review in this panel means inspection only. The import API/shared client supports
+  structured search/manual inputs via a new submission, but this panel still uses
+  raw CSV and has no interactive selection flow or historical-input editing.
   No fabricated confirmation, profile activation or synchronization control.
 - User actions alone submit/cancel/resume/delete. Serialize them and bind cancel/
   resume to the displayed attempt. Resume remains explicit, eligible retained

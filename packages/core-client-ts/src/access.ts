@@ -1,5 +1,5 @@
 import createClient from 'openapi-fetch';
-import { validateSessionView, validatePairingLink, validateClientList, validateActionResult, validateApiError, validateNeoDbStatus, validateNeoDbAuthorization, validateMappingProfile, validateMappingDocument, validatePreviewJobView, validatePreviewMutationResult, validatePreviewResultPage, validatePreviewAccepted, validatePreviewImportAccepted, validatePreviewAdmissionFailure, type paths, type components } from '@neodb-collector/contracts';
+import { validateSessionView, validatePairingLink, validateClientList, validateActionResult, validateApiError, validateNeoDbStatus, validateNeoDbAuthorization, validateMappingProfile, validateMappingDocument, validatePreviewJobView, validatePreviewMutationResult, validatePreviewResultPage, validatePreviewAccepted, validatePreviewImportAccepted, validatePreviewAdmissionFailure, validatePreviewImdbResolutionRequest, type paths, type components } from '@neodb-collector/contracts';
 
 export type SessionView = components['schemas']['SessionView'];
 export type PairedClient = components['schemas']['PairedClient'];
@@ -13,6 +13,9 @@ export type PreviewCancelRequest = components['schemas']['PreviewCancelRequest']
 export type PreviewMutationResult = components['schemas']['PreviewMutationResult'];
 export type PreviewResultPage = components['schemas']['PreviewResultPage'];
 export type PreviewImportSelection = components['schemas']['PreviewImportSelection'];
+export type PreviewImdbResolutionRequest = components['schemas']['PreviewImdbResolutionRequest'];
+export type PreviewResolutionChoice = components['schemas']['PreviewResolutionChoice'];
+export type PreviewCatalogReferenceRequest = components['schemas']['PreviewCatalogReferenceRequest'];
 export type PreviewResumeRequest = components['schemas']['PreviewResumeRequest'];
 export type PreviewAccepted = components['schemas']['PreviewAccepted'];
 export type PreviewImportAccepted = components['schemas']['PreviewImportAccepted'];
@@ -37,7 +40,10 @@ export function createAccessClient(options: { baseUrl?: string; fetch?: typeof f
   };
   const mutationOptions = (callerSignal?: AbortSignal) => ({ ...requestOptions(callerSignal), headers: { 'X-CSRF-Token': csrf ?? '' } });
   const admissionMutationOptions = (callerSignal?: AbortSignal) => ({ ...requestOptions(callerSignal, 30_000), headers: { 'X-CSRF-Token': csrf ?? '' } });
-  const rawBodySerializer = (body: string) => body;
+  const rawBodySerializer = (body: string | PreviewImdbResolutionRequest) => {
+    if (typeof body !== 'string') throw new AccessClientError('request_invalid');
+    return body;
+  };
   async function checked<T>(request: Promise<{ data?: unknown; error?: unknown; response: Response }>, validate: (value: unknown) => value is T, expectedStatus?: number, failureValidate?: (value: unknown) => value is PreviewAdmissionFailure): Promise<T> {
     try {
       const result = await request;
@@ -82,6 +88,19 @@ export function createAccessClient(options: { baseUrl?: string; fetch?: typeof f
           params: { query: selection },
           body: csv,
           bodySerializer: rawBodySerializer,
+        }),
+        validatePreviewImportAccepted,
+        202,
+        validatePreviewAdmissionFailure,
+      );
+    },
+    async submitImdbRatingsWithResolution(body: PreviewImdbResolutionRequest, selection: PreviewImportSelection, signal?: AbortSignal) {
+      if (!validatePreviewImdbResolutionRequest(body)) throw new AccessClientError('request_invalid');
+      return checked(
+        client.POST('/api/v1/imports/imdb/ratings', {
+          ...admissionMutationOptions(signal),
+          params: { query: selection },
+          body,
         }),
         validatePreviewImportAccepted,
         202,

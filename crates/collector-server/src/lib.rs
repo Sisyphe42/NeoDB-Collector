@@ -183,6 +183,9 @@ async fn schema() -> Json<utoipa::openapi::OpenApi> {
         PreviewCancelRequest,
         PreviewMutationResult,
         PreviewImportSelection,
+        PreviewImdbResolutionRequest,
+        PreviewResolutionChoice,
+        PreviewCatalogReferenceRequest,
         PreviewResumeRequest,
         PreviewAccepted,
         PreviewImportAccepted,
@@ -193,7 +196,11 @@ struct ApiDoc;
 
 pub fn openapi() -> utoipa::openapi::OpenApi {
     let mut doc = ApiDoc::openapi();
-    for name in ["PreviewOutcomeView", "PreviewSinkView"] {
+    for name in [
+        "PreviewOutcomeView",
+        "PreviewSinkView",
+        "PreviewResolutionChoice",
+    ] {
         strict_preview_tagged_variants(&mut doc, name);
     }
     preview_admission_error_unions(&mut doc);
@@ -287,6 +294,9 @@ pub fn contract_documents() -> serde_json::Value {
             "PreviewCancelRequest": schemars::schema_for!(PreviewCancelRequest),
             "PreviewMutationResult": schemars::schema_for!(PreviewMutationResult),
             "PreviewImportSelection": schemars::schema_for!(PreviewImportSelection),
+            "PreviewImdbResolutionRequest": schemars::schema_for!(PreviewImdbResolutionRequest),
+            "PreviewResolutionChoice": schemars::schema_for!(PreviewResolutionChoice),
+            "PreviewCatalogReferenceRequest": schemars::schema_for!(PreviewCatalogReferenceRequest),
             "PreviewResumeRequest": schemars::schema_for!(PreviewResumeRequest),
             "PreviewAccepted": schemars::schema_for!(PreviewAccepted),
             "PreviewImportAccepted": schemars::schema_for!(PreviewImportAccepted),

@@ -724,6 +724,35 @@
         ],
         "type": "object"
       },
+      "PreviewCatalogReferenceRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "mediaType": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "type": "string"
+          },
+          "model": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "type": "string"
+          },
+          "uuid": {
+            "maxLength": 22,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "uuid",
+          "mediaType",
+          "model"
+        ],
+        "type": "object"
+      },
       "PreviewComparedFieldView": {
         "additionalProperties": false,
         "properties": {
@@ -810,6 +839,27 @@
         "required": [
           "scheme",
           "value"
+        ],
+        "type": "object"
+      },
+      "PreviewImdbResolutionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "csv": {
+            "maxLength": 10485760,
+            "type": "string"
+          },
+          "resolutionInputs": {
+            "items": {
+              "$ref": "#/components/schemas/PreviewResolutionChoice"
+            },
+            "maxItems": 10000,
+            "type": "array"
+          }
+        },
+        "required": [
+          "csv",
+          "resolutionInputs"
         ],
         "type": "object"
       },
@@ -1120,6 +1170,78 @@
           "manual"
         ],
         "type": "string"
+      },
+      "PreviewResolutionChoice": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "search"
+                ],
+                "type": "string"
+              },
+              "ordinal": {
+                "format": "int32",
+                "maximum": 9999,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "query": {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              "sourceRecordId": {
+                "maxLength": 18,
+                "minLength": 9,
+                "pattern": "^tt[0-9]{7,16}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "ordinal",
+              "sourceRecordId",
+              "query",
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "item": {
+                "$ref": "#/components/schemas/PreviewCatalogReferenceRequest"
+              },
+              "kind": {
+                "enum": [
+                  "manual"
+                ],
+                "type": "string"
+              },
+              "ordinal": {
+                "format": "int32",
+                "maximum": 9999,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "sourceRecordId": {
+                "maxLength": 18,
+                "minLength": 9,
+                "pattern": "^tt[0-9]{7,16}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "ordinal",
+              "sourceRecordId",
+              "item",
+              "kind"
+            ],
+            "type": "object"
+          }
+        ]
       },
       "PreviewResultPage": {
         "additionalProperties": false,
@@ -1668,6 +1790,11 @@
         ],
         "requestBody": {
           "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewImdbResolutionRequest"
+              }
+            },
             "text/csv": {
               "schema": {
                 "type": "string"

@@ -230,7 +230,9 @@ v1/fixed expiry despite a semantically changed disabled v2; changed marks yield
 fresh conflicting comparisons. HTTP deletion removes job data only, preserving
 the full endpoint tuple, both revisions, session and paired-client authentication.
 This is backend integration evidence, not CLI/browser-to-real-NeoDB-client
-end-to-end or live-account evidence. Public search/manual integration remains pending.
+end-to-end or live-account evidence. [Structured submission](./preview-submission-http.md)
+now exposes immutable search/manual inputs through the import API/thin client;
+interactive selection and broader acceptance remain pending.
 
 ## 7. Wrong vs Correct
 

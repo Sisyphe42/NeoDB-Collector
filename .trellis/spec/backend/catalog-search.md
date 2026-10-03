@@ -8,8 +8,9 @@ the catalog-search request and normalized evidence. No public HTTP route, saved
 manual mapping, background job, personal-state read/write or new dependency in
 this resolver slice. The separate [job contract](./preview-jobs.md) now persists
 explicit per-record search opt-ins and compact manual choices for the existing
-runner; public search/manual
-actions remain pending.
+runner. [Structured submission](./preview-submission-http.md) exposes explicit
+inputs through the existing import API and thin client; interactive search/manual
+actions remain pending. There is no standalone catalog-search HTTP route.
 
 ## 2. Signatures
 

@@ -7,8 +7,11 @@ use collector_core::{
     access::{AccessRecord, AccessRepository, AccessService, Clock, TokenSource},
     mapping::{MappingRepository, imdb_default},
     preview_jobs::{
-        PreviewJob, PreviewJobRepository, PreviewJobStatus, PreviewRetention, PreviewSubmission,
+        PreviewJob, PreviewJobRepository, PreviewJobStatus, PreviewResolutionInput,
+        PreviewRetention, PreviewSubmission,
     },
+    preview_records::PreviewRecordProvenance,
+    preview_results::{PreviewResultRepository, StoredPreviewOutcome},
 };
 use collector_domain::{
     ApiError,
@@ -62,6 +65,26 @@ struct SubmissionRuntime {
     behavior: SubmissionBehavior,
     calls: Mutex<usize>,
     entered: tokio::sync::Notify,
+}
+
+struct CountingSubmissionRuntime {
+    inner: Arc<dyn PreviewSubmissionRuntime>,
+    submits: std::sync::atomic::AtomicUsize,
+}
+
+impl PreviewSubmissionRuntime for CountingSubmissionRuntime {
+    fn retention(&self) -> PreviewRetention {
+        self.inner.retention()
+    }
+
+    fn submit(&self, submission: PreviewSubmission) -> Result<PreviewAdmissionObserver, ApiError> {
+        self.submits.fetch_add(1, Ordering::SeqCst);
+        self.inner.submit(submission)
+    }
+
+    fn resume(&self, job: &PreviewJob) -> Result<PreviewAdmissionObserver, ApiError> {
+        self.inner.resume(job)
+    }
 }
 
 impl PreviewSubmissionRuntime for SubmissionRuntime {
@@ -161,6 +184,13 @@ async fn paired(service: &AccessService) -> (String, String) {
 fn app_for_fixture(
     fixture: &preview_runtime::tests::HttpRuntimeFixture,
 ) -> (Arc<AccessService>, Router) {
+    app_for_fixture_with_submission(fixture, fixture.submission())
+}
+
+fn app_for_fixture_with_submission(
+    fixture: &preview_runtime::tests::HttpRuntimeFixture,
+    submission: Arc<dyn PreviewSubmissionRuntime>,
+) -> (Arc<AccessService>, Router) {
     let service = Arc::new(AccessService {
         repository: Arc::new(fixture.storage.clone()),
         tokens: Arc::new(SecureTokens),
@@ -172,7 +202,7 @@ fn app_for_fixture(
     state.preview_jobs = Some(Arc::new(fixture.storage.clone()));
     state.preview_results = Some(Arc::new(fixture.storage.clone()));
     state.preview_management = Some(fixture.management());
-    state.preview_submission = Some(fixture.submission());
+    state.preview_submission = Some(submission);
     let app = protected_router(
         Arc::new(fixture.storage.clone()),
         "missing-assets".into(),
@@ -284,6 +314,370 @@ async fn raw_csv_persists_only_normalized_observations_and_returns_bounded_count
 }
 
 #[tokio::test]
+async fn structured_submission_persists_source_bound_native_search_and_manual_inputs() {
+    let fixture = preview_runtime::tests::http_fixture(0, 0).await;
+    fixture.enable_immediate_resolution();
+    let (service, app) = app_for_fixture(&fixture);
+    let authorization = bearer(&service).await;
+    let csv = concat!(
+        "Const,Your Rating,Title Type,Title\n",
+        "tt1111111,8,movie,Native\n",
+        "tt2222222,7,movie,Search\n",
+        "tt3333333,6,movie,Manual\n"
+    );
+    let request_body = serde_json::json!({
+        "csv": csv,
+        "resolutionInputs": [
+            {"kind": "search", "ordinal": 1, "sourceRecordId": "tt2222222", "query": "  Search title  "},
+            {"kind": "manual", "ordinal": 2, "sourceRecordId": "tt3333333", "item": {
+                "uuid": "Manual123", "mediaType": "movie", "model": "Movie"
+            }}
+        ]
+    });
+    let (status, body) = request(
+        &app,
+        "POST",
+        "/api/v1/imports/imdb/ratings?profileId=imdb_ratings&profileVersion=1",
+        "application/json",
+        serde_json::to_vec(&request_body).unwrap(),
+        Some(&authorization),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{body}");
+    assert_eq!(body["observationCount"], 3);
+    let id = body["preview"]["jobId"].as_str().unwrap();
+    assert_eq!(
+        PreviewJobRepository::resolution_input(&fixture.storage, id.into(), 0)
+            .await
+            .unwrap(),
+        PreviewResolutionInput::Native
+    );
+    assert_eq!(
+        PreviewJobRepository::resolution_input(&fixture.storage, id.into(), 1)
+            .await
+            .unwrap(),
+        PreviewResolutionInput::Search("Search title".into())
+    );
+    let PreviewResolutionInput::Manual(reference) =
+        PreviewJobRepository::resolution_input(&fixture.storage, id.into(), 2)
+            .await
+            .unwrap()
+    else {
+        panic!("expected manual resolution input");
+    };
+    assert_eq!(reference.uuid(), "Manual123");
+    assert_eq!(reference.media_type(), "movie");
+    assert_eq!(reference.model(), "Movie");
+    tokio::time::timeout(std::time::Duration::from_secs(2), async {
+        loop {
+            let job = PreviewJobRepository::load(&fixture.storage, id.into())
+                .await
+                .unwrap()
+                .unwrap();
+            if job.status() == PreviewJobStatus::Completed {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    let results = PreviewResultRepository::results(&fixture.storage, id.into(), 1, 0, 100)
+        .await
+        .unwrap();
+    assert_eq!(results.len(), 3);
+    assert!(matches!(
+        results[0].outcome(),
+        StoredPreviewOutcome::Unsupported
+    ));
+    assert!(matches!(
+        results[1].outcome(),
+        StoredPreviewOutcome::SearchCandidates(page)
+            if page.candidates.len() == 1 && page.candidates[0].title == "Search title"
+    ));
+    let manual = results.iter().find(|result| result.ordinal() == 2).unwrap();
+    match manual.outcome() {
+        StoredPreviewOutcome::Compared {
+            provenance: PreviewRecordProvenance::Manual,
+            ..
+        } => {}
+        StoredPreviewOutcome::Compared { .. } => panic!("manual result lost manual provenance"),
+        StoredPreviewOutcome::NeedsReview { reason, .. } => panic!("manual needs review: {reason}"),
+        StoredPreviewOutcome::SearchCandidates(_) => panic!("manual became search candidates"),
+        StoredPreviewOutcome::Unsupported => panic!("manual became unsupported"),
+        StoredPreviewOutcome::RateLimited => panic!("manual became rate limited"),
+        StoredPreviewOutcome::Unavailable => panic!("manual became unavailable"),
+    }
+    assert_eq!(fixture.resolution_call_counts(), (2, 1, 1, 1, 1));
+    fixture.shutdown().await;
+}
+
+#[tokio::test]
+async fn structured_submission_binds_ordinals_after_skip_and_dedup_and_rejects_bad_plans() {
+    let fixture = preview_runtime::tests::http_fixture(0, 0).await;
+    fixture.enable_immediate_resolution();
+    let counting = Arc::new(CountingSubmissionRuntime {
+        inner: fixture.submission(),
+        submits: std::sync::atomic::AtomicUsize::new(0),
+    });
+    let (service, app) = app_for_fixture_with_submission(&fixture, counting.clone());
+    let authorization = bearer(&service).await;
+    let csv = concat!(
+        "Const,Your Rating,Title Type,Title\n",
+        "tt1111111,8,movie,First\n",
+        "tt1111111,8,movie,Duplicate\n",
+        "tt2222222,6,podcast,Skipped\n",
+        "tt3333333,5,movie,Second\n"
+    );
+    let path = "/api/v1/imports/imdb/ratings?profileId=imdb_ratings&profileVersion=1";
+    let valid = serde_json::json!({
+        "csv": csv,
+        "resolutionInputs": [{"kind": "search", "ordinal": 1, "sourceRecordId": "tt3333333", "query": "Second"}]
+    });
+    let (status, body) = request(
+        &app,
+        "POST",
+        path,
+        "application/json",
+        serde_json::to_vec(&valid).unwrap(),
+        Some(&authorization),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{body}");
+    assert_eq!(body["observationCount"], 2);
+    assert_eq!(body["duplicateRowCount"], 1);
+    assert_eq!(body["skippedRowCount"], 1);
+    let accepted_id = body["preview"]["jobId"].as_str().unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(2), async {
+        loop {
+            if PreviewJobRepository::load(&fixture.storage, accepted_id.into())
+                .await
+                .unwrap()
+                .is_some_and(|job| job.status() == PreviewJobStatus::Completed)
+            {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    let calls_before_rejections = fixture.resolution_call_counts();
+    assert_eq!(counting.submits.load(Ordering::SeqCst), 1);
+
+    let invalid_inputs = [
+        serde_json::json!([{"kind": "search", "ordinal": 1, "sourceRecordId": "tt1111111", "query": "Second"}]),
+        serde_json::json!([{"kind": "search", "ordinal": 2, "sourceRecordId": "tt3333333", "query": "Second"}]),
+        serde_json::json!([
+            {"kind": "search", "ordinal": 0, "sourceRecordId": "tt1111111", "query": "First"},
+            {"kind": "search", "ordinal": 0, "sourceRecordId": "tt1111111", "query": "Again"}
+        ]),
+        serde_json::json!([
+            {"kind": "search", "ordinal": 0, "sourceRecordId": "tt1111111", "query": "First"},
+            {"kind": "manual", "ordinal": 0, "sourceRecordId": "tt1111111", "item": {"uuid": "Manual123", "mediaType": "movie", "model": "Movie"}}
+        ]),
+        serde_json::json!([{"kind": "search", "ordinal": 0, "sourceRecordId": "tt1111111", "query": "\u{0000}"}]),
+        serde_json::json!([{"kind": "search", "ordinal": 0, "sourceRecordId": "tt1111111", "query": "界".repeat(171)}]),
+        serde_json::json!([{"kind": "search", "ordinal": 0, "sourceRecordId": "tt1111111", "query": " "}]),
+        serde_json::json!([{"kind": "search", "ordinal": -1, "sourceRecordId": "tt1111111", "query": "First"}]),
+        serde_json::json!([{"kind": "search", "ordinal": 0.5, "sourceRecordId": "tt1111111", "query": "First"}]),
+        serde_json::json!([{"kind": "search", "ordinal": 4294967296_u64, "sourceRecordId": "tt1111111", "query": "First"}]),
+        serde_json::json!([{"kind": "search", "ordinal": 0, "sourceRecordId": "tt1111111", "query": "First", "extra": true}]),
+        serde_json::json!([{"kind": "manual", "ordinal": 0, "sourceRecordId": "tt1111111", "item": {"uuid": "../bad", "mediaType": "movie", "model": "Movie"}}]),
+        serde_json::json!([{"kind": "manual", "ordinal": 0, "sourceRecordId": "tt1111111", "item": {"uuid": "Manual123", "mediaType": "tv", "model": "Movie"}}]),
+        serde_json::json!([{"kind": "manual", "ordinal": 0, "sourceRecordId": "tt1111111", "item": {"uuid": "Manual123", "mediaType": "movie", "model": "Movie", "extra": true}}]),
+        serde_json::json!([
+            {"kind": "manual", "ordinal": 0, "sourceRecordId": "tt1111111", "item": {"uuid": "Manual123", "mediaType": "movie", "model": "Movie"}},
+            {"kind": "manual", "ordinal": 0, "sourceRecordId": "tt1111111", "item": {"uuid": "Other123", "mediaType": "movie", "model": "Movie"}}
+        ]),
+        serde_json::json!(vec![
+            serde_json::json!({"kind": "search", "ordinal": 0, "sourceRecordId": "tt1111111", "query": "First"});
+            3
+        ]),
+        serde_json::json!(vec![
+            serde_json::json!({"kind": "search", "ordinal": 0, "sourceRecordId": "tt1111111", "query": "First"});
+            collector_core::preview_jobs::MAX_PREVIEW_OBSERVATIONS
+                + 1
+        ]),
+        serde_json::json!([{"kind": "native", "ordinal": 0, "sourceRecordId": "tt1111111"}]),
+    ];
+    for resolution_inputs in invalid_inputs {
+        let body = serde_json::json!({"csv": csv, "resolutionInputs": resolution_inputs});
+        let (status, error) = request(
+            &app,
+            "POST",
+            path,
+            "application/json",
+            serde_json::to_vec(&body).unwrap(),
+            Some(&authorization),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{body}: {error}");
+    }
+    for malformed in [
+        format!(
+            r#"{{"csv":{},"resolutionInputs":[],"extra":true}}"#,
+            serde_json::to_string(csv).unwrap()
+        ),
+        format!(
+            r#"{{"csv":{},"resolutionInputs":[{{"kind":"search","kind":"manual","ordinal":0,"sourceRecordId":"tt1111111","query":"First"}}]}}"#,
+            serde_json::to_string(csv).unwrap()
+        ),
+        format!(
+            r#"{{"csv":{},"resolutionInputs":[{{"kind":"manual","ordinal":0,"sourceRecordId":"tt1111111","item":{{"uuid":"Manual123","mediaType":"movie","mediaType":"tv","model":"Movie"}}}}]}}"#,
+            serde_json::to_string(csv).unwrap()
+        ),
+    ] {
+        let (status, error) = request(
+            &app,
+            "POST",
+            path,
+            "application/json",
+            malformed,
+            Some(&authorization),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{error}");
+        assert_eq!(error["code"], "request_invalid");
+    }
+    assert_eq!(fixture.resolution_call_counts(), calls_before_rejections);
+    assert_eq!(counting.submits.load(Ordering::SeqCst), 1);
+    fixture.shutdown().await;
+}
+
+#[tokio::test]
+async fn routed_resume_retains_structured_manual_and_search_modes() {
+    let fixture = preview_runtime::tests::http_fixture(0, 0).await;
+    fixture.enable_structured_resolution();
+    let (service, app) = app_for_fixture(&fixture);
+    let authorization = bearer(&service).await;
+    let body = serde_json::json!({
+        "csv": concat!(
+            "Const,Your Rating,Title Type,Title\n",
+            "tt1111111,8,movie,Manual\n",
+            "tt2222222,7,movie,Search\n"
+        ),
+        "resolutionInputs": [
+            {"kind": "manual", "ordinal": 0, "sourceRecordId": "tt1111111", "item": {"uuid": "Manual123", "mediaType": "movie", "model": "Movie"}},
+            {"kind": "search", "ordinal": 1, "sourceRecordId": "tt2222222", "query": "Search title"}
+        ]
+    });
+    let (status, accepted) = request(
+        &app,
+        "POST",
+        "/api/v1/imports/imdb/ratings?profileId=imdb_ratings&profileVersion=1",
+        "application/json",
+        serde_json::to_vec(&body).unwrap(),
+        Some(&authorization),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{accepted}");
+    let id = accepted["preview"]["jobId"].as_str().unwrap();
+    fixture.wait_for_calls(1).await;
+    assert_eq!(fixture.resolution_call_counts(), (1, 0, 1, 1, 1));
+    let original = PreviewJobRepository::load(&fixture.storage, id.into())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        PreviewResultRepository::results(&fixture.storage, id.into(), 1, 0, 100)
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    let (status, cancelled) = request(
+        &app,
+        "POST",
+        &format!("/api/v1/previews/{id}/cancel"),
+        "application/json",
+        r#"{"expectedAttempt":1}"#,
+        Some(&authorization),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{cancelled}");
+    assert_eq!(cancelled["applied"], true);
+    fixture.enable_immediate_resolution();
+    let (status, resumed) = request(
+        &app,
+        "POST",
+        &format!("/api/v1/previews/{id}/resume"),
+        "application/json",
+        r#"{"expectedAttempt":1}"#,
+        Some(&authorization),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{resumed}");
+    assert_eq!(resumed["attempt"], 2);
+    tokio::time::timeout(std::time::Duration::from_secs(2), async {
+        loop {
+            if PreviewJobRepository::load(&fixture.storage, id.into())
+                .await
+                .unwrap()
+                .is_some_and(|job| {
+                    job.status() == PreviewJobStatus::Completed && job.attempt() == 2
+                })
+            {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    assert!(matches!(
+        PreviewJobRepository::resolution_input(&fixture.storage, id.into(), 0)
+            .await
+            .unwrap(),
+        PreviewResolutionInput::Manual(_)
+    ));
+    assert_eq!(
+        PreviewJobRepository::resolution_input(&fixture.storage, id.into(), 1)
+            .await
+            .unwrap(),
+        PreviewResolutionInput::Search("Search title".into())
+    );
+    let results = PreviewResultRepository::results(&fixture.storage, id.into(), 2, 0, 100)
+        .await
+        .unwrap();
+    assert_eq!(results.len(), 2);
+    assert_eq!(fixture.resolution_call_counts(), (2, 1, 2, 2, 2));
+    assert!(
+        PreviewResultRepository::results(&fixture.storage, id.into(), 1, 0, 100)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let resumed_job = PreviewJobRepository::load(&fixture.storage, id.into())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(resumed_job.expires_at(), original.expires_at());
+    assert_eq!(resumed_job.profile_version(), original.profile_version());
+    assert!(resumed_job.is_bound_to(&fixture.storage.endpoint().await.unwrap().unwrap()));
+    assert!(matches!(
+        results
+            .iter()
+            .find(|result| result.ordinal() == 0)
+            .unwrap()
+            .outcome(),
+        StoredPreviewOutcome::Compared {
+            provenance: PreviewRecordProvenance::Manual,
+            ..
+        }
+    ));
+    assert!(matches!(
+        results
+            .iter()
+            .find(|result| result.ordinal() == 1)
+            .unwrap()
+            .outcome(),
+        StoredPreviewOutcome::SearchCandidates(_)
+    ));
+    fixture.shutdown().await;
+}
+
+#[tokio::test]
 async fn strict_query_content_type_and_stream_limit_fail_before_submission() {
     let fixture = preview_runtime::tests::http_fixture(0, 0).await;
     let (service, app) = app_for_fixture(&fixture);
@@ -312,7 +706,7 @@ async fn strict_query_content_type_and_stream_limit_fail_before_submission() {
         (
             "/api/v1/imports/imdb/ratings?profileId=imdb_ratings&profileVersion=1",
             "application/json",
-            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            StatusCode::BAD_REQUEST,
         ),
     ] {
         let (status, _) = request(
@@ -350,6 +744,40 @@ async fn strict_query_content_type_and_stream_limit_fail_before_submission() {
         "/api/v1/imports/imdb/ratings?profileId=imdb_ratings&profileVersion=1",
         "text/csv",
         Body::new(over),
+        Some(&authorization),
+    )
+    .await;
+    assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE, "{body}");
+
+    let compact_json = br#"{"csv":"Const,Your Rating,Title Type\n","resolutionInputs":[]}"#;
+    let exact_json = ChunkBody::new([
+        Ok(compact_json.to_vec()),
+        Ok(vec![
+            b' ';
+            collector_connectors::imdb::MAX_BYTES
+                - compact_json.len()
+        ]),
+    ]);
+    let (status, body) = request(
+        &app,
+        "POST",
+        "/api/v1/imports/imdb/ratings?profileId=imdb_ratings&profileVersion=1",
+        "application/json",
+        Body::new(exact_json),
+        Some(&authorization),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{body}");
+    let over_json = ChunkBody::new([
+        Ok(vec![b' '; collector_connectors::imdb::MAX_BYTES]),
+        Ok(vec![b'!']),
+    ]);
+    let (status, body) = request(
+        &app,
+        "POST",
+        "/api/v1/imports/imdb/ratings?profileId=imdb_ratings&profileVersion=1",
+        "application/json",
+        Body::new(over_json),
         Some(&authorization),
     )
     .await;
@@ -937,6 +1365,8 @@ fn generated_submission_schemas_are_closed_bounded_and_non_executable() {
     let documents = contract_documents();
     for name in [
         "PreviewImportSelection",
+        "PreviewImdbResolutionRequest",
+        "PreviewCatalogReferenceRequest",
         "PreviewResumeRequest",
         "PreviewAccepted",
         "PreviewImportAccepted",
@@ -953,6 +1383,20 @@ fn generated_submission_schemas_are_closed_bounded_and_non_executable() {
     );
     let import = &documents["openapi"]["paths"]["/api/v1/imports/imdb/ratings"]["post"];
     assert!(import["requestBody"]["content"]["text/csv"].is_object());
+    assert_eq!(
+        import["requestBody"]["content"]["application/json"]["schema"]["$ref"],
+        "#/components/schemas/PreviewImdbResolutionRequest"
+    );
+    let variants =
+        documents["openapi"]["components"]["schemas"]["PreviewResolutionChoice"]["oneOf"]
+            .as_array()
+            .unwrap();
+    assert_eq!(variants.len(), 2);
+    assert!(
+        variants
+            .iter()
+            .all(|variant| variant["additionalProperties"] == false)
+    );
     for name in ["profileId", "profileVersion"] {
         let parameter = import["parameters"]
             .as_array()

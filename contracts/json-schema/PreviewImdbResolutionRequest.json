@@ -1,0 +1,122 @@
+{
+  "$defs": {
+    "PreviewCatalogReferenceRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "mediaType": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "type": "string"
+        },
+        "model": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "type": "string"
+        },
+        "uuid": {
+          "maxLength": 22,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "uuid",
+        "mediaType",
+        "model"
+      ],
+      "type": "object"
+    },
+    "PreviewResolutionChoice": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "search",
+              "type": "string"
+            },
+            "ordinal": {
+              "format": "uint32",
+              "maximum": 9999,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "query": {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            "sourceRecordId": {
+              "maxLength": 18,
+              "minLength": 9,
+              "pattern": "^tt[0-9]{7,16}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "ordinal",
+            "sourceRecordId",
+            "query"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "item": {
+              "$ref": "#/$defs/PreviewCatalogReferenceRequest"
+            },
+            "kind": {
+              "const": "manual",
+              "type": "string"
+            },
+            "ordinal": {
+              "format": "uint32",
+              "maximum": 9999,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "sourceRecordId": {
+              "maxLength": 18,
+              "minLength": 9,
+              "pattern": "^tt[0-9]{7,16}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "ordinal",
+            "sourceRecordId",
+            "item"
+          ],
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "csv": {
+      "maxLength": 10485760,
+      "type": "string"
+    },
+    "resolutionInputs": {
+      "items": {
+        "$ref": "#/$defs/PreviewResolutionChoice"
+      },
+      "maxItems": 10000,
+      "type": "array"
+    }
+  },
+  "required": [
+    "csv",
+    "resolutionInputs"
+  ],
+  "title": "PreviewImdbResolutionRequest",
+  "type": "object"
+}

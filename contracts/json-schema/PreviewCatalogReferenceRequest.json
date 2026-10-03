@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "mediaType": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "type": "string"
+    },
+    "model": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "type": "string"
+    },
+    "uuid": {
+      "maxLength": 22,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9]+$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "uuid",
+    "mediaType",
+    "model"
+  ],
+  "title": "PreviewCatalogReferenceRequest",
+  "type": "object"
+}

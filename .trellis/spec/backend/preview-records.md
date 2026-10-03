@@ -12,9 +12,10 @@ Source owners: `crates/collector-core/src/preview_records.rs` and its `tests.rs`
 for claimed jobs; [owned runtime](./preview-runtime.md) supplies admission, startup
 recovery and retention cleanup. Public import/history/management APIs, thin
 clients, CLI commands and preview screens are implemented. The batch runner is
-native by default with immutable per-record explicit search or manual inputs: public
-search/manual selection and broader integrated acceptance remain pending;
-internal resolution modes do not imply client delivery.
+native by default with immutable per-record explicit search or manual inputs.
+[Structured submission](./preview-submission-http.md) exposes those inputs through
+the import API/thin client; interactive selection and broader integrated acceptance
+remain pending. Internal resolution modes do not imply interactive client delivery.
 
 ## 2. Signatures
 

@@ -16,6 +16,36 @@ than silently substituting a different model. This does not remove review gates.
 
 ## Activation gate
 
+E4c checkpoint (2026-10-03): Sol/medium owns Domain request DTOs, Server additive
+JSON CSV/resolution submission and tests, focused OpenAPI registration/closure,
+contract generation and shared TS client/tests. Main owns task/spec edits,
+independent review, full gate and commit. Read E4c design; backend preview
+submission/inspection/jobs/runtime, catalog-search and repository-layout plus
+frontend webui-boundaries. Reuse existing validators/parser/runtime/auth/client
+machinery. No Core/Storage behavior change, migration, dependency, UI/CLI command,
+standalone catalog route, recursive delegation, live upstream/keychain or agent
+commit. Cargo serial; stop scoped builds before main verification.
+
+- [x] E4c: Add compatible structured submission with explicit source-bound
+  resolution inputs and a generated-contract thin client; no historical mutation.
+
+E4c verification (2026-10-03): Sol/medium implemented strict Domain request DTOs,
+additive JSON on the existing CSV route, focused tagged OpenAPI closure, generated
+contracts and thin TS client. Main independently reviewed the complete production/
+schema/client/test diff, required Core-owned count constant reuse, preserved the
+default fake-port no-I/O guards, and strengthened count/UTF-8/numeric/nested-field
+rejection plus exact fresh-read/old-history/fixed-binding resume assertions and
+structured caller-abort coverage. Scoped Server submission tests (16), fmt/Clippy,
+contract generation/check, lint/typecheck and focused TS tests (14) passed.
+Main full `pnpm verify` passed again after all code/test edits: 291 Rust unit tests,
+two compile-fail doctests, 65 TS/UI tests, workspace fmt/Clippy, contract drift,
+dependency boundaries, lint/typecheck, builds and actual local CLI/HTTP/auth/browser
+smoke. Product YAML/evidence/decision/reference/capability checks and diff check
+passed. No dependency/migration/Core/Storage production change, interactive UI/CLI
+selection, standalone catalog route, capability or personal/source write.
+Interactive clients and broader client/upstream acceptance remain pending; keep
+this child and parent active. Native catalog/account/credential tests use fakes.
+
 E4b checkpoint (2026-10-03): Sol/medium owns Core/Storage validated compact manual
 references, immutable plans, unified resolution-input repository read, runner and
 private proof integration, compatible v7 migration and tests. Server edits are

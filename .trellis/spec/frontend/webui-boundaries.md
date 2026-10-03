@@ -38,6 +38,10 @@ interface DryRunViewModel {
 The WebUI discovers features from `GET /api/v1/capabilities` and uses same-origin
 `/api/v1` requests. Preview currently polls the delivered status/result APIs;
 `/api/v1/events` SSE is planned, not an implemented fallback or requirement for previews.
+The shared client also exposes `submitImdbRatingsWithResolution` using generated
+request/response validation on the existing import route. Its JSON search/manual
+inputs create a new preview job; interactive WebUI/CLI selection remains pending.
+Keep the current panel's raw CSV path unchanged until that separate client slice.
 
 ## 3. Behavioral Contracts
 

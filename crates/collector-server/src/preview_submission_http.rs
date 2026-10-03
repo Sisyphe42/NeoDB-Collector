@@ -18,8 +18,9 @@ use axum::{
 };
 use collector_connectors::imdb::{self, ImportError};
 use collector_core::{
+    catalog::CatalogReference,
     catalog_resolver::ResolutionControl,
-    preview_jobs::{PreviewJobStatus, PreviewSubmission},
+    preview_jobs::{MAX_PREVIEW_OBSERVATIONS, PreviewJobStatus, PreviewSubmission},
 };
 use collector_domain::{ApiError, preview::*};
 use std::time::Duration;
@@ -27,6 +28,11 @@ use tokio_util::sync::CancellationToken;
 
 const ADMISSION_BUDGET: Duration = Duration::from_secs(10);
 const JSON_BODY_LIMIT: usize = 4096;
+
+enum ImportBody {
+    Csv(Bytes),
+    Structured(PreviewImdbResolutionRequest),
+}
 
 pub(crate) fn routes() -> Router<AccessState> {
     Router::new()
@@ -37,7 +43,7 @@ pub(crate) fn routes() -> Router<AccessState> {
 #[utoipa::path(post, path="/api/v1/imports/imdb/ratings", params(
         ("profileId"=String, Query, min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_.:-]+$"),
         ("profileVersion"=u32, Query, minimum=1, maximum=4294967295_u64)
-    ), request_body(content=String, content_type="text/csv"),
+    ), request_body(content((String="text/csv"), (PreviewImdbResolutionRequest="application/json"))),
     responses((status=202, body=PreviewImportAccepted), (status=400, body=ApiError),
         (status=401, body=ApiError), (status=403, body=ApiError),
         (status=404, body=ApiError), (status=409, body=ApiError),
@@ -50,7 +56,7 @@ pub(crate) async fn import_imdb_ratings(
     request: Request,
 ) -> Result<Response, HttpError> {
     preview_http::authorize(&state, &headers, "imports.submit", true).await?;
-    ensure_csv_content_type(&headers)?;
+    let structured = import_content_type(&headers)?;
     let selection = query.map_err(|_| request_invalid())?.0;
     crate::mapping_http::valid_id(&selection.profile_id)?;
     if selection.profile_version == 0 {
@@ -93,11 +99,22 @@ pub(crate) async fn import_imdb_ratings(
         .await
         .map_err(body_error)?;
     checkpoint(&control, deadline).await?;
+    let body = if structured {
+        ImportBody::Structured(serde_json::from_slice(&bytes).map_err(|_| request_invalid())?)
+    } else {
+        ImportBody::Csv(bytes)
+    };
     let now = state.service.clock.now();
     if now < 0 {
         return Err(unavailable());
     }
-    let batch = imdb::parse_ratings(&bytes, &now.to_string()).map_err(import_error)?;
+    let (csv, resolution_inputs) = match &body {
+        ImportBody::Csv(csv) => (csv.as_ref(), None),
+        ImportBody::Structured(body) => {
+            (body.csv.as_bytes(), Some(body.resolution_inputs.as_slice()))
+        }
+    };
+    let batch = imdb::parse_ratings(csv, &now.to_string()).map_err(import_error)?;
     checkpoint(&control, deadline).await?;
 
     let observation_count = bounded_count(batch.observations.len())?;
@@ -109,7 +126,7 @@ pub(crate) async fn import_imdb_ratings(
         .retention()
         .expires_at(now)
         .map_err(|_| unavailable())?;
-    let submission = PreviewSubmission::new(
+    let mut submission = PreviewSubmission::new(
         job_id.clone(),
         endpoint,
         profile,
@@ -118,6 +135,9 @@ pub(crate) async fn import_imdb_ratings(
         expires_at,
     )
     .map_err(submission_invalid)?;
+    if let Some(inputs) = resolution_inputs {
+        submission = with_resolution_inputs(submission, inputs)?;
+    }
     checkpoint(&control, deadline).await?;
     let observer = submission_runtime
         .submit(submission)
@@ -280,7 +300,7 @@ fn bounded_count(value: usize) -> Result<u32, HttpError> {
     u32::try_from(value).map_err(|_| unavailable())
 }
 
-fn ensure_csv_content_type(headers: &HeaderMap) -> Result<(), HttpError> {
+fn import_content_type(headers: &HeaderMap) -> Result<bool, HttpError> {
     let mut values = headers.get_all(header::CONTENT_TYPE).iter();
     let value = values
         .next()
@@ -292,20 +312,73 @@ fn ensure_csv_content_type(headers: &HeaderMap) -> Result<(), HttpError> {
         .next()
         .is_some_and(|value| value.eq_ignore_ascii_case("text/csv"))
     {
+        if value.eq_ignore_ascii_case("application/json") {
+            return Ok(true);
+        }
         return Err(unsupported_media_type());
     }
     match (parts.next(), parts.next()) {
-        (None, None) => Ok(()),
+        (None, None) => Ok(false),
         (Some(charset), None)
             if charset.split_once('=').is_some_and(|(name, value)| {
                 name.trim().eq_ignore_ascii_case("charset")
                     && value.trim().eq_ignore_ascii_case("utf-8")
             }) =>
         {
-            Ok(())
+            Ok(false)
         }
         _ => Err(unsupported_media_type()),
     }
+}
+
+fn with_resolution_inputs(
+    submission: PreviewSubmission,
+    inputs: &[PreviewResolutionChoice],
+) -> Result<PreviewSubmission, HttpError> {
+    if inputs.len() > MAX_PREVIEW_OBSERVATIONS || inputs.len() > submission.observations().len() {
+        return Err(request_invalid());
+    }
+    let mut searches = Vec::new();
+    let mut manuals = Vec::new();
+    for input in inputs {
+        let (ordinal, source_record_id) = match input {
+            PreviewResolutionChoice::Search {
+                ordinal,
+                source_record_id,
+                ..
+            }
+            | PreviewResolutionChoice::Manual {
+                ordinal,
+                source_record_id,
+                ..
+            } => (*ordinal, source_record_id),
+        };
+        if submission
+            .observations()
+            .get(ordinal as usize)
+            .is_none_or(|observation| observation.source_record_id != *source_record_id)
+        {
+            return Err(request_invalid());
+        }
+        match input {
+            PreviewResolutionChoice::Search { ordinal, query, .. } => {
+                searches.push((*ordinal, query.clone()));
+            }
+            PreviewResolutionChoice::Manual { ordinal, item, .. } => {
+                let reference = CatalogReference::from_stored(
+                    item.uuid.clone(),
+                    item.media_type.clone(),
+                    item.model.clone(),
+                )
+                .map_err(submission_invalid)?;
+                manuals.push((*ordinal, reference));
+            }
+        }
+    }
+    submission
+        .with_search_queries(searches)
+        .and_then(|submission| submission.with_manual_selections(manuals))
+        .map_err(submission_invalid)
 }
 
 fn ensure_json_content_type(headers: &HeaderMap) -> Result<(), HttpError> {
@@ -432,7 +505,7 @@ fn unsupported_media_type() -> HttpError {
     HttpError::new(
         StatusCode::UNSUPPORTED_MEDIA_TYPE,
         "request_invalid",
-        "IMDb ratings imports require UTF-8 text/csv.",
+        "IMDb ratings imports require UTF-8 text/csv or application/json.",
     )
 }
 

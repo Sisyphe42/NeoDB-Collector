@@ -20,10 +20,13 @@ export declare function validatePairingToken(value: unknown): value is component
 export declare function validatePreviewAccepted(value: unknown): value is components['schemas']['PreviewAccepted'];
 export declare function validatePreviewAdmissionFailure(value: unknown): value is components['schemas']['PreviewAdmissionFailure'];
 export declare function validatePreviewCancelRequest(value: unknown): value is components['schemas']['PreviewCancelRequest'];
+export declare function validatePreviewCatalogReferenceRequest(value: unknown): value is components['schemas']['PreviewCatalogReferenceRequest'];
+export declare function validatePreviewImdbResolutionRequest(value: unknown): value is components['schemas']['PreviewImdbResolutionRequest'];
 export declare function validatePreviewImportAccepted(value: unknown): value is components['schemas']['PreviewImportAccepted'];
 export declare function validatePreviewImportSelection(value: unknown): value is components['schemas']['PreviewImportSelection'];
 export declare function validatePreviewJobView(value: unknown): value is components['schemas']['PreviewJobView'];
 export declare function validatePreviewMutationResult(value: unknown): value is components['schemas']['PreviewMutationResult'];
+export declare function validatePreviewResolutionChoice(value: unknown): value is components['schemas']['PreviewResolutionChoice'];
 export declare function validatePreviewResultPage(value: unknown): value is components['schemas']['PreviewResultPage'];
 export declare function validatePreviewResultView(value: unknown): value is components['schemas']['PreviewResultView'];
 export declare function validatePreviewResumeRequest(value: unknown): value is components['schemas']['PreviewResumeRequest'];

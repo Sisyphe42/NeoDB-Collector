@@ -13,7 +13,7 @@ function client(): AccessClient {
     mappingProfile: vi.fn(), validateMapping: vi.fn(), saveMapping: vi.fn(),
     previewJob: vi.fn(), previewResults: vi.fn(),
     cancelPreview: vi.fn(), deletePreview: vi.fn(),
-    submitImdbRatings: vi.fn(), resumePreview: vi.fn(),
+    submitImdbRatings: vi.fn(), submitImdbRatingsWithResolution: vi.fn(), resumePreview: vi.fn(),
     defaultMapping: vi.fn(), convertMapping: vi.fn(),
     logout: vi.fn().mockResolvedValue(undefined), clients: vi.fn().mockResolvedValue([]),
     createPairing: vi.fn().mockResolvedValue({ uri: 'http://127.0.0.1:19423/pair#key=example', expiresAt: Date.now() / 1000 + 600 }),

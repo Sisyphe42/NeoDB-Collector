@@ -19,7 +19,7 @@ The runnable foundation, local session/pairing, NeoDB OAuth HTTP/UI and CLI pair
 | [Owned Preview Runtime](./preview-runtime.md) | Bounded owned submit/resume/execute, explicit cancel/delete, startup recovery, retention and shutdown; shared authenticated dispatch |
 | [Historical Preview HTTP](./preview-http.md) | Authenticated job/result inspection, strict attempt/ordinal pagination and historical evidence; thin generated clients |
 | [Preview Management HTTP](./preview-management-http.md) | Explicit cancel/delete through the owned runtime and thin clients |
-| [Preview Submission HTTP](./preview-submission-http.md) | Authenticated bounded CSV upload and explicit resume through one owned runtime; thin generated clients |
+| [Preview Submission HTTP](./preview-submission-http.md) | Authenticated bounded CSV/structured resolution upload and explicit resume through one owned runtime; thin generated clients |
 | [Mapping and Conflict](./mapping-and-conflict-contract.md) | Mapping validation, dry-run, activation, and review |
 | [Mapping Evaluator](./mapping-evaluator.md) | Implemented pure suggestions and bounded YAML/JSON configuration |
 | [Mapping Storage](./mapping-storage.md) | Immutable disabled profile revisions and atomic version checks |

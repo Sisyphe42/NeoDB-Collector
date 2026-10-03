@@ -537,6 +537,11 @@ export interface components {
             parentUuid?: string | null;
             uuid: string;
         };
+        PreviewCatalogReferenceRequest: {
+            mediaType: string;
+            model: string;
+            uuid: string;
+        };
         PreviewComparedFieldView: {
             field: string;
             reason: string;
@@ -556,6 +561,10 @@ export interface components {
         PreviewExternalIdClaim: {
             scheme: string;
             value: string;
+        };
+        PreviewImdbResolutionRequest: {
+            csv: string;
+            resolutionInputs: components["schemas"]["PreviewResolutionChoice"][];
         };
         PreviewImportAccepted: {
             /** Format: int32 */
@@ -632,6 +641,21 @@ export interface components {
         };
         /** @enum {string} */
         PreviewProvenanceView: "automatic" | "manual";
+        PreviewResolutionChoice: {
+            /** @enum {string} */
+            kind: "search";
+            /** Format: int32 */
+            ordinal: number;
+            query: string;
+            sourceRecordId: string;
+        } | {
+            item: components["schemas"]["PreviewCatalogReferenceRequest"];
+            /** @enum {string} */
+            kind: "manual";
+            /** Format: int32 */
+            ordinal: number;
+            sourceRecordId: string;
+        };
         PreviewResultPage: {
             /** Format: int32 */
             attempt: number;
@@ -917,6 +941,7 @@ export interface operations {
         };
         requestBody: {
             content: {
+                "application/json": components["schemas"]["PreviewImdbResolutionRequest"];
                 "text/csv": string;
             };
         };

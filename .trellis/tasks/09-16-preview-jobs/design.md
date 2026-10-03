@@ -808,6 +808,48 @@ Show that preview may create public catalog entries but changes no personal mark
 
 ## Compatibility and rollback
 
+### E4c: structured resolution submission HTTP and thin client (2026-10-03)
+
+Add `application/json` to the existing authenticated POST
+`/api/v1/imports/imdb/ratings?profileId=ID&profileVersion=N`. Keep the existing
+UTF-8 `text/csv` request unchanged. JSON is a strict envelope `{csv,
+resolutionInputs}`; choices are tagged Search or Manual, never implicit native
+fallback overrides. Ordinal refers to the normalized post-skip/dedup observation
+order and each choice must also match that observation's `sourceRecordId`.
+Search carries an explicit query; Manual carries only `{uuid, mediaType, model}`
+in an `item` reference. Unspecified ordinals remain Native. Changing a choice
+means explicitly resubmitting the CSV as a new job, not modifying prior history.
+
+Wire DTOs belong to Domain; Server converts them through existing query/reference
+validators and immutable Core submission builders. Reuse the same parser, full
+endpoint/profile binding, retention, ID source, one owned runtime, admission
+deadline and truthful failure envelope. Authorize before reading/parsing body.
+Both raw and encoded JSON bodies are capped at 10 MiB, including streaming;
+decoded CSV is also capped by the existing parser. Escaping/plan overhead means
+a raw CSV near the cap may not fit JSON; never silently raise the raw limit.
+Bound choices to 10,000 and no more than normalized observation count; reject
+unknown fields/kinds, malformed integers, duplicates/collisions, source/ordinal
+mismatch and unsafe refs before admission or catalog/credential I/O. No raw CSV
+or request JSON persists. Do not infer choices from old historical results.
+
+Generate OpenAPI/JSON Schema/TS from Domain. Extend the existing focused tagged
+enum closure fix only for this new choice enum; no generic schema processor.
+Add a thin shared client method with generated request/response validators,
+existing CSRF/Bearer/request timeout/abort/error reconciliation and no retry.
+No UI/CLI command, separate catalog search endpoint, job cloning, migration,
+dependency, connector advertisement, profile activation or personal/source write.
+
+Router tests use actual runtime/SQLite/producer and fake transport/credential/time
+ports: mixed Native/Search/Manual inputs, review-only candidates, fresh manual
+provenance, strict source/ordinal binding and query/reference validation, raw
+compatibility, auth before body polling, encoded/streamed limits and unchanged
+capacity/admission failure behavior. Client/schema tests cover generated closed
+variants, request bounds, exact wire body/query/headers, single request, sanitized
+failure metadata, timeout/abort and malformed payload refusal. Run scoped Server
+tests/fmt/Clippy, generate/check contracts, TS lint/typecheck/tests and full gate.
+Public submission becomes usable through API/shared client only; interactive
+search/selection UX and broader integrated acceptance remain pending.
+
 ### E4b: immutable explicit manual selections (2026-10-03)
 
 Extend the E4a input boundary with sparse per-ordinal explicit manual choices.

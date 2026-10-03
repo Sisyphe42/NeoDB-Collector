@@ -376,12 +376,13 @@ core_pipeline:
     job_attempt_runner: internal_sequential_native_with_explicit_search_and_manual_inputs
     job_search_queries: immutable_explicit_per_observation_never_inferred_from_title
     job_manual_selections: immutable_compact_per_observation_reference_fresh_detail_every_attempt
-    public_search_and_manual_selection: pending
+    public_search_and_manual_selection: structured_submission_api_and_thin_client_implemented_interactive_clients_pending
+    public_resolution_submission_contract: .trellis/spec/backend/preview-submission-http.md
     job_attempt_contract: .trellis/spec/backend/preview-runner.md
     runtime_worker: internal_explicit_owned_runtime_only
     runtime_contract: .trellis/spec/backend/preview-runtime.md
     runtime_startup_composition: implemented_in_cli_serve
-    public_route: false
+    public_route: false # No standalone single-record producer route; submission uses the import API.
     code_contract: .trellis/spec/backend/preview-records.md
   neodb_mark_read:
     reviewed_at: 2026-09-22

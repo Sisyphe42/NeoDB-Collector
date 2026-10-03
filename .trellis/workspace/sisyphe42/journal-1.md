@@ -18,9 +18,7 @@ Implemented Rust Core/CLI, YAML configuration, baseline operational SQLite, vers
 
 ### Main Changes
 
-- Added mounted-receipt File/profile/job ownership, generated search/manual staging, sparse drafts and explicit new-preview submission; old jobs remain immutable and reopened history stays read-only.
-- Main review strengthened stale rejected paths, Unicode Cc reuse, off-page/Compared resets, encoded JSON exact/+1 limits, delayed File reads, aborts and identity-scoped inspection suppression; raw upload remains compatible.
-- Extended generated-schema Chromium fixtures and synchronized canonical specs/task acceptance; no new dependency, HTTP API/schema, CLI/Core/Server/Storage production behavior, capability or personal/source write.
+- Detailed change bullets were not supplied; see the summary above.
 
 ### Git Commits
 
@@ -310,7 +308,9 @@ Implemented E4d explicit source-bound WebUI search/manual staging and new-job re
 
 ### Main Changes
 
-- Detailed change bullets were not supplied; see the summary above.
+- Added mounted-receipt File/profile/job ownership, generated search/manual staging, sparse drafts and explicit new-preview submission; old jobs remain immutable and reopened history stays read-only.
+- Main review strengthened stale rejected paths, Unicode Cc reuse, off-page/Compared resets, encoded JSON exact/+1 limits, delayed File reads, aborts and identity-scoped inspection suppression; raw upload remains compatible.
+- Extended generated-schema Chromium fixtures and synchronized canonical specs/task acceptance; no new dependency, HTTP API/schema, CLI/Core/Server/Storage production behavior, capability or personal/source write.
 
 ### Git Commits
 

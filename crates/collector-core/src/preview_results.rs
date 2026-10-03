@@ -1,10 +1,10 @@
 //! Persistent historical preview-result contracts. No serializer or runtime dependency.
 use crate::{
     access::{Endpoint, PortFuture},
-    catalog::{CatalogItem, CatalogSearchPage},
+    catalog::{CatalogItem, CatalogSearchPage, validate_catalog_item},
     preview::{Comparison, ComparisonStatus, SinkValue, compare_mapped_field},
-    preview_jobs::{MAX_PREVIEW_OBSERVATIONS, valid_id, validate_page},
-    preview_records::{PreviewRecord, PreviewRecordProvenance},
+    preview_jobs::{MAX_PREVIEW_OBSERVATIONS, PreviewResolutionInput, valid_id, validate_page},
+    preview_records::{PreviewRecord, PreviewRecordProvenance, PreviewResolutionProof},
 };
 use collector_domain::{
     ApiError,
@@ -71,8 +71,17 @@ impl PreviewResultWrite {
     pub fn observation_proof(&self) -> &Observation {
         self.record.observation_proof()
     }
-    pub fn search_query_proof(&self) -> Option<&str> {
-        self.record.search_query_proof()
+    pub fn matches_resolution_input(&self, input: &PreviewResolutionInput) -> bool {
+        match (self.record.resolution_proof(), input) {
+            (PreviewResolutionProof::Native, PreviewResolutionInput::Native) => true,
+            (PreviewResolutionProof::Search(proof), PreviewResolutionInput::Search(saved)) => {
+                proof == saved
+            }
+            (PreviewResolutionProof::Manual(proof), PreviewResolutionInput::Manual(saved)) => {
+                proof == &saved.detail_path()
+            }
+            _ => false,
+        }
     }
 }
 
@@ -412,33 +421,7 @@ fn valid_sink(field: &str, value: &ScalarValue) -> bool {
 }
 
 fn validate_item(base: &str, item: &CatalogItem) -> Result<(), ApiError> {
-    let path = match (item.media_type.as_str(), item.model.as_str()) {
-        ("movie", "Movie") => "/movie/",
-        ("tv", "TVShow") => "/tv/",
-        ("tv", "TVSeason") => "/tv/season/",
-        ("tv", "TVEpisode") => "/tv/episode/",
-        _ => return Err(invalid_stored()),
-    };
-    let valid_uuid = |value: &str| {
-        !value.is_empty() && value.len() <= 22 && value.bytes().all(|b| b.is_ascii_alphanumeric())
-    };
-    if !valid_uuid(&item.uuid)
-        || item
-            .parent_uuid
-            .as_deref()
-            .is_some_and(|value| !valid_uuid(value))
-        || item.canonical_url != format!("{base}{path}{}", item.uuid)
-        || item.detail_url != format!("{base}/api{path}{}", item.uuid)
-        || item.external_ids.len() > 128
-        || item
-            .external_ids
-            .iter()
-            .any(|(scheme, id)| !bounded(scheme, 128) || !bounded(id, 4096))
-        || item.external_ids.windows(2).any(|pair| pair[0] >= pair[1])
-    {
-        return Err(invalid_stored());
-    }
-    Ok(())
+    validate_catalog_item(base, item).map_err(|_| invalid_stored())
 }
 
 fn bounded(value: &str, max: usize) -> bool {

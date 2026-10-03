@@ -29,11 +29,18 @@ implements them in `crates/collector-storage/src/preview_jobs.rs`.
 - `with_search_queries(self, Vec<(u32, String)>) -> Result<Self, ApiError>` attaches
   an explicit sparse ordinal/query plan; `search_query(ordinal) -> Option<&str>`
   exposes normalized internal input. The ordinary constructor remains native.
+- `with_manual_selections(self, Vec<(u32, CatalogReference)>) -> Result<Self, ApiError>`
+  attaches explicit sparse choices, mutually exclusive with search on an ordinal.
+  `CatalogReference` lives in Core `catalog.rs`: `from_item(base, &CatalogItem)`
+  and `from_stored(uuid, media_type, model)` validate supported route/UUID evidence;
+  getters and `detail_path()` expose a safe derived relative detail path only.
 - `PreviewJobRepository::submit(PreviewSubmission) -> PortFuture<PreviewJob>`.
 - `load(id: String) -> PortFuture<Option<PreviewJob>>`.
 - `observations(id: String, offset: u32, limit: u32) -> PortFuture<Vec<Observation>>`.
-- `search_query(id: String, ordinal: u32) -> PortFuture<Option<String>>` reads one
-  validated stored query; NULL means native, not a guessed title query.
+- `resolution_input(id: String, ordinal: u32) -> PortFuture<PreviewResolutionInput>`
+  reads one complete validated input: `Native`, `Search(String)` or
+  `Manual(CatalogReference)`. E4b replaces the E4a query-only port, avoiding
+  separate awaited reads that could select an inconsistent input mode.
 - `claim/cancel/fail(id: String, attempt: u32, now: i64) -> PortFuture<bool>`.
 - `resume(id: String, attempt: u32, now: i64) -> PortFuture<Option<u32>>`.
 - `interrupt_running(now: i64) -> PortFuture<u64>` interrupts queued **and** running.
@@ -65,6 +72,14 @@ completed jobs and adds the normalized result table; see the result contract.
 `0006_preview_search_inputs.sql` adds nullable `search_query` to each observation
 row. Existing rows default to NULL. Queries are bounded to 512 UTF-8 bytes and
 remain normalized operational input, not raw source metadata or workflow code.
+`0007_preview_manual_inputs.sql` adds nullable `manual_selection`, a bounded strict
+private JSON reference (at most 512 UTF-8 bytes) with `schema_version: 1`, `uuid`,
+`media_type` and `model`. Core `catalog::MAX_CATALOG_REFERENCE_BYTES` owns the cap.
+NULL query and selection mean Native. Existing v6 rows retain inputs/history.
+No URL, title, external-ID array or previous candidate metadata is stored here.
+Insert/update triggers refuse simultaneously non-NULL query and selection;
+strict shared read decoding also rejects collisions if database constraints were
+bypassed. Downgrade fixtures must remove these triggers before dropping the column.
 
 Rows are keyed by `(job_id, ordinal)` with zero-based stable ordering and a job
 foreign key; profile references target `(id, version)`. Observation JSON encodes the
@@ -92,6 +107,16 @@ existing strict Domain schema and is never a raw import/response document.
   account binding and fixed expiry. Do not derive queries from title hints.
   Read-side query validation requires exact normalization and rejects corruption
   with `database_unavailable`, never silently trimming or returning native mode.
+- Manual plans have the same ordinal/count/immutability limits. A compact validated
+  reference stores only supported UUID/media/model; derive its relative detail
+  path from the same pure route/UUID owner used for normalized item validation.
+  Do not add a Core URL parser or retain arbitrary user-supplied links. Reject
+  duplicates/range errors and search/manual collisions in either builder order.
+  Reopen/resume retain choices, exact binding/revision and fixed expiry. Shared
+  strict input decoding rejects malformed/oversized/unknown-field selection JSON
+  and noncanonical bytes (re-encoding must equal the stored JSON), as well as
+  collisions on observation, resolution-input, history, store and completion
+  paths; never downgrade corrupt Manual to Native or Search.
 - Insert metadata and all ordered rows in one transaction. The singleton endpoint
   must still equal base/account/credential reference and the exact selected profile
   must exist and remain disabled/valid. Failure leaves no partial job or rows.
@@ -144,6 +169,9 @@ existing strict Domain schema and is never a raw import/response document.
 | Invalid submission / observation | `preview_job_invalid` / `preview_observation_invalid`; no insertion |
 | Duplicate/out-of-range search ordinal | `preview_search_plan_invalid`; no submission accepted |
 | Blank/control-containing/over-512-byte query | `catalog_search_query_invalid`; no submission accepted |
+| Invalid compact catalog reference | `neodb_catalog_reference_invalid`; no submission accepted |
+| Duplicate/out-of-range manual ordinal | `preview_manual_plan_invalid`; no submission accepted |
+| Search/manual conflict | `preview_resolution_plan_invalid`; no submission accepted |
 | Count / record bytes / total bytes over bounds | `preview_submission_too_large` / `preview_observation_too_large`; no insertion |
 | Invalid page size / transition metadata | `preview_page_invalid` / `preview_transition_invalid` |
 | Stale or missing endpoint/profile | `preview_binding_changed` / `preview_profile_changed`; no job or rows accepted |
@@ -155,6 +183,7 @@ existing strict Domain schema and is never a raw import/response document.
 | Expired job | No claim/resume |
 | Delete / cleanup | Job and observations removed atomically, unrelated state kept |
 | Corrupt stored metadata/profile/JSON | `database_unavailable`, never partial accepted evidence |
+| Missing ordinal in resolution-input read | `database_unavailable`, never implicit Native |
 | Newer database migration | database_version_unsupported, bytes unchanged |
 
 ## 5. Good / Base / Bad Cases
@@ -183,6 +212,14 @@ and ASCII/UTF-8 byte boundaries. Storage
 v1/full binding/fixed expiry despite v2, while
 `corrupt_search_input_fails_closed_instead_of_becoming_native` rejects padded or
 invalid query inputs without publishing a normalized observation page.
+E4b adds compact-reference hostile input/route tests, mutually exclusive sparse
+plans, preserved mixed-mode inputs on reopen/resume, exact manual-request proof,
+fresh detail with distinct manual provenance, corruption/rollback checks and
+populated exact-v6 migration preserving native/search inputs and old manual history.
+Concrete tests: Core `catalog.rs::tests::compact_reference_validates_item_and_derives_only_safe_relative_paths`
+and `preview_jobs/tests.rs::explicit_manual_plan_is_sparse_bounded_unique_and_conflicts_in_both_builder_orders`;
+Storage `manual_inputs_survive_reopen_resume_and_corruption_never_becomes_native`
+and the mixed-input `failed_row_insert_rolls_back_job_and_all_observations`.
 Run scoped Core/Storage tests, full `pnpm verify`, YAML and `git diff --check`.
 
 ## 7. Wrong vs Correct
@@ -198,3 +235,7 @@ insertion port, not an unguarded row write.
 Wrong: recover a missing/invalid search query from `title_hint`.
 Correct: only an explicit validated stored query opts that ordinal into search;
 corrupt input fails closed and original native jobs stay native.
+
+Wrong: save a candidate's complete metadata or arbitrary URL as a manual job input.
+Correct: save a bounded validated reference; each attempt freshly reads detail,
+then preserves current identity checks and manual provenance.

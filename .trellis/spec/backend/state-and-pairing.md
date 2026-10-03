@@ -29,6 +29,9 @@ normalized historical evidence in `preview_results`; see
 [Persistent Preview Results](./preview-results.md). Migration
 `0006_preview_search_inputs.sql` adds bounded nullable explicit query input to
 observation rows; existing jobs remain native and no raw payload is added.
+`0007_preview_manual_inputs.sql` adds bounded nullable compact manual references;
+v6 Native/Search inputs and historical evidence remain intact. Only UUID/media/
+model are persisted, not arbitrary selected links or previous candidate payloads.
 Repositories remain internal:
 owned runtime/startup recovery/retention and historical inspection read ports are
 composed in CLI serve; [Preview HTTP](./preview-http.md) owns safe wire projections.

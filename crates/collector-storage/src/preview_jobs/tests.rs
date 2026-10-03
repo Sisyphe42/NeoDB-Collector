@@ -125,23 +125,24 @@ async fn search_inputs_survive_reopen_and_resume_without_changing_native_slots()
     storage.submit(submission).await.unwrap();
     assert_eq!(
         storage
-            .search_query("job:search".into(), 0)
+            .resolution_input("job:search".into(), 0)
             .await
-            .unwrap()
-            .as_deref(),
-        Some("First title")
-    );
-    assert_eq!(
-        storage.search_query("job:search".into(), 1).await.unwrap(),
-        None
+            .unwrap(),
+        PreviewResolutionInput::Search("First title".into())
     );
     assert_eq!(
         storage
-            .search_query("job:search".into(), 2)
+            .resolution_input("job:search".into(), 1)
             .await
-            .unwrap()
-            .as_deref(),
-        Some("Third title")
+            .unwrap(),
+        PreviewResolutionInput::Native
+    );
+    assert_eq!(
+        storage
+            .resolution_input("job:search".into(), 2)
+            .await
+            .unwrap(),
+        PreviewResolutionInput::Search("Third title".into())
     );
     assert!(storage.cancel("job:search".into(), 1, 110).await.unwrap());
     let mut newer = profile;
@@ -162,23 +163,24 @@ async fn search_inputs_survive_reopen_and_resume_without_changing_native_slots()
     assert!(job.is_bound_to(&binding("credential-a")));
     assert_eq!(
         reopened
-            .search_query("job:search".into(), 0)
+            .resolution_input("job:search".into(), 0)
             .await
-            .unwrap()
-            .as_deref(),
-        Some("First title")
-    );
-    assert_eq!(
-        reopened.search_query("job:search".into(), 1).await.unwrap(),
-        None
+            .unwrap(),
+        PreviewResolutionInput::Search("First title".into())
     );
     assert_eq!(
         reopened
-            .search_query("job:search".into(), 2)
+            .resolution_input("job:search".into(), 1)
             .await
-            .unwrap()
-            .as_deref(),
-        Some("Third title")
+            .unwrap(),
+        PreviewResolutionInput::Native
+    );
+    assert_eq!(
+        reopened
+            .resolution_input("job:search".into(), 2)
+            .await
+            .unwrap(),
+        PreviewResolutionInput::Search("Third title".into())
     );
     reopened.close().await;
 }
@@ -207,7 +209,7 @@ async fn corrupt_search_input_fails_closed_instead_of_becoming_native() {
     .unwrap();
     assert_eq!(
         storage
-            .search_query("job:corrupt-search".into(), 0)
+            .resolution_input("job:corrupt-search".into(), 0)
             .await
             .unwrap_err()
             .code,
@@ -223,6 +225,123 @@ async fn corrupt_search_input_fails_closed_instead_of_becoming_native() {
         "database_unavailable"
     );
     storage.close().await;
+}
+
+#[tokio::test]
+async fn manual_inputs_survive_reopen_resume_and_corruption_never_becomes_native() {
+    let (dir, storage, profile) = setup().await;
+    let reference =
+        CatalogReference::from_stored("Resolved123".into(), "tv".into(), "TVShow".into()).unwrap();
+    let submission = submission(
+        "job:manual-inputs",
+        profile,
+        vec![
+            observation("tt1234567", 8),
+            observation("tt1234568", 9),
+            observation("tt1234569", 10),
+        ],
+        1_000,
+    )
+    .with_search_queries(vec![(1, "Exact title".into())])
+    .unwrap()
+    .with_manual_selections(vec![(2, reference.clone())])
+    .unwrap();
+    storage.submit(submission).await.unwrap();
+    assert_eq!(
+        storage
+            .resolution_input("job:manual-inputs".into(), 0)
+            .await
+            .unwrap(),
+        PreviewResolutionInput::Native
+    );
+    assert_eq!(
+        storage
+            .resolution_input("job:manual-inputs".into(), 1)
+            .await
+            .unwrap(),
+        PreviewResolutionInput::Search("Exact title".into())
+    );
+    assert_eq!(
+        storage
+            .resolution_input("job:manual-inputs".into(), 2)
+            .await
+            .unwrap(),
+        PreviewResolutionInput::Manual(reference.clone())
+    );
+    assert!(
+        storage
+            .cancel("job:manual-inputs".into(), 1, 110)
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        storage
+            .resume("job:manual-inputs".into(), 1, 120)
+            .await
+            .unwrap(),
+        Some(2)
+    );
+    storage.close().await;
+
+    let reopened = Storage::open(dir.path()).await.unwrap();
+    assert_eq!(
+        reopened
+            .resolution_input("job:manual-inputs".into(), 2)
+            .await
+            .unwrap(),
+        PreviewResolutionInput::Manual(reference)
+    );
+    let manual_json: String = sqlx::query_scalar(
+        "SELECT manual_selection FROM preview_observations WHERE job_id='job:manual-inputs' AND ordinal=2",
+    )
+    .fetch_one(&reopened.pool)
+    .await
+    .unwrap();
+    assert!(manual_json.len() <= MAX_CATALOG_REFERENCE_BYTES);
+    assert!(!manual_json.contains("http"));
+    assert!(!manual_json.contains("canonical"));
+    sqlx::query("UPDATE preview_observations SET manual_selection=? WHERE job_id='job:manual-inputs' AND ordinal=2")
+        .bind(r#"{"schema_version":1,"uuid":"Resolved123","media_type":"tv","model":"TVShow","url":"https://evil.example"}"#)
+        .execute(&reopened.pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        reopened
+            .resolution_input("job:manual-inputs".into(), 2)
+            .await
+            .unwrap_err()
+            .code,
+        "database_unavailable"
+    );
+    sqlx::query("UPDATE preview_observations SET manual_selection=? WHERE job_id='job:manual-inputs' AND ordinal=2")
+        .bind(&manual_json)
+        .execute(&reopened.pool)
+        .await
+        .unwrap();
+    sqlx::raw_sql(
+        "DROP TRIGGER preview_observations_resolution_input_insert; DROP TRIGGER preview_observations_resolution_input_update; UPDATE preview_observations SET search_query='collision' WHERE job_id='job:manual-inputs' AND ordinal=2;",
+    )
+    .execute(&reopened.pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        reopened
+            .resolution_input("job:manual-inputs".into(), 2)
+            .await
+            .unwrap_err()
+            .code,
+        "database_unavailable"
+    );
+    assert_eq!(
+        reopened
+            .observations("job:manual-inputs".into(), 0, 3)
+            .await
+            .err()
+            .unwrap()
+            .code,
+        "database_unavailable"
+    );
+    reopened.close().await;
 }
 
 #[tokio::test]
@@ -518,37 +637,56 @@ async fn json_escaping_cannot_bypass_per_observation_byte_limit() {
 
 #[tokio::test]
 async fn failed_row_insert_rolls_back_job_and_all_observations() {
-    let (_dir, storage, profile) = setup().await;
-    sqlx::raw_sql("CREATE TRIGGER fail_second_preview_row BEFORE INSERT ON preview_observations WHEN NEW.ordinal=1 BEGIN SELECT RAISE(ABORT, 'test'); END;")
-        .execute(&storage.pool).await.unwrap();
-    assert_eq!(
-        storage
-            .submit(
-                submission(
-                    "job:rollback",
-                    profile,
-                    vec![observation("tt1234567", 8), observation("tt1234568", 9)],
-                    1_000,
-                )
-                .with_search_queries(vec![(0, "First title".into()), (1, "Second title".into())])
+    for manual_first in [false, true] {
+        let (_dir, storage, profile) = setup().await;
+        sqlx::raw_sql("CREATE TRIGGER fail_second_preview_row BEFORE INSERT ON preview_observations WHEN NEW.ordinal=1 BEGIN SELECT RAISE(ABORT, 'test'); END;")
+            .execute(&storage.pool).await.unwrap();
+        let submission = submission(
+            if manual_first {
+                "job:rollback-manual"
+            } else {
+                "job:rollback-search"
+            },
+            profile,
+            vec![observation("tt1234567", 8), observation("tt1234568", 9)],
+            1_000,
+        )
+        .with_search_queries(if manual_first {
+            vec![(1, "Second title".into())]
+        } else {
+            vec![(0, "First title".into()), (1, "Second title".into())]
+        })
+        .unwrap();
+        let submission = if manual_first {
+            submission
+                .with_manual_selections(vec![(
+                    0,
+                    CatalogReference::from_stored(
+                        "Resolved123".into(),
+                        "tv".into(),
+                        "TVShow".into(),
+                    )
+                    .unwrap(),
+                )])
                 .unwrap()
-            )
+        } else {
+            submission
+        };
+        assert_eq!(
+            storage.submit(submission).await.err().unwrap().code,
+            "database_unavailable"
+        );
+        let jobs: i64 = sqlx::query_scalar("SELECT count(*) FROM preview_jobs")
+            .fetch_one(&storage.pool)
             .await
-            .err()
-            .unwrap()
-            .code,
-        "database_unavailable"
-    );
-    let jobs: i64 = sqlx::query_scalar("SELECT count(*) FROM preview_jobs")
-        .fetch_one(&storage.pool)
-        .await
-        .unwrap();
-    let rows: i64 = sqlx::query_scalar("SELECT count(*) FROM preview_observations")
-        .fetch_one(&storage.pool)
-        .await
-        .unwrap();
-    assert_eq!((jobs, rows), (0, 0));
-    storage.close().await;
+            .unwrap();
+        let rows: i64 = sqlx::query_scalar("SELECT count(*) FROM preview_observations")
+            .fetch_one(&storage.pool)
+            .await
+            .unwrap();
+        assert_eq!((jobs, rows), (0, 0));
+        storage.close().await;
+    }
 }
 
 #[tokio::test]

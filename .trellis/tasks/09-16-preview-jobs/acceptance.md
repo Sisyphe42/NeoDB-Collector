@@ -9,7 +9,8 @@ credential-store verification is implied. Local Windows checks are not three-OS 
 
 - Catalog transport loopback tests prove restrictive request/response handling;
   Core resolver tests prove polling, identity/granularity and explicit selection.
-  Internal search/manual primitives are not yet integrated into public job work.
+  E4a/E4b integrate explicit inputs into the internal runner; public search/manual
+  actions remain pending.
 - Core comparison/record tests prove account binding, non-executable comparisons
   and Known/Empty/Unknown semantics. Storage tests prove normalized persistence,
   atomic guards, retention, reopen and migration independently of clients.
@@ -99,3 +100,36 @@ input and compatible migration, not a public route or manual-selection mapping.
 Public search/manual actions, integrated negative paths and parent client/upstream
 acceptance still remain pending. No live upstream/account/keychain verification,
 new dependency, source/personal write or connector capability was introduced.
+
+## E4b internal manual-input evidence
+
+Core `catalog.rs::tests::compact_reference_validates_item_and_derives_only_safe_relative_paths`
+validates all four supported route/model pairs, UUID bounds and unsafe/mismatched
+evidence without a URL parser or transport call. The sparse plan test rejects
+duplicates/count/range and search/manual collisions in either builder order.
+`invalid_inputs_fail_before_binding_or_catalog_io` includes oversized raw manual
+requests. Runner `mixed_manual_search_and_native_inputs_use_fresh_manual_detail_on_every_attempt`
+checks ordered mixed modes, fresh detail/mark reads and manual provenance on each
+attempt, with no historical-result reads. The unified input-read guard test drops
+hung reads on cancellation/deadline and stops before detail/credentials after rebind.
+
+Storage `manual_inputs_survive_reopen_resume_and_corruption_never_becomes_native`
+retains compact choices across reopen/resume; payloads exclude URLs and metadata.
+Shared strict decoding rejects malformed/version/unknown-field/unsafe UUID inputs
+and search/manual collisions. `manual_result_proof_uses_requested_reference_not_redirected_item_evidence`
+accepts the requested selection while retaining redirected final evidence and
+Manual provenance, rejects another request/Native/Search mode, and checks corrupt
+input rejection in history/store/completion without status/time/count changes.
+The insertion-failure test includes mixed Manual/Search rollback. Populated exact-v6
+migration preserves Native/Search inputs and historical Manual evidence; new NULL
+slots accept only Native production and cannot recreate old manual authority.
+
+Scoped Core tests (89 + two compile-fail doctests), Storage (43), Server (87),
+fmt and Core/Storage Clippy passed. Main full `pnpm verify` passed: 288 Rust unit
+tests, two compile-fail doctests and 63 TS/UI tests, workspace fmt/Clippy,
+contracts/boundaries, lint/typecheck, WebUI/CLI builds and actual local
+CLI/HTTP/session/pairing/revocation/browser smoke. Product YAML with 34 unique
+evidence IDs, decision/reference/capability checks and `git diff --check` passed.
+No public search/selection route, UI/CLI action, dependency, capability or personal/
+source write is delivered. Broader public and client/upstream acceptance remains
+pending; this child stays active. All upstream/account/credential tests are fake.

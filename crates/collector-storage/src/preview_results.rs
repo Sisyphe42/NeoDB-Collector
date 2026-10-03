@@ -5,8 +5,8 @@ use collector_core::{
     mapping,
     preview::{ComparedField, Comparison, ComparisonStatus, SinkValue},
     preview_jobs::{
-        MAX_PREVIEW_OBSERVATION_BYTES, PreviewJobStatus, validate_imdb_observation,
-        validate_transition,
+        MAX_PREVIEW_OBSERVATION_BYTES, PreviewJobStatus, PreviewResolutionInput,
+        validate_imdb_observation, validate_transition,
     },
     preview_records::{PreviewRecordOutcome, PreviewRecordProvenance},
     preview_results::{
@@ -324,9 +324,9 @@ async fn stored_input(
     conn: &mut SqliteConnection,
     job: &str,
     ordinal: u32,
-) -> Result<Option<(Observation, Option<String>)>, ApiError> {
+) -> Result<Option<(Observation, PreviewResolutionInput)>, ApiError> {
     let row = sqlx::query(
-        "SELECT observation_json,search_query FROM preview_observations WHERE job_id=? AND ordinal=?",
+        "SELECT observation_json,search_query,manual_selection FROM preview_observations WHERE job_id=? AND ordinal=?",
     )
     .bind(job)
     .bind(ordinal)
@@ -344,8 +344,11 @@ async fn stored_input(
         validate_imdb_observation(&value).map_err(|_| database_error())?;
         let search_query: Option<String> =
             row.try_get("search_query").map_err(|_| database_error())?;
-        let search_query = super::preview_jobs::decode_search_query(search_query)?;
-        Ok((value, search_query))
+        let manual_selection: Option<String> = row
+            .try_get("manual_selection")
+            .map_err(|_| database_error())?;
+        let input = super::preview_jobs::decode_resolution_input(search_query, manual_selection)?;
+        Ok((value, input))
     })
     .transpose()
 }
@@ -466,7 +469,7 @@ impl PreviewResultRepository for Storage {
             if profile != *write.profile_proof() {
                 return Ok(false);
             }
-            let Some((observation, search_query)) =
+            let Some((observation, resolution_input)) =
                 stored_input(&mut tx, write.job_id(), write.ordinal()).await?
             else {
                 return Ok(false);
@@ -474,7 +477,7 @@ impl PreviewResultRepository for Storage {
             if observation != *write.observation_proof() {
                 return Ok(false);
             }
-            if search_query.as_deref() != write.search_query_proof() {
+            if !write.matches_resolution_input(&resolution_input) {
                 return Ok(false);
             }
             validate_extent(&mut tx, &job).await?;

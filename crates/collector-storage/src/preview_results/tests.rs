@@ -1,13 +1,15 @@
 use super::*;
 use collector_core::{
     access::{AccessRecord, AccessRepository, ChallengeMatch, Clock, Endpoint, SecretStore},
-    catalog::{CatalogFetch, NeoDbCatalogSearchTransport, NeoDbCatalogTransport},
+    catalog::{CatalogFetch, CatalogReference, NeoDbCatalogSearchTransport, NeoDbCatalogTransport},
     catalog_resolver::{CatalogIdentity, ResolutionControl},
     mapping::{MappingRepository, imdb_default},
     marks::{MarkRead, MarkSnapshot, NeoDbMarkTransport},
     oauth::{NeoDbOAuthTransport, OAuthApp, OAuthIdentity, OAuthToken},
     preview::{PreviewSnapshotService, SinkValue},
-    preview_jobs::{PreviewJobRepository, PreviewJobStatus, PreviewSubmission},
+    preview_jobs::{
+        PreviewJobRepository, PreviewJobStatus, PreviewResolutionInput, PreviewSubmission,
+    },
     preview_records::{
         PreviewRecordOutcome, PreviewRecordRequest, PreviewRecordService, PreviewResolutionMode,
     },
@@ -258,7 +260,16 @@ async fn produce_with_ids(
     ids: Vec<(String, String)>,
 ) -> collector_core::preview_records::PreviewRecord {
     let query = matches!(kind, ResolutionKind::Search).then_some("Exact title");
-    produce_with_ids_and_query(profile, observation, kind, mark, manual, ids, query).await
+    produce_with_ids_and_query(
+        profile,
+        observation,
+        kind,
+        mark,
+        ids,
+        query,
+        manual.then_some("/api/tv/Resolved123"),
+    )
+    .await
 }
 
 async fn produce_with_ids_and_query(
@@ -266,9 +277,9 @@ async fn produce_with_ids_and_query(
     observation: &Observation,
     kind: ResolutionKind,
     mark: Mark,
-    manual: bool,
     ids: Vec<(String, String)>,
     search_query: Option<&str>,
+    manual_reference: Option<&str>,
 ) -> collector_core::preview_records::PreviewRecord {
     let snapshots = Arc::new(PreviewSnapshotService::new(
         Arc::new(Repo(Mutex::new(Some(binding("credential-a"))))),
@@ -290,10 +301,8 @@ async fn produce_with_ids_and_query(
         external_id: observation.source_record_id.clone(),
     };
     let expected = binding("credential-a");
-    let mode = if manual {
-        PreviewResolutionMode::Manual {
-            reference: "/api/tv/Resolved123",
-        }
+    let mode = if let Some(reference) = manual_reference {
+        PreviewResolutionMode::Manual { reference }
     } else if let Some(query) = search_query {
         PreviewResolutionMode::Search { query }
     } else {
@@ -362,6 +371,32 @@ async fn running_with_search(
     )
     .unwrap()
     .with_search_queries(vec![(0, query.into())])
+    .unwrap();
+    storage.submit(submission).await.unwrap();
+    assert!(storage.claim(id.into(), 1, 105).await.unwrap());
+}
+
+async fn running_with_manual(
+    storage: &Storage,
+    id: &str,
+    profile: MappingProfile,
+    values: Vec<Observation>,
+) {
+    let reference = CatalogReference::from_item(
+        "https://neodb.example",
+        &item(vec![("imdb:title".into(), "tt1234567".into())]),
+    )
+    .unwrap();
+    let submission = PreviewSubmission::new(
+        id.into(),
+        binding("credential-a"),
+        profile,
+        values,
+        100,
+        1_000,
+    )
+    .unwrap()
+    .with_manual_selections(vec![(0, reference)])
     .unwrap();
     storage.submit(submission).await.unwrap();
     assert!(storage.claim(id.into(), 1, 105).await.unwrap());
@@ -510,7 +545,9 @@ async fn every_outcome_and_comparison_state_remains_normalized_history() {
     ];
     for (name, kind, mark, manual) in cases {
         let id = format!("job:{name}");
-        if matches!(kind, ResolutionKind::Search) {
+        if manual {
+            running_with_manual(&storage, &id, profile.clone(), vec![observed.clone()]).await;
+        } else if matches!(kind, ResolutionKind::Search) {
             running_with_search(
                 &storage,
                 &id,
@@ -846,9 +883,9 @@ async fn result_write_requires_the_exact_stored_search_query_proof() {
         &observed,
         ResolutionKind::Search,
         Mark::Missing,
-        false,
         vec![("imdb:title".into(), "tt1234567".into())],
         Some("Different title"),
+        None,
     )
     .await;
     assert!(
@@ -872,13 +909,15 @@ async fn result_write_requires_the_exact_stored_search_query_proof() {
         &observed,
         ResolutionKind::Search,
         Mark::Missing,
-        false,
         vec![("imdb:title".into(), "tt1234567".into())],
         Some(" Exact title "),
+        None,
     )
     .await;
     let matching = PreviewResultWrite::new("job:search-proof".into(), 0, 1, 110, matching).unwrap();
-    assert_eq!(matching.search_query_proof(), Some("Exact title"));
+    assert!(
+        matching.matches_resolution_input(&PreviewResolutionInput::Search("Exact title".into()))
+    );
     assert!(storage.store(matching).await.unwrap());
     let json: String = sqlx::query_scalar(
         "SELECT result_json FROM preview_results WHERE job_id='job:search-proof'",
@@ -940,6 +979,216 @@ async fn result_write_requires_the_exact_stored_search_query_proof() {
             .unwrap();
     assert_eq!(count, 1);
     storage.close().await;
+}
+
+#[tokio::test]
+async fn manual_result_proof_uses_requested_reference_not_redirected_item_evidence() {
+    let (_dir, storage, profile) = setup().await;
+    let observed = observation("tt1234567", 8);
+    let requested =
+        CatalogReference::from_stored("Requested123".into(), "tv".into(), "TVShow".into()).unwrap();
+
+    for id in ["job:manual-proof", "job:manual-mismatch"] {
+        let submission = PreviewSubmission::new(
+            id.into(),
+            binding("credential-a"),
+            profile.clone(),
+            vec![observed.clone()],
+            100,
+            1_000,
+        )
+        .unwrap()
+        .with_manual_selections(vec![(0, requested.clone())])
+        .unwrap();
+        storage.submit(submission).await.unwrap();
+        assert!(storage.claim(id.into(), 1, 105).await.unwrap());
+    }
+    running(
+        &storage,
+        "job:native-refuses-manual",
+        profile.clone(),
+        vec![observed.clone()],
+    )
+    .await;
+
+    let redirected = produce_with_ids_and_query(
+        &profile,
+        &observed,
+        ResolutionKind::Matched,
+        Mark::Present(Some(8)),
+        vec![("imdb:title".into(), "tt1234567".into())],
+        None,
+        Some("/api/tv/Requested123"),
+    )
+    .await;
+    assert!(
+        storage
+            .store(
+                PreviewResultWrite::new("job:manual-proof".into(), 0, 1, 110, redirected).unwrap()
+            )
+            .await
+            .unwrap()
+    );
+    let rows = storage
+        .results("job:manual-proof".into(), 1, 0, 100)
+        .await
+        .unwrap();
+    assert!(matches!(
+        rows[0].outcome(),
+        StoredPreviewOutcome::Compared { item, .. } if item.uuid == "Resolved123"
+    ));
+
+    let result_json: String = sqlx::query_scalar(
+        "SELECT result_json FROM preview_results WHERE job_id='job:manual-proof' AND ordinal=0",
+    )
+    .fetch_one(&storage.pool)
+    .await
+    .unwrap();
+    assert!(result_json.contains("Resolved123"));
+    assert!(result_json.contains("manual"));
+    assert!(!result_json.contains("Requested123"));
+    assert!(!result_json.contains("manual_selection"));
+
+    let search_for_manual = produce_with_ids_and_query(
+        &profile,
+        &observed,
+        ResolutionKind::Search,
+        Mark::Missing,
+        vec![("imdb:title".into(), "tt1234567".into())],
+        Some("Different mode"),
+        None,
+    )
+    .await;
+    assert!(
+        !storage
+            .store(
+                PreviewResultWrite::new(
+                    "job:manual-mismatch".into(),
+                    0,
+                    1,
+                    110,
+                    search_for_manual,
+                )
+                .unwrap()
+            )
+            .await
+            .unwrap()
+    );
+    let native_for_manual = produce(
+        &profile,
+        &observed,
+        ResolutionKind::Unsupported,
+        Mark::Missing,
+        false,
+    )
+    .await;
+    assert!(
+        !storage
+            .store(
+                PreviewResultWrite::new(
+                    "job:manual-mismatch".into(),
+                    0,
+                    1,
+                    110,
+                    native_for_manual,
+                )
+                .unwrap()
+            )
+            .await
+            .unwrap()
+    );
+
+    for id in ["job:manual-mismatch", "job:native-refuses-manual"] {
+        let wrong = produce(
+            &profile,
+            &observed,
+            ResolutionKind::Matched,
+            Mark::Present(Some(8)),
+            true,
+        )
+        .await;
+        assert!(
+            !storage
+                .store(PreviewResultWrite::new(id.into(), 0, 1, 110, wrong).unwrap())
+                .await
+                .unwrap()
+        );
+    }
+    let mismatch_state: (String, i64, i64) = sqlx::query_as(
+        "SELECT status,updated_at,(SELECT count(*) FROM preview_results WHERE job_id=preview_jobs.id) FROM preview_jobs WHERE id='job:manual-mismatch'",
+    )
+    .fetch_one(&storage.pool)
+    .await
+    .unwrap();
+    assert_eq!(mismatch_state, ("running".into(), 105, 0));
+
+    let valid_selection: String = sqlx::query_scalar(
+        "SELECT manual_selection FROM preview_observations WHERE job_id='job:manual-proof' AND ordinal=0",
+    )
+    .fetch_one(&storage.pool)
+    .await
+    .unwrap();
+    for invalid in [
+        "{",
+        r#"{"schema_version":1,"uuid":"Requested123","media_type":"tv","model":"TVShow","extra":true}"#,
+        r#"{"schema_version":2,"uuid":"Requested123","media_type":"tv","model":"TVShow"}"#,
+        r#"{"schema_version":1,"uuid":"../unsafe","media_type":"tv","model":"TVShow"}"#,
+    ] {
+        sqlx::query("UPDATE preview_observations SET manual_selection=? WHERE job_id='job:manual-proof' AND ordinal=0")
+            .bind(invalid)
+            .execute(&storage.pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            storage
+                .results("job:manual-proof".into(), 1, 0, 100)
+                .await
+                .err()
+                .unwrap()
+                .code,
+            "database_unavailable"
+        );
+        let record = produce_with_ids_and_query(
+            &profile,
+            &observed,
+            ResolutionKind::Matched,
+            Mark::Present(Some(8)),
+            vec![("imdb:title".into(), "tt1234567".into())],
+            None,
+            Some("/api/tv/Requested123"),
+        )
+        .await;
+        assert_eq!(
+            storage
+                .store(
+                    PreviewResultWrite::new("job:manual-proof".into(), 0, 1, 115, record).unwrap()
+                )
+                .await
+                .unwrap_err()
+                .code,
+            "database_unavailable"
+        );
+        assert_eq!(
+            storage
+                .complete("job:manual-proof".into(), 1, 120)
+                .await
+                .unwrap_err()
+                .code,
+            "database_unavailable"
+        );
+        let state: (String, i64, i64) = sqlx::query_as(
+            "SELECT status,updated_at,(SELECT count(*) FROM preview_results WHERE job_id=preview_jobs.id) FROM preview_jobs WHERE id='job:manual-proof'",
+        )
+        .fetch_one(&storage.pool)
+        .await
+        .unwrap();
+        assert_eq!(state, ("running".into(), 110, 1));
+    }
+    sqlx::query("UPDATE preview_observations SET manual_selection=? WHERE job_id='job:manual-proof' AND ordinal=0")
+        .bind(valid_selection)
+        .execute(&storage.pool)
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
@@ -1803,7 +2052,7 @@ async fn populated_exact_v4_schema_upgrades_without_losing_operational_state() {
         .fetch_one(&storage.pool)
         .await
         .unwrap();
-    assert_eq!(latest, 6);
+    assert_eq!(latest, 7);
     let job = PreviewJobRepository::load(&storage, "job:v4".into())
         .await
         .unwrap()
@@ -1904,7 +2153,7 @@ async fn populated_exact_v5_schema_upgrades_native_rows_with_null_search_query()
             .unwrap()
     );
     sqlx::raw_sql(
-        "ALTER TABLE preview_observations DROP COLUMN search_query; DELETE FROM _sqlx_migrations WHERE version>=6;",
+        "DROP TRIGGER preview_observations_resolution_input_insert; DROP TRIGGER preview_observations_resolution_input_update; ALTER TABLE preview_observations DROP COLUMN manual_selection; DELETE FROM _sqlx_migrations WHERE version>=7; ALTER TABLE preview_observations DROP COLUMN search_query; DELETE FROM _sqlx_migrations WHERE version>=6;",
     )
     .execute(&storage.pool)
     .await
@@ -1916,7 +2165,7 @@ async fn populated_exact_v5_schema_upgrades_native_rows_with_null_search_query()
         .fetch_one(&reopened.pool)
         .await
         .unwrap();
-    assert_eq!(latest, 6);
+    assert_eq!(latest, 7);
     let job = PreviewJobRepository::load(&reopened, "job:v5".into())
         .await
         .unwrap()
@@ -1925,14 +2174,99 @@ async fn populated_exact_v5_schema_upgrades_native_rows_with_null_search_query()
     assert_eq!(job.profile_version(), 1);
     assert_eq!(job.expires_at(), 1_000);
     assert_eq!(
-        reopened.search_query("job:v5".into(), 0).await.unwrap(),
-        None
+        reopened.resolution_input("job:v5".into(), 0).await.unwrap(),
+        PreviewResolutionInput::Native
     );
     let rows = reopened.results("job:v5".into(), 1, 0, 100).await.unwrap();
     assert_eq!(rows.len(), 1);
     assert!(matches!(
         rows[0].outcome(),
         StoredPreviewOutcome::Unsupported
+    ));
+    reopened.close().await;
+}
+
+#[tokio::test]
+async fn populated_exact_v6_schema_preserves_historical_manual_evidence_as_native_input() {
+    let (dir, storage, profile) = setup().await;
+    let observed = observation("tt1234567", 8);
+    let searched = observation("tt1234568", 9);
+    let submission = PreviewSubmission::new(
+        "job:v6-manual-history".into(),
+        binding("credential-a"),
+        profile.clone(),
+        vec![observed.clone(), searched],
+        100,
+        1_000,
+    )
+    .unwrap()
+    .with_search_queries(vec![(1, "Persisted query".into())])
+    .unwrap();
+    storage.submit(submission).await.unwrap();
+    assert!(
+        storage
+            .claim("job:v6-manual-history".into(), 1, 105)
+            .await
+            .unwrap()
+    );
+    let record = produce(
+        &profile,
+        &observed,
+        ResolutionKind::Matched,
+        Mark::Present(Some(8)),
+        true,
+    )
+    .await;
+    let write = PreviewResultWrite::new("job:v6-manual-history".into(), 0, 1, 110, record).unwrap();
+    let json = encode(&write).unwrap();
+    sqlx::query("INSERT INTO preview_results(job_id,ordinal,attempt,committed_at,result_json) VALUES(?,?,?,?,?)")
+        .bind(write.job_id())
+        .bind(write.ordinal())
+        .bind(write.attempt())
+        .bind(write.committed_at())
+        .bind(json)
+        .execute(&storage.pool)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE preview_jobs SET updated_at=110 WHERE id=?")
+        .bind(write.job_id())
+        .execute(&storage.pool)
+        .await
+        .unwrap();
+    sqlx::raw_sql(
+        "DROP TRIGGER preview_observations_resolution_input_insert; DROP TRIGGER preview_observations_resolution_input_update; ALTER TABLE preview_observations DROP COLUMN manual_selection; DELETE FROM _sqlx_migrations WHERE version>=7;",
+    )
+    .execute(&storage.pool)
+    .await
+    .unwrap();
+    storage.close().await;
+
+    let reopened = Storage::open(dir.path()).await.unwrap();
+    assert_eq!(
+        reopened
+            .resolution_input("job:v6-manual-history".into(), 0)
+            .await
+            .unwrap(),
+        PreviewResolutionInput::Native
+    );
+    assert_eq!(
+        reopened
+            .resolution_input("job:v6-manual-history".into(), 1)
+            .await
+            .unwrap(),
+        PreviewResolutionInput::Search("Persisted query".into())
+    );
+    let rows = reopened
+        .results("job:v6-manual-history".into(), 1, 0, 100)
+        .await
+        .unwrap();
+    assert_eq!(rows.len(), 1);
+    assert!(matches!(
+        rows[0].outcome(),
+        StoredPreviewOutcome::Compared {
+            provenance: PreviewRecordProvenance::Manual,
+            ..
+        }
     ));
     reopened.close().await;
 }

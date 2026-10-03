@@ -143,7 +143,7 @@ mod tests {
             .fetch_one(&upgraded.pool)
             .await
             .unwrap();
-        assert_eq!(latest, 6);
+        assert_eq!(latest, 7);
         assert!(upgraded.is_ready().await);
         upgraded.close().await;
     }
@@ -166,7 +166,7 @@ mod tests {
                 .fetch_one(&upgraded.pool)
                 .await
                 .unwrap();
-            assert_eq!(latest, 6);
+            assert_eq!(latest, 7);
             for table in ["preview_jobs", "preview_observations", "preview_results"] {
                 let exists: i64 = sqlx::query_scalar(
                     "SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?",

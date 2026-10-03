@@ -6,7 +6,9 @@ use collector_core::{
     marks::{MarkRead, NeoDbMarkTransport},
     oauth::{NeoDbOAuthTransport, OAuthApp, OAuthIdentity, OAuthToken},
     preview::PreviewSnapshotService,
-    preview_jobs::{PreviewJobIdentity, PreviewJobLifecycle, PreviewSubmission},
+    preview_jobs::{
+        PreviewJobIdentity, PreviewJobLifecycle, PreviewResolutionInput, PreviewSubmission,
+    },
     preview_records::PreviewRecordService,
     preview_results::PreviewResultRepository,
     secrets::SecretString,
@@ -261,8 +263,8 @@ impl PreviewJobRepository for ControlledJobs {
         self.storage.observations(id, offset, limit)
     }
 
-    fn search_query(&self, id: String, ordinal: u32) -> PortFuture<'_, Option<String>> {
-        self.storage.search_query(id, ordinal)
+    fn resolution_input(&self, id: String, ordinal: u32) -> PortFuture<'_, PreviewResolutionInput> {
+        self.storage.resolution_input(id, ordinal)
     }
 
     fn claim(&self, id: String, attempt: u32, now: i64) -> PortFuture<'_, bool> {
@@ -1439,7 +1441,7 @@ impl PreviewJobRepository for MaintenanceJobs {
     fn observations(&self, _: String, _: u32, _: u32) -> PortFuture<'_, Vec<Observation>> {
         Box::pin(async { unreachable!() })
     }
-    fn search_query(&self, _: String, _: u32) -> PortFuture<'_, Option<String>> {
+    fn resolution_input(&self, _: String, _: u32) -> PortFuture<'_, PreviewResolutionInput> {
         Box::pin(async { unreachable!() })
     }
     fn claim(&self, _: String, _: u32, _: i64) -> PortFuture<'_, bool> {
@@ -1519,7 +1521,7 @@ impl PreviewJobRepository for FailingManagementJobs {
     fn observations(&self, _: String, _: u32, _: u32) -> PortFuture<'_, Vec<Observation>> {
         Box::pin(async { unreachable!() })
     }
-    fn search_query(&self, _: String, _: u32) -> PortFuture<'_, Option<String>> {
+    fn resolution_input(&self, _: String, _: u32) -> PortFuture<'_, PreviewResolutionInput> {
         Box::pin(async { unreachable!() })
     }
     fn claim(&self, _: String, _: u32, _: i64) -> PortFuture<'_, bool> {

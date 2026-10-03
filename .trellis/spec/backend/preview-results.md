@@ -24,8 +24,10 @@ Internal contracts in `collector-core/src/preview_results.rs`:
 
 - `PreviewResultWrite::new(job_id, ordinal, attempt, committed_at, PreviewRecord)`
   constructs a validated write containing a private service record/input proof.
-- `search_query_proof() -> Option<&str>` exposes the producer's normalized explicit
-  query to trusted Storage only; this private proof is not historical JSON.
+- `matches_resolution_input(&PreviewResolutionInput) -> bool` compares the private
+  producer mode/query/manual request with trusted Storage's validated saved input.
+  E4b replaces the query-only proof getter with this full comparison; it exposes
+  no raw request/proof and never reconstructs one from the final item URL.
 - `PreviewResultRepository::store(PreviewResultWrite) -> PortFuture<bool>`.
 - `results(job_id, attempt, offset, limit) -> PortFuture<Vec<StoredPreviewResult>>`.
 - `complete(job_id, attempt, now) -> PortFuture<bool>`.
@@ -64,20 +66,24 @@ This is an internal persistence format, not a generated/public API contract.
 
 - A write consumes an immutable service-produced record. Carry a private bounded
   full-input equality proof in memory: the exact normalized Observation and disabled
-  MappingProfile and normalized explicit search query, not only their
+  MappingProfile, normalized explicit search query and exact requested manual
+  reference (distinct input modes), not only their
   IDs/version/fingerprint. Never serialize that proof, duplicate profile/source
   payloads in result JSON, or expose credential
   references in historical results, diagnostics or public DTOs. Internal write
-  proof getters are trusted adapter inputs, like the existing Endpoint port.
+  proof comparison and profile/observation getters are trusted adapter inputs,
+  like the existing Endpoint port.
 - Decoded historical review types must remain distinct from AccountMarkSnapshot
   and PreviewRecord. A load cannot construct a fresh-read record or execute writes.
 - Mutations use SQLx-managed `BEGIN IMMEDIATE`. In the transaction verify a running
   job, exact attempt/ordinal, non-regressing time before expiry, current full
   endpoint/account/credential reference, exact valid profile, observation and
-  stored ordinal search-query proof. A Search record for another query or a
-  Native/Manual record for a search-enabled ordinal is refused, even when the
-  resulting item/outcome is identical. Native/Manual internal records retain
-  their existing behavior for NULL query slots; this is not manual-plan delivery.
+  stored ordinal resolution-input proof. Refuse another query/manual request or
+  another mode even when the resulting item/outcome is identical. E4b replaces
+  E4a's NULL-slot manual allowance for new writes: a Native slot accepts Native
+  only. Existing v6 historical manual evidence remains readable; loading history
+  does not manufacture a new insertion proof. A redirected final item's URL is
+  evidence, not a replacement for the exact requested selection.
   Old workers, deleted jobs and duplicate ordinal inserts cannot overwrite/create
   evidence. Hold no transaction over network/OS credential reads.
   Successful insertion advances `updated_at` atomically. Duplicate writes do not
@@ -169,6 +175,11 @@ Native/Manual/different-query writes, accepted normalized matching proof, no que
 in historical result JSON, and corrupt query refusal in reads/store/completion
 without advancing status/time. `populated_exact_v5_schema_upgrades_native_rows_with_null_search_query`
 asserts retained historical evidence and native defaults after reopen/upgrade.
+E4b `manual_result_proof_uses_requested_reference_not_redirected_item_evidence`
+checks accepted exact requested selection despite redirected final evidence and
+refusal of another request/mode. Test malformed and colliding saved manual inputs
+in history/store/completion, preserving status/time/count on failure; upgrade
+populated exact-v6 rows preserving old manual history and Native/Search defaults.
 Run scoped Core/Storage tests, fmt/Clippy, `pnpm verify`, product YAML/evidence
 validation and `git diff --check`. Report local Windows evidence separately from
 hosted three-platform CI.

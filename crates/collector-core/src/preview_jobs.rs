@@ -1,7 +1,7 @@
 //! Internal resumable-preview job contracts. No HTTP, runtime or persistence code.
 use crate::{
     access::{Endpoint, PortFuture},
-    catalog::valid_imdb_title_id,
+    catalog::{CatalogReference, valid_imdb_title_id},
     catalog_resolver::validate_catalog_search_query,
     mapping,
 };
@@ -198,6 +198,7 @@ pub struct PreviewSubmission {
     profile: MappingProfile,
     observations: Vec<Observation>,
     search_queries: Vec<(u32, String)>,
+    manual_selections: Vec<(u32, CatalogReference)>,
     created_at: i64,
     expires_at: i64,
 }
@@ -236,6 +237,7 @@ impl PreviewSubmission {
             profile,
             observations,
             search_queries: Vec::new(),
+            manual_selections: Vec::new(),
             created_at,
             expires_at,
         })
@@ -254,6 +256,9 @@ impl PreviewSubmission {
                 return Err(invalid_search_plan());
             }
             let query = validate_catalog_search_query(&query)?.to_owned();
+            if self.manual_selection(ordinal).is_some() {
+                return Err(invalid_resolution_plan());
+            }
             normalized.push((ordinal, query));
         }
         normalized.sort_unstable_by_key(|(ordinal, _)| *ordinal);
@@ -261,6 +266,31 @@ impl PreviewSubmission {
             return Err(invalid_search_plan());
         }
         self.search_queries = normalized;
+        Ok(self)
+    }
+
+    pub fn with_manual_selections(
+        mut self,
+        manual_selections: Vec<(u32, CatalogReference)>,
+    ) -> Result<Self, ApiError> {
+        if manual_selections.len() > self.observations.len() {
+            return Err(invalid_manual_plan());
+        }
+        let mut normalized = Vec::with_capacity(manual_selections.len());
+        for (ordinal, reference) in manual_selections {
+            if ordinal as usize >= self.observations.len() {
+                return Err(invalid_manual_plan());
+            }
+            if self.search_query(ordinal).is_some() {
+                return Err(invalid_resolution_plan());
+            }
+            normalized.push((ordinal, reference));
+        }
+        normalized.sort_unstable_by_key(|(ordinal, _)| *ordinal);
+        if normalized.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+            return Err(invalid_manual_plan());
+        }
+        self.manual_selections = normalized;
         Ok(self)
     }
 
@@ -282,6 +312,12 @@ impl PreviewSubmission {
             .ok()
             .map(|index| self.search_queries[index].1.as_str())
     }
+    pub fn manual_selection(&self, ordinal: u32) -> Option<&CatalogReference> {
+        self.manual_selections
+            .binary_search_by_key(&ordinal, |(saved, _)| *saved)
+            .ok()
+            .map(|index| &self.manual_selections[index].1)
+    }
     pub fn created_at(&self) -> i64 {
         self.created_at
     }
@@ -290,12 +326,19 @@ impl PreviewSubmission {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PreviewResolutionInput {
+    Native,
+    Search(String),
+    Manual(CatalogReference),
+}
+
 pub trait PreviewJobRepository: Send + Sync {
     fn submit(&self, submission: PreviewSubmission) -> PortFuture<'_, PreviewJob>;
     fn load(&self, id: String) -> PortFuture<'_, Option<PreviewJob>>;
     fn observations(&self, id: String, offset: u32, limit: u32)
     -> PortFuture<'_, Vec<Observation>>;
-    fn search_query(&self, id: String, ordinal: u32) -> PortFuture<'_, Option<String>>;
+    fn resolution_input(&self, id: String, ordinal: u32) -> PortFuture<'_, PreviewResolutionInput>;
     fn claim(&self, id: String, attempt: u32, now: i64) -> PortFuture<'_, bool>;
     fn cancel(&self, id: String, attempt: u32, now: i64) -> PortFuture<'_, bool>;
     fn interrupt_running(&self, now: i64) -> PortFuture<'_, u64>;
@@ -413,6 +456,20 @@ fn invalid_search_plan() -> ApiError {
     ApiError::new(
         "preview_search_plan_invalid",
         "Preview search inputs must identify distinct submitted records.",
+    )
+}
+
+fn invalid_manual_plan() -> ApiError {
+    ApiError::new(
+        "preview_manual_plan_invalid",
+        "Preview manual selections must identify distinct submitted records.",
+    )
+}
+
+fn invalid_resolution_plan() -> ApiError {
+    ApiError::new(
+        "preview_resolution_plan_invalid",
+        "A preview record cannot use both search and manual resolution inputs.",
     )
 }
 

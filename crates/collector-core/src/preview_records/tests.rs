@@ -676,7 +676,8 @@ fn unresolved_outcomes_preserve_evidence_and_never_read_personal_state() {
 
 #[test]
 fn invalid_inputs_fail_before_binding_or_catalog_io() {
-    for case in 0..6 {
+    let oversized_reference = "x".repeat(2049);
+    for case in 0..7 {
         let f = fixture(MarkReply::Present(Some(8)));
         let endpoint = endpoint("credential-a");
         let mut profile = mapping::imdb_default();
@@ -703,6 +704,9 @@ fn invalid_inputs_fail_before_binding_or_catalog_io() {
                 identity.model.clear();
                 PreviewResolutionMode::Native
             }
+            6 => PreviewResolutionMode::Manual {
+                reference: &oversized_reference,
+            },
             _ => unreachable!(),
         };
         let mut future = Box::pin(f.service.preview(

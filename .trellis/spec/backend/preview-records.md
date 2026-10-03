@@ -12,7 +12,7 @@ Source owners: `crates/collector-core/src/preview_records.rs` and its `tests.rs`
 for claimed jobs; [owned runtime](./preview-runtime.md) supplies admission, startup
 recovery and retention cleanup. Public import/history/management APIs, thin
 clients, CLI commands and preview screens are implemented. The batch runner is
-native by default with immutable per-record explicit search opt-in: public
+native by default with immutable per-record explicit search or manual inputs: public
 search/manual selection and broader integrated acceptance remain pending;
 internal resolution modes do not imply client delivery.
 
@@ -51,7 +51,8 @@ no execution operation or credential-reference accessor.
   external scheme/ID. Model is trusted built-in adapter output from
   `collector-connectors/src/imdb.rs::catalog_identity`, not a wire matching override.
   Keep platform/media identifiers open strings; do not add platform enums.
-- Reject invalid explicit search queries and blank manual references before I/O.
+- Reject invalid explicit search queries and blank or over-2048-byte manual
+  references before I/O and before allocating the private manual-request proof.
   Same-instance URL/reference validation remains the restrictive transport's
   responsibility; do not duplicate its URL parser in Core.
 - Resolve through existing native/manual/search entrypoints. Search is explicit
@@ -79,7 +80,11 @@ no execution operation or credential-reference accessor.
   revision/account generation. No raw payload, token, completed-job state or write
   authority is produced. D2b1 adds a private in-memory proof of the exact normalized
   observation/full profile for result insertion; E4a also records the normalized
-  explicit search query (None for Native/Manual). That proof is never serialized.
+  explicit search query; E4b also retains the exact requested manual reference.
+  Native, Search and Manual are distinct input modes even if their outcomes agree.
+  Compare the manual request, not a possibly redirected final item URL. Never
+  persist that raw request as job input: jobs retain a validated compact catalog
+  reference and derive a safe relative detail path. That proof is never serialized.
   The result write exposes it only to trusted storage adapters. Result transactions must recheck live job attempt,
   account/profile and expiry; this service cannot make those future checks atomic.
 
@@ -90,7 +95,7 @@ no execution operation or credential-reference accessor.
 | Unsupported normalized observation | `preview_observation_invalid`; no I/O |
 | Invalid/enabled/mismatched mapping | Existing evaluator error; no I/O |
 | Expectation differs from source observation | `catalog_identity_invalid`; no I/O |
-| Invalid query / blank manual reference | Existing resolver validation error; no I/O |
+| Invalid query / blank or over-2048-byte manual reference | Existing resolver validation error; no I/O |
 | Stale/disconnected/unavailable account binding | Existing snapshot binding error; no record |
 | Native exact identity / explicit valid manual selection | Fresh snapshot + pure comparison, distinct provenance |
 | NeedsReview / search candidates / terminal outcome | Preserve outcome, no personal-state read |
@@ -112,6 +117,8 @@ evidence/metadata, unknown/empty/conflict, Unsupported-only search and zero cred
 mark/identity calls for all unresolved variants. Validate inputs before I/O and replace/disconnect
 the full tuple at every boundary. Cover port failures, dropped futures, cancellation
 and slow/hung work during binding/catalog/credentials/marks/identity/publication.
+`invalid_inputs_fail_before_binding_or_catalog_io` includes the E4b 2049-byte
+manual-reference rejection before binding/catalog/credentials are touched.
 Run scoped Core tests/fmt/Clippy, full `pnpm verify`, YAML and `git diff --check`.
 
 ## 7. Wrong vs Correct

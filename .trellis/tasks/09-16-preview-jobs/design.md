@@ -808,6 +808,41 @@ Show that preview may create public catalog entries but changes no personal mark
 
 ## Compatibility and rollback
 
+### E4b: immutable explicit manual selections (2026-10-03)
+
+Extend the E4a input boundary with sparse per-ordinal explicit manual choices.
+Persist only a validated compact catalog reference (UUID, media type and model),
+not arbitrary URLs, previous candidate metadata or historical comparisons. Reuse
+the existing normalized item route/UUID validation owner in Core; derive a safe
+relative detail path from the validated reference. URL parsing and same-instance
+network validation remain in the transport. No new dependency is required.
+
+Search and manual inputs for the same ordinal conflict; reject them, duplicates,
+out-of-range ordinals and oversized plans before persistence. Choices are immutable
+and bound to the original job's complete endpoint tuple, disabled profile revision
+and expiry. Changing a choice requires a new submission, not rewriting history.
+Use one repository resolution-input read (Native / Search / Manual) for the runner,
+with corruption rejection and the existing whole-record deadline/live recheck.
+Manual executes fresh detail only, never native fetch/search or saved-result replay;
+identity/model contradictions still require review and personal writes remain off.
+
+Ship a compatible v7 migration, strict bounded private serde storage and shared
+input decoding for observation/history/store/completion paths. Retain the exact
+requested manual detail reference in the private producer proof, not the final
+possibly redirected item URL. Atomic result insertion must match the complete
+stored input mode: Native, exact Search, or exact Manual. Historical v6 manual
+results remain readable; older NULL slots default to Native for new production.
+Adapt synthetic manual-write fixtures to explicitly submit a choice, never weaken
+the new guard for tests. Historical result JSON remains version 1 and cannot
+reconstruct a fresh record or authorize writes.
+
+Validate fake-transport success/provenance, conflicts and unsafe references before
+storage; mixed modes and fresh resume; request-reference vs redirected evidence;
+corrupt stored selections; exact mode/proof refusal; rollback/reopen/retention;
+populated exact-v6 migration preserving search/native inputs and old manual
+history. Scope is Core/Storage/runner plus minimal Server test-port updates only.
+Public DTOs, routes, UI/CLI actions and capability advertising remain pending.
+
 ### E4a: immutable explicit search inputs (2026-10-03)
 
 Before exposing per-record search/review actions, extend internal submission with

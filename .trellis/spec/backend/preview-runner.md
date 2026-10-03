@@ -10,7 +10,7 @@ startup/recovery and retention configuration are wired through Server/CLI;
 public API/thin clients, [CLI commands](./cli-preview.md) and
 [screens](../frontend/preview-panel.md) are implemented; final end-to-end acceptance
 remains pending. No new dependency or public capability. E4a's compatible search
-input migration is owned by [preview jobs](./preview-jobs.md).
+input migration and E4b manual inputs are owned by [preview jobs](./preview-jobs.md).
 Tests live in `src/preview_runner/tests.rs`.
 
 ## 2. Signatures
@@ -27,7 +27,8 @@ and returns `Result<CatalogIdentity, ApiError>`; the existing built-in IMDb
 
 There is no new processor framework or public DTO. Core never acquires a connector,
 runtime or SQLite dependency. Native remains the default; E4a consumes immutable
-explicit search queries from original job inputs. It never infers queries/manual
+explicit search queries or validated manual references from original job inputs.
+It never infers queries/manual
 choices from display hints or persisted historical results.
 
 ## 3. Contracts
@@ -43,11 +44,14 @@ choices from display hints or persisted historical results.
 - Reuse the existing mapping evaluator, PreviewRecordService and native resolver.
   Identity/model derivation stays in the trusted adapter callback, not a second
   IMDb mapper in Core. Preserve all Compared/unresolved outcomes unchanged.
-- Read the current ordinal's query through `PreviewJobRepository::search_query`
+- Read the current ordinal's complete resolution input through
+  `PreviewJobRepository::resolution_input`
   within its existing whole-record deadline. Revalidate the query and recheck
   live job/binding/time guards after that awaited read before catalog work.
-  NULL selects Native; a valid explicit query selects Search, which still permits
-  fallback only after native Unsupported. Query errors/corruption/cancellation
+  Native is the default; a valid explicit query selects Search, which still permits
+  fallback only after native Unsupported. Manual derives a safe relative detail
+  reference and calls only fresh explicit manual resolution. It never invokes
+  native fetch/search or replays stored candidate evidence. Input errors/corruption/cancellation
   never silently select Native. Search candidates remain review-only and make
   no credential/mark read; the runner never auto-selects a candidate.
 - Before each record, persistence and completion, check running status, expected
@@ -94,7 +98,7 @@ choices from display hints or persisted historical results.
 | Status/attempt/binding/expiry changes after claim | Stop before further work; conditional writes refuse late result |
 | Unexpected empty/short/oversized page | preview_observation_page_invalid; no partial completion |
 | Producer/port error after ownership | Guarded fail; partial results remain |
-| Query read invalid/hung/interrupted or binding changes during read | Fail/stop under existing controls; no native fallback or subsequent catalog call |
+| Resolution-input read invalid/hung/interrupted or binding changes during read | Fail/stop under existing controls; no native fallback or subsequent catalog call |
 | Failure transition cannot be persisted while same attempt runs | preview_failure_cleanup_failed; query persisted status |
 | Failure transition refused after cancel/delete/resume | Preserve original error; never overwrite new/terminal state |
 | Control cancellation | Existing cancellation error; no invented terminal status |
@@ -126,8 +130,11 @@ fresh attempts retaining the immutable query plan without reading old results.
 Concrete tests: `mixed_native_and_explicit_search_inputs_run_in_ordinal_order`
 keeps even an exact-ID candidate review-only and re-forwards the query on a fresh
 attempt; `saved_search_query_never_overrides_a_native_terminal_result` avoids
-search after a native match; `search_query_read_is_bounded_and_followed_by_a_fresh_live_guard`
-drops hung query reads on cancel/timeout and stops after rebind/delete before I/O.
+search after a native match; `resolution_input_read_is_bounded_and_followed_by_a_fresh_live_guard`
+drops hung input reads on cancel/timeout and stops after rebind/delete before I/O.
+E4b `mixed_manual_search_and_native_inputs_use_fresh_manual_detail_on_every_attempt`
+asserts mixed-mode ordinal/attempt order, fresh selected detail and account reads
+on each attempt, explicit manual provenance and unchanged review-only search.
 Run Core tests/fmt/Clippy, full pnpm verify, YAML/evidence checks and git diff --check.
 
 Concrete regression tests in `crates/collector-core/src/preview_runner/tests.rs`:

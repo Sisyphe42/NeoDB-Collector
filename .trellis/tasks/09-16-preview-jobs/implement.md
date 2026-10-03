@@ -16,6 +16,33 @@ than silently substituting a different model. This does not remove review gates.
 
 ## Activation gate
 
+E4b checkpoint (2026-10-03): Sol/medium owns Core/Storage validated compact manual
+references, immutable plans, unified resolution-input repository read, runner and
+private proof integration, compatible v7 migration and tests. Server edits are
+minimal test fixture port updates only. Main owns task/spec edits, independent
+review, full gate and checkpoint commit. Follow E4b design and the same backend
+contracts listed for E4a. No new dependency, public API/client change, recursive
+delegation, live upstream/keychain access or agent commit. Cargo remains serial.
+
+- [x] E4b: Persist explicit manual choices and require fresh detail plus exact
+  stored resolution-input proof on new results; retain compatible old history.
+
+E4b verification (2026-10-03): Sol/medium implemented compact validated references,
+mutually exclusive immutable plans, unified input reads, private exact request/mode
+proof, fresh runner detail and compatible v7 storage. Main independently reviewed
+all changed implementation/test paths and strengthened UUID/path/count boundaries,
+mixed-mode/provenance/attempt assertions, no-detail/secret access after rebind,
+Native/Search/other-Manual proof refusal, corruption preservation, mixed-input
+rollback and populated v6 Native/Search/old-manual-history migration evidence.
+Scoped Core (89 + two compile-fail doctests), Storage (43), Server (87), fmt and
+Core/Storage Clippy passed. Main full `pnpm verify` passed: 288 Rust unit tests,
+two compile-fail doctests, 63 TS/UI tests, workspace Clippy/fmt, generated contracts,
+dependency boundaries, lint/typecheck, builds and actual local CLI/HTTP/auth/browser
+smoke. Product YAML/evidence/decision/reference checks and `git diff --check` also
+passed. No public API/Domain/client/dependency/capability or personal/source write
+change. Public search/manual actions and broader acceptance remain pending; retain
+this task and its parent as active rather than treating this checkpoint as PRD completion.
+
 E4a checkpoint (2026-10-03): Sol/medium owns Core/Storage search-input types,
 repository/runner/proof integration, compatible v6 migration, tests and minimal
 trait-implementation updates in Server test fixtures only. Main owns task/spec

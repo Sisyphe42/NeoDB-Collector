@@ -7,7 +7,9 @@ Implemented in `collector-core/src/catalog_resolver.rs`; runtime adapter in
 `collector-connectors/src/imdb.rs`. These are internal components, not HTTP routes
 or a running job service. Explicit manual selection validation shares this module;
 [bounded search fallback](./catalog-search.md) returns review-only candidates.
-Saved manual mappings and user-facing selection remain pending.
+Cross-job manual mappings and user-facing selection remain pending. Immutable
+per-job manual choices are owned by [Preview Jobs](./preview-jobs.md); they invoke
+this same fresh-detail resolver and do not change matching policy.
 
 ## 2. Signatures
 
@@ -72,7 +74,8 @@ external-ID equivalence or permission to execute.
   still treats missing IDs as NeedsReview and never emits ManuallySelected.
 - Preserve the entire normalized CatalogItem evidence, including final detail and
   canonical URLs, UUID/parent, model and identity claims. This is not persistence
-  of a manual mapping; future integration must bind selection to source/account/job.
+  of a cross-job manual mapping. The job integration binds the compact selection
+  to its ordinal/source/full endpoint/profile/expiry and rereads detail each attempt.
 
 ## 4. Validation & Error Matrix
 

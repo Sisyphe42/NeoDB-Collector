@@ -208,6 +208,88 @@ fn explicit_search_plan_is_sparse_normalized_bounded_and_unique() {
 }
 
 #[test]
+fn explicit_manual_plan_is_sparse_bounded_unique_and_conflicts_in_both_builder_orders() {
+    let reference = crate::catalog::CatalogReference::from_stored(
+        "Resolved123".into(),
+        "tv".into(),
+        "TVShow".into(),
+    )
+    .unwrap();
+    let observations = vec![observation(), observation()];
+    let submission = PreviewSubmission::new(
+        "job:manual".into(),
+        endpoint(),
+        imdb_default(),
+        observations.clone(),
+        10,
+        20,
+    )
+    .unwrap()
+    .with_manual_selections(vec![(1, reference.clone())])
+    .unwrap();
+    assert_eq!(submission.manual_selection(1), Some(&reference));
+    assert_eq!(submission.manual_selection(0), None);
+
+    for plan in [
+        vec![(0, reference.clone()), (0, reference.clone())],
+        vec![(2, reference.clone())],
+        vec![
+            (0, reference.clone()),
+            (1, reference.clone()),
+            (2, reference.clone()),
+        ],
+    ] {
+        assert_eq!(
+            PreviewSubmission::new(
+                "job:manual-invalid".into(),
+                endpoint(),
+                imdb_default(),
+                observations.clone(),
+                10,
+                20
+            )
+            .unwrap()
+            .with_manual_selections(plan)
+            .err()
+            .unwrap()
+            .code,
+            "preview_manual_plan_invalid"
+        );
+    }
+
+    let search_then_manual = PreviewSubmission::new(
+        "job:conflict-a".into(),
+        endpoint(),
+        imdb_default(),
+        observations.clone(),
+        10,
+        20,
+    )
+    .unwrap()
+    .with_search_queries(vec![(0, "title".into())])
+    .unwrap()
+    .with_manual_selections(vec![(0, reference.clone())])
+    .err()
+    .unwrap();
+    assert_eq!(search_then_manual.code, "preview_resolution_plan_invalid");
+    let manual_then_search = PreviewSubmission::new(
+        "job:conflict-b".into(),
+        endpoint(),
+        imdb_default(),
+        observations,
+        10,
+        20,
+    )
+    .unwrap()
+    .with_manual_selections(vec![(0, reference)])
+    .unwrap()
+    .with_search_queries(vec![(0, "title".into())])
+    .err()
+    .unwrap();
+    assert_eq!(manual_then_search.code, "preview_resolution_plan_invalid");
+}
+
+#[test]
 fn job_and_transition_metadata_fail_closed() {
     assert_eq!(
         PreviewJob::from_stored(

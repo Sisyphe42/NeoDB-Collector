@@ -65,7 +65,13 @@ pub struct PreviewRecord {
 struct PreviewRecordProof {
     profile: MappingProfile,
     observation: Observation,
-    search_query: Option<String>,
+    resolution: PreviewResolutionProof,
+}
+
+pub(crate) enum PreviewResolutionProof {
+    Native,
+    Search(String),
+    Manual(String),
 }
 
 impl PreviewRecord {
@@ -119,8 +125,8 @@ impl PreviewRecord {
         &self.proof.observation
     }
 
-    pub(crate) fn search_query_proof(&self) -> Option<&str> {
-        self.proof.search_query.as_deref()
+    pub(crate) fn resolution_proof(&self) -> &PreviewResolutionProof {
+        &self.proof.resolution
     }
 }
 
@@ -144,11 +150,17 @@ impl PreviewRecordService {
         C: ResolutionControl,
     {
         validate_request(&request)?;
-        let search_query = match request.mode {
+        let resolution_proof = match request.mode {
             PreviewResolutionMode::Search { query } => {
-                Some(validate_catalog_search_query(query)?.to_owned())
+                PreviewResolutionProof::Search(validate_catalog_search_query(query)?.to_owned())
             }
-            PreviewResolutionMode::Native | PreviewResolutionMode::Manual { .. } => None,
+            PreviewResolutionMode::Manual { reference } => {
+                if reference.len() > 2048 {
+                    return Err(invalid_reference());
+                }
+                PreviewResolutionProof::Manual(reference.to_owned())
+            }
+            PreviewResolutionMode::Native => PreviewResolutionProof::Native,
         };
         let deadline = control
             .now()
@@ -244,7 +256,7 @@ impl PreviewRecordService {
                         proof: PreviewRecordProof {
                             profile: request.profile.clone(),
                             observation: request.observation.clone(),
-                            search_query,
+                            resolution: resolution_proof,
                         },
                     })
                 }),
@@ -313,6 +325,13 @@ fn resolution_timeout() -> ApiError {
     ApiError::new(
         "catalog_resolution_timeout",
         "Catalog resolution exceeded its time budget.",
+    )
+}
+
+fn invalid_reference() -> ApiError {
+    ApiError::new(
+        "neodb_catalog_reference_invalid",
+        "Expected a supported NeoDB catalog detail reference.",
     )
 }
 

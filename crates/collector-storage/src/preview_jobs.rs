@@ -1,16 +1,26 @@
 use crate::{Storage, database_error};
 use collector_core::{
     access::{Endpoint, PortFuture},
+    catalog::{CatalogReference, MAX_CATALOG_REFERENCE_BYTES},
     catalog_resolver::validate_catalog_search_query,
     mapping,
     preview_jobs::{
         MAX_PREVIEW_OBSERVATION_BYTES, MAX_PREVIEW_TOTAL_BYTES, PreviewJob, PreviewJobIdentity,
-        PreviewJobLifecycle, PreviewJobRepository, PreviewJobStatus, PreviewSubmission,
-        validate_imdb_observation, validate_page, validate_transition,
+        PreviewJobLifecycle, PreviewJobRepository, PreviewJobStatus, PreviewResolutionInput,
+        PreviewSubmission, validate_imdb_observation, validate_page, validate_transition,
     },
 };
 use collector_domain::{ApiError, mapping::MappingProfile, observation::Observation};
 use sqlx::{Row, SqliteConnection};
+
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ManualSelectionDto {
+    schema_version: u32,
+    uuid: String,
+    media_type: String,
+    model: String,
+}
 
 fn binding_changed() -> ApiError {
     ApiError::new(
@@ -76,13 +86,12 @@ pub(crate) async fn load_profile(
     Ok(Some(profile))
 }
 
-pub(crate) async fn load_search_query(
+pub(crate) async fn load_resolution_input(
     conn: &mut SqliteConnection,
     id: &str,
     ordinal: u32,
-) -> Result<Option<Option<String>>, ApiError> {
-    let row =
-        sqlx::query("SELECT search_query FROM preview_observations WHERE job_id=? AND ordinal=?")
+) -> Result<Option<PreviewResolutionInput>, ApiError> {
+    let row = sqlx::query("SELECT search_query,manual_selection FROM preview_observations WHERE job_id=? AND ordinal=?")
             .bind(id)
             .bind(ordinal)
             .fetch_optional(conn)
@@ -92,7 +101,10 @@ pub(crate) async fn load_search_query(
         return Ok(None);
     };
     let query: Option<String> = row.try_get("search_query").map_err(|_| database_error())?;
-    decode_search_query(query).map(Some)
+    let selection: Option<String> = row
+        .try_get("manual_selection")
+        .map_err(|_| database_error())?;
+    decode_resolution_input(query, selection).map(Some)
 }
 
 pub(crate) fn decode_search_query(query: Option<String>) -> Result<Option<String>, ApiError> {
@@ -103,6 +115,59 @@ pub(crate) fn decode_search_query(query: Option<String>) -> Result<Option<String
                 return Err(database_error());
             }
             Ok(query)
+        })
+        .transpose()
+}
+
+pub(crate) fn decode_resolution_input(
+    query: Option<String>,
+    selection: Option<String>,
+) -> Result<PreviewResolutionInput, ApiError> {
+    match (
+        decode_search_query(query)?,
+        decode_manual_selection(selection)?,
+    ) {
+        (None, None) => Ok(PreviewResolutionInput::Native),
+        (Some(query), None) => Ok(PreviewResolutionInput::Search(query)),
+        (None, Some(reference)) => Ok(PreviewResolutionInput::Manual(reference)),
+        (Some(_), Some(_)) => Err(database_error()),
+    }
+}
+
+fn encode_manual_selection(reference: &CatalogReference) -> Result<String, ApiError> {
+    let json = serde_json::to_string(&ManualSelectionDto {
+        schema_version: 1,
+        uuid: reference.uuid().into(),
+        media_type: reference.media_type().into(),
+        model: reference.model().into(),
+    })
+    .map_err(|_| database_error())?;
+    if json.len() > MAX_CATALOG_REFERENCE_BYTES {
+        return Err(database_error());
+    }
+    Ok(json)
+}
+
+fn decode_manual_selection(
+    selection: Option<String>,
+) -> Result<Option<CatalogReference>, ApiError> {
+    selection
+        .map(|json| {
+            if json.len() > MAX_CATALOG_REFERENCE_BYTES {
+                return Err(database_error());
+            }
+            let value: ManualSelectionDto =
+                serde_json::from_str(&json).map_err(|_| database_error())?;
+            if value.schema_version != 1 {
+                return Err(database_error());
+            }
+            let reference =
+                CatalogReference::from_stored(value.uuid, value.media_type, value.model)
+                    .map_err(|_| database_error())?;
+            if encode_manual_selection(&reference)? != json {
+                return Err(database_error());
+            }
+            Ok(reference)
         })
         .transpose()
 }
@@ -265,11 +330,16 @@ impl PreviewJobRepository for Storage {
             for (ordinal, json) in encoded.into_iter().enumerate() {
                 let ordinal = u32::try_from(ordinal).map_err(|_| database_error())?;
                 let search_query = submission.search_query(ordinal);
-                sqlx::query("INSERT INTO preview_observations(job_id,ordinal,observation_json,search_query) VALUES(?,?,?,?)")
+                let manual_selection = submission
+                    .manual_selection(ordinal)
+                    .map(encode_manual_selection)
+                    .transpose()?;
+                sqlx::query("INSERT INTO preview_observations(job_id,ordinal,observation_json,search_query,manual_selection) VALUES(?,?,?,?,?)")
                     .bind(submission.id())
                     .bind(ordinal)
                     .bind(json)
                     .bind(search_query)
+                    .bind(manual_selection)
                     .execute(&mut *tx)
                     .await
                     .map_err(|_| database_error())?;
@@ -307,7 +377,7 @@ impl PreviewJobRepository for Storage {
             let profile = load_profile(&mut tx, job.profile_id(), job.profile_version())
                 .await?
                 .ok_or_else(database_error)?;
-            let rows = sqlx::query("SELECT ordinal,observation_json,search_query FROM preview_observations WHERE job_id=? AND ordinal>=? ORDER BY ordinal LIMIT ?")
+            let rows = sqlx::query("SELECT ordinal,observation_json,search_query,manual_selection FROM preview_observations WHERE job_id=? AND ordinal>=? ORDER BY ordinal LIMIT ?")
                 .bind(&id)
                 .bind(offset)
                 .bind(limit)
@@ -336,7 +406,10 @@ impl PreviewJobRepository for Storage {
                     mapping::evaluate(&profile, &observation).map_err(|_| database_error())?;
                     let search_query: Option<String> =
                         row.try_get("search_query").map_err(|_| database_error())?;
-                    decode_search_query(search_query)?;
+                    let manual_selection: Option<String> = row
+                        .try_get("manual_selection")
+                        .map_err(|_| database_error())?;
+                    decode_resolution_input(search_query, manual_selection)?;
                     Ok(observation)
                 })
                 .collect::<Result<Vec<_>, _>>()?;
@@ -345,7 +418,7 @@ impl PreviewJobRepository for Storage {
         })
     }
 
-    fn search_query(&self, id: String, ordinal: u32) -> PortFuture<'_, Option<String>> {
+    fn resolution_input(&self, id: String, ordinal: u32) -> PortFuture<'_, PreviewResolutionInput> {
         Box::pin(async move {
             if ordinal as usize >= collector_core::preview_jobs::MAX_PREVIEW_OBSERVATIONS {
                 return Err(ApiError::new(
@@ -354,9 +427,11 @@ impl PreviewJobRepository for Storage {
                 ));
             }
             let mut tx = self.pool.begin().await.map_err(|_| database_error())?;
-            let query = load_search_query(&mut tx, &id, ordinal).await?.flatten();
+            let input = load_resolution_input(&mut tx, &id, ordinal)
+                .await?
+                .ok_or_else(database_error)?;
             tx.commit().await.map_err(|_| database_error())?;
-            Ok(query)
+            Ok(input)
         })
     }
 

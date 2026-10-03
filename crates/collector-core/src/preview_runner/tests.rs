@@ -1,7 +1,9 @@
 use super::*;
 use crate::{
     access::{AccessRecord, ChallengeMatch, PortFuture, SecretStore},
-    catalog::{CatalogFetch, CatalogItem, CatalogSearchCandidate, CatalogSearchPage},
+    catalog::{
+        CatalogFetch, CatalogItem, CatalogReference, CatalogSearchCandidate, CatalogSearchPage,
+    },
     marks::{MarkRead, NeoDbMarkTransport},
     oauth::{NeoDbOAuthTransport, OAuthApp, OAuthIdentity, OAuthToken},
     secrets::SecretString,
@@ -98,6 +100,7 @@ struct JobState {
     oversized_page: bool,
     fail_deletes: bool,
     search_queries: BTreeMap<u32, String>,
+    manual_selections: BTreeMap<u32, CatalogReference>,
     query_calls: Vec<u32>,
     pending_query: bool,
     rebind_after_query: bool,
@@ -185,13 +188,25 @@ impl PreviewJobRepository for Jobs {
         })
     }
 
-    fn search_query(&self, _: String, ordinal: u32) -> PortFuture<'_, Option<String>> {
+    fn resolution_input(&self, _: String, ordinal: u32) -> PortFuture<'_, PreviewResolutionInput> {
         Box::pin(async move {
-            let (query, pending_drop, rebind, delete) = {
+            let (input, pending_drop, rebind, delete) = {
                 let mut state = self.state.lock().unwrap();
                 state.query_calls.push(ordinal);
                 (
-                    state.search_queries.get(&ordinal).cloned(),
+                    state
+                        .manual_selections
+                        .get(&ordinal)
+                        .cloned()
+                        .map(PreviewResolutionInput::Manual)
+                        .or_else(|| {
+                            state
+                                .search_queries
+                                .get(&ordinal)
+                                .cloned()
+                                .map(PreviewResolutionInput::Search)
+                        })
+                        .unwrap_or(PreviewResolutionInput::Native),
                     state.pending_query.then(|| state.pending_dropped.clone()),
                     state.rebind_after_query,
                     state.delete_after_query,
@@ -207,7 +222,7 @@ impl PreviewJobRepository for Jobs {
             if delete {
                 self.state.lock().unwrap().present = false;
             }
-            Ok(query)
+            Ok(input)
         })
     }
 
@@ -296,6 +311,7 @@ struct Results {
     refuse_ordinal: Mutex<Option<u32>>,
     complete_allowed: AtomicBool,
     compared: AtomicUsize,
+    manual_compared: AtomicUsize,
     pending_store: AtomicBool,
     pending_complete: AtomicBool,
     pending_dropped: Arc<AtomicBool>,
@@ -314,11 +330,13 @@ impl PreviewResultRepository for Results {
             if *self.refuse_ordinal.lock().unwrap() == Some(write.ordinal()) {
                 return Ok(false);
             }
-            if matches!(
-                write.record().outcome(),
-                crate::preview_records::PreviewRecordOutcome::Compared(_)
-            ) {
+            if let crate::preview_records::PreviewRecordOutcome::Compared(value) =
+                write.record().outcome()
+            {
                 self.compared.fetch_add(1, Ordering::SeqCst);
+                if value.provenance == crate::preview_records::PreviewRecordProvenance::Manual {
+                    self.manual_compared.fetch_add(1, Ordering::SeqCst);
+                }
             }
             if let crate::preview_records::PreviewRecordOutcome::SearchCandidates(page) =
                 write.record().outcome()
@@ -524,6 +542,8 @@ impl Drop for DropFlag {
 
 struct Transport {
     calls: AtomicUsize,
+    detail_calls: AtomicUsize,
+    detail_references: Mutex<Vec<String>>,
     search_calls: AtomicUsize,
     search_queries: Mutex<Vec<String>>,
     advance: u64,
@@ -560,6 +580,8 @@ impl NeoDbCatalogTransport for Transport {
     fn detail(&self, _: String, reference: String) -> PortFuture<'_, CatalogItem> {
         Box::pin(async move {
             assert_eq!(reference, "/api/movie/Resolved123");
+            self.detail_calls.fetch_add(1, Ordering::SeqCst);
+            self.detail_references.lock().unwrap().push(reference);
             Ok(catalog_item())
         })
     }
@@ -624,6 +646,7 @@ fn fixture(count: usize) -> Fixture {
         oversized_page: false,
         fail_deletes: false,
         search_queries: BTreeMap::new(),
+        manual_selections: BTreeMap::new(),
         query_calls: vec![],
         pending_query: false,
         rebind_after_query: false,
@@ -640,6 +663,7 @@ fn fixture(count: usize) -> Fixture {
         refuse_ordinal: Mutex::new(None),
         complete_allowed: AtomicBool::new(true),
         compared: AtomicUsize::new(0),
+        manual_compared: AtomicUsize::new(0),
         pending_store: AtomicBool::new(false),
         pending_complete: AtomicBool::new(false),
         pending_dropped: Arc::new(AtomicBool::new(false)),
@@ -678,6 +702,8 @@ fn fixture(count: usize) -> Fixture {
     let dropped = Arc::new(AtomicBool::new(false));
     let transport = Transport {
         calls: AtomicUsize::new(0),
+        detail_calls: AtomicUsize::new(0),
+        detail_references: Mutex::new(vec![]),
         search_calls: AtomicUsize::new(0),
         search_queries: Mutex::new(vec![]),
         advance: 0,
@@ -904,11 +930,75 @@ fn saved_search_query_never_overrides_a_native_terminal_result() {
 }
 
 #[test]
-fn search_query_read_is_bounded_and_followed_by_a_fresh_live_guard() {
+fn mixed_manual_search_and_native_inputs_use_fresh_manual_detail_on_every_attempt() {
+    let f = fixture(3);
+    f.state.lock().unwrap().manual_selections.insert(
+        0,
+        CatalogReference::from_stored("Resolved123".into(), "movie".into(), "Movie".into())
+            .unwrap(),
+    );
+    f.state
+        .lock()
+        .unwrap()
+        .search_queries
+        .insert(1, "Chosen title".into());
+
+    for attempt in [1, 2] {
+        if attempt == 2 {
+            let mut state = f.state.lock().unwrap();
+            state.status = PreviewJobStatus::Queued;
+            state.attempt = 2;
+        }
+        let mut future = Box::pin(f.runner.run(
+            "job:one",
+            attempt,
+            &f.transport,
+            f.control.as_ref(),
+            &catalog_identity,
+        ));
+        assert_eq!(
+            ready(poll(future.as_mut())).unwrap(),
+            PreviewAttemptOutcome::Completed
+        );
+    }
+
+    assert_eq!(f.transport.detail_calls.load(Ordering::SeqCst), 2);
+    assert_eq!(
+        f.transport.detail_references.lock().unwrap().as_slice(),
+        ["/api/movie/Resolved123", "/api/movie/Resolved123"]
+    );
+    assert_eq!(f.transport.calls.load(Ordering::SeqCst), 4);
+    assert_eq!(f.transport.search_calls.load(Ordering::SeqCst), 2);
+    assert_eq!(f.secrets.0.load(Ordering::SeqCst), 2);
+    assert_eq!(f.marks.0.load(Ordering::SeqCst), 2);
+    assert_eq!(f.results.manual_compared.load(Ordering::SeqCst), 2);
+    assert_eq!(
+        f.results.stored.lock().unwrap().as_slice(),
+        [(0, 1), (1, 1), (2, 1), (0, 2), (1, 2), (2, 2)]
+    );
+    assert_eq!(
+        f.results.outcomes.lock().unwrap().as_slice(),
+        [
+            "compared",
+            "search",
+            "unsupported",
+            "compared",
+            "search",
+            "unsupported"
+        ]
+    );
+}
+
+#[test]
+fn resolution_input_read_is_bounded_and_followed_by_a_fresh_live_guard() {
     let f = fixture(1);
     {
         let mut state = f.state.lock().unwrap();
-        state.search_queries.insert(0, "Chosen title".into());
+        state.manual_selections.insert(
+            0,
+            CatalogReference::from_stored("Resolved123".into(), "movie".into(), "Movie".into())
+                .unwrap(),
+        );
         state.rebind_after_query = true;
     }
     let mut future = Box::pin(f.runner.run(
@@ -924,7 +1014,10 @@ fn search_query_read_is_bounded_and_followed_by_a_fresh_live_guard() {
     );
     assert_eq!(f.state.lock().unwrap().query_calls, vec![0]);
     assert_eq!(f.transport.calls.load(Ordering::SeqCst), 0);
+    assert_eq!(f.transport.detail_calls.load(Ordering::SeqCst), 0);
     assert_eq!(f.transport.search_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(f.secrets.0.load(Ordering::SeqCst), 0);
+    assert_eq!(f.marks.0.load(Ordering::SeqCst), 0);
 
     let f = fixture(1);
     {

@@ -5,8 +5,8 @@ use crate::{
     catalog_resolver::{CatalogIdentity, RESOLUTION_BUDGET, ResolutionControl},
     mapping::{self, MappingRepository},
     preview_jobs::{
-        MAX_PREVIEW_PAGE, PreviewJob, PreviewJobRepository, PreviewJobStatus, valid_id,
-        validate_imdb_observation, validate_transition,
+        MAX_PREVIEW_PAGE, PreviewJob, PreviewJobRepository, PreviewJobStatus,
+        PreviewResolutionInput, valid_id, validate_imdb_observation, validate_transition,
     },
     preview_records::{PreviewRecordRequest, PreviewRecordService, PreviewResolutionMode},
     preview_results::{PreviewResultRepository, PreviewResultWrite},
@@ -216,14 +216,25 @@ impl PreviewAttemptRunner {
                                 return Ok(RecordStep::Stopped);
                             }
                             let catalog_identity = identity(&observation.item)?;
-                            let search_query =
-                                self.jobs.search_query(job.id().to_owned(), ordinal).await?;
+                            let resolution_input = self
+                                .jobs
+                                .resolution_input(job.id().to_owned(), ordinal)
+                                .await?;
                             if !self.still_running(job, expected, attempt).await? {
                                 return Ok(RecordStep::Stopped);
                             }
-                            let mode = match search_query.as_deref() {
-                                Some(query) => PreviewResolutionMode::Search { query },
-                                None => PreviewResolutionMode::Native,
+                            let manual_path;
+                            let mode = match &resolution_input {
+                                PreviewResolutionInput::Native => PreviewResolutionMode::Native,
+                                PreviewResolutionInput::Search(query) => {
+                                    PreviewResolutionMode::Search { query }
+                                }
+                                PreviewResolutionInput::Manual(reference) => {
+                                    manual_path = reference.detail_path();
+                                    PreviewResolutionMode::Manual {
+                                        reference: &manual_path,
+                                    }
+                                }
                             };
                             let record = self
                                 .producer

@@ -15,7 +15,7 @@ use collector_core::{
     preview::PreviewSnapshotService,
     preview_jobs::{
         PreviewJob, PreviewJobIdentity, PreviewJobLifecycle, PreviewJobRepository,
-        PreviewJobStatus, PreviewSubmission,
+        PreviewJobStatus, PreviewResolutionInput, PreviewSubmission,
     },
     preview_records::{PreviewRecordRequest, PreviewRecordService, PreviewResolutionMode},
     preview_results::{
@@ -284,7 +284,7 @@ impl PreviewJobRepository for Jobs {
         Box::pin(async { unreachable!() })
     }
 
-    fn search_query(&self, _: String, _: u32) -> PortFuture<'_, Option<String>> {
+    fn resolution_input(&self, _: String, _: u32) -> PortFuture<'_, PreviewResolutionInput> {
         Box::pin(async { unreachable!() })
     }
 
@@ -329,7 +329,7 @@ impl PreviewJobRepository for TimedJobs {
     fn observations(&self, _: String, _: u32, _: u32) -> PortFuture<'_, Vec<Observation>> {
         Box::pin(async { unreachable!() })
     }
-    fn search_query(&self, _: String, _: u32) -> PortFuture<'_, Option<String>> {
+    fn resolution_input(&self, _: String, _: u32) -> PortFuture<'_, PreviewResolutionInput> {
         Box::pin(async { unreachable!() })
     }
     fn claim(&self, _: String, _: u32, _: i64) -> PortFuture<'_, bool> {

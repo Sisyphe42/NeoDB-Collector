@@ -62,8 +62,9 @@ interface PlannedOperation {
   with [bounded review-only search fallback](./catalog-search.md).
   Immutable per-job search/manual inputs and their structured submission API/thin
   client are implemented in [Preview Submission HTTP](./preview-submission-http.md).
-  Cross-job saved mappings, interactive selection and broader acceptance remain
-  pending. For supported external links, API `fetch_item` and
+  The [WebUI](../frontend/preview-panel.md) stages source-bound choices and submits
+  a new preview. Cross-job saved mappings, CLI choice inputs and broader acceptance
+  remain pending. For supported external links, API `fetch_item` and
   web `fetch` share SiteManager/get_item and enqueue_fetch(..., False, user).
   The web confirmation flow is not identical to the API endpoint. See pinned
   `neodb_native_fetch_api` / `neodb_native_fetch_web` product evidence.

@@ -40,8 +40,10 @@ The WebUI discovers features from `GET /api/v1/capabilities` and uses same-origi
 `/api/v1/events` SSE is planned, not an implemented fallback or requirement for previews.
 The shared client also exposes `submitImdbRatingsWithResolution` using generated
 request/response validation on the existing import route. Its JSON search/manual
-inputs create a new preview job; interactive WebUI/CLI selection remains pending.
-Keep the current panel's raw CSV path unchanged until that separate client slice.
+inputs create a new preview job. The [preview panel](./preview-panel.md) stages
+explicit source-bound choices only for its own confirmed local File/job association
+and resubmits them as a new preview. Its ordinary raw CSV path remains compatible;
+CLI resolution-choice inputs and broader client/upstream acceptance remain pending.
 
 ## 3. Behavioral Contracts
 

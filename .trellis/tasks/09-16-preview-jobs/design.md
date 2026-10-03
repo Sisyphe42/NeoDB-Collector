@@ -808,6 +808,71 @@ Show that preview may create public catalog entries but changes no personal mark
 
 ## Compatibility and rollback
 
+### E4d: explicit WebUI resolution resubmission (2026-10-03)
+
+Extend the existing PreviewPanel and blue-grey evidence cards, not the API or a
+new application. Use `submitImdbRatingsWithResolution` and generated choice types.
+Main adds narrow generated choice/reference validator re-exports from the shared
+client facade; WebUI gains no direct dependency or handwritten wire validator.
+Keep ordinary raw CSV upload unchanged. Scope is session WebUI only; CLI choices,
+arbitrary catalog URL/UUID entry, cross-job saved mappings and a standalone catalog
+search route remain separate. No dependency, schema, Core/Server/Storage change,
+capability advertisement, activation or personal/source write.
+
+Only a completed, currently bound job submitted by this mounted panel from a
+retained local File and exact saved profile revision can stage choices. Associate
+the file/selection with the confirmed receipt's job ID/attempt, and use matching
+job/page/row metadata to bind zero-based ordinals and sourceRecordIds. Reopened
+historical jobs remain inspection-only: raw CSV is never recovered from storage
+or parsed in the browser. File/profile edits, explicit job opening, attempt change,
+binding change, deletion or unmount invalidate that association and sparse draft.
+Keep unrelated import form drafts and historical evidence useful. Do not infer
+selections from previous outcomes or auto-select a singleton candidate.
+
+For Unsupported or SearchCandidates rows offer an explicit bounded query form;
+explain that native resolution still precedes Unsupported-only search. For actual
+returned candidates or NeedsReview item evidence, offer explicit manual staging
+from `{uuid, mediaType, model}` only; generated reference/choice validation rejects
+malformed legacy evidence. Display identity/granularity and explain that manual
+choice is not automatic IMDb identity proof and may still need review. Choices
+are sparse, one per ordinal, replaceable/resettable, at most 10,000, and remain
+transient across explicit pagination of the same job/attempt. Draft-level reset
+remains available for off-page or now-Compared ordinals. Auth expiry/in-flight
+actions disable staging/clearing too. Staging/clearing does not read CSV or send
+any request. Draft summaries never imply changed history.
+
+A separate explicit "generate new preview" action snapshots the association and
+choices, serializes through the existing action lock, reads the retained File with
+existing exact byte/fatal UTF-8/BOM guards, and validates the ENCODED JSON body's
+10 MiB limit using TextEncoder before upload. Do not enlarge limits or implement
+a CSV parser. Recheck the original job ID/attempt/completed/current binding,
+profile and public base/account metadata through the existing job-read API just
+before submission; this is a point-in-time client guard, not atomic authorization.
+Core remains the current singleton binding and fresh identity/read authority.
+Sort sparse choices by ordinal and use the original saved revision, never latest.
+An accepted request opens a NEW job, preserves explicitly submitted choices for
+further refinement in this mounted lineage, and never mutates old job/results.
+
+Preserve action/inspection abort, mount epochs, selection/file generation and
+same-tick double-action guards. Stale fulfilled/rejected requests must not publish
+into a changed file/profile/job/attempt, clear loading, or expire a newer session.
+Do not submit on effects, polling, StrictMode replay, staging or candidate click.
+Ambiguous admission uses existing known-ID reconciliation without auto-retry;
+unknown/ambiguous receipt does not establish a new file-to-job association. Stop
+mutations after auth expiry. Keep historical evidence and useful form/error context.
+
+Sol/medium owns panel/components, focused unit tests and preview-only CSS; main
+owns the narrow client validator re-exports, task/specs, schema-validated mock
+Chromium smoke, screenshots, independent review, full gate and checkpoint commit.
+Tests cover raw compatibility, explicit
+Search -> candidate -> Manual -> fresh NEW job, sparse drafts/pagination/reset,
+full frame invalidation, generated unsafe-reference and query bounds, JSON encoded
+cap, no staging I/O, StrictMode/double clicks, stale File/status/submit promises,
+auth expiry and ambiguous receipts without retry. Browser smoke validates JSON
+requests and new IDs against generated contracts, desktop/mobile controls,
+overflow, keyboard access and empty local/session storage. All upstream/account
+responses stay isolated mocks; neither UI smoke nor this slice closes the child.
+
 ### E4c: structured resolution submission HTTP and thin client (2026-10-03)
 
 Add `application/json` to the existing authenticated POST

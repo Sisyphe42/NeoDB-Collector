@@ -9,8 +9,8 @@ credential-store verification is implied. Local Windows checks are not three-OS 
 
 - Catalog transport loopback tests prove restrictive request/response handling;
   Core resolver tests prove polling, identity/granularity and explicit selection.
-  E4a/E4b integrate explicit inputs into the internal runner; public search/manual
-  actions remain pending.
+  E4a/E4b integrate explicit inputs into the internal runner; E4c exposes structured
+  submission and E4d adds explicit WebUI choices. CLI choice inputs remain pending.
 - Core comparison/record tests prove account binding, non-executable comparisons
   and Known/Empty/Unknown semantics. Storage tests prove normalized persistence,
   atomic guards, retention, reopen and migration independently of clients.
@@ -40,9 +40,9 @@ NeoDB-adapter end-to-end suite. Audit was read-only and did not run tests.
 
 ### Next acceptance checkpoints
 
-- Finish interactive search/manual selection in clients after E4c's structured
-  submission API/shared client; never turn title hints or a singleton candidate
-  into automatic identity proof. E4c evidence is recorded below once verified.
+- Finish CLI resolution-choice inputs after E4c/E4d's structured API/shared client
+  and interactive WebUI; never turn title hints or a singleton candidate into
+  automatic identity proof. Checkpoint evidence is recorded below once verified.
 - Audit upstream timeout/429/auth/redirect and migration through the integrated
   path, distinguishing prior component evidence from end-to-end coverage.
 - Finish parent CLI/WebUI integration review against a simulated upstream server.
@@ -180,3 +180,43 @@ route, UI/CLI interactive choice, capability advertisement or personal/source wr
 Interactive selection and broader real-client/simulated-upstream negative-path
 acceptance remain open; keep this task active. All upstream/account/keychain ports
 are fake, with no live native catalog fetch.
+
+## E4d interactive WebUI evidence
+
+`apps/webui/src/PreviewPanel.tsx` stages source-bound Search/Manual inputs using
+the existing generated validators/client. Only this mounted panel's confirmed
+File/profile/job receipt and completed/current matching metadata establish local
+choice authority. Explicit resubmission creates a new job; prior inputs/results
+are never edited. Reopened jobs are read-only, and File/profile/attempt/binding/
+row-frame changes revoke drafts. No CSV parser, arbitrary UUID/URL input, saved
+cross-job mapping or personal/source writer is introduced.
+
+Focused panel tests (35, including 20 new cases) prove Search -> new candidates ->
+Manual -> new preview; unsafe legacy reference rejection; Unicode C1/query UTF-8
+validation; sparse replace/reset/off-page submission and Compared/off-page clear;
+ineligible frames; just-in-time attempt/binding checks; exact encoded JSON 10 MiB
+and +1 with escaping; no preflight/POST after local refusal or stale File reads;
+stale fulfilled/rejected preflight/submission guards; single-action double-click
+and actual unmount abort; known/unknown/auth admission failures without retries
+or confirmed File association. Raw known-ID ambiguity clears the previous job/page.
+Inspection suppression is scoped to the original job/selection generation and
+cannot swallow a newly opened job or explicit refresh.
+
+`tests/preview-ui-smoke.mjs` extends the existing Chromium/local-host harness with
+generated request/response schema checks, exact CSV/BOM and v1 despite saved v2,
+ordinal/source ID and compact manual reference, three distinct IDs, unchanged old
+jobs, no staging POST, keyboard actions and read-only historical reopen. Main
+visually inspected desktop/mobile draft and candidate screenshots; overflow and
+empty local/session storage assertions passed. Preview routes are mocks; real
+host/session/pairing/mapping boundaries still run in `tests/smoke.mjs`. This is
+browser/shared-client evidence, not the final real-NeoDB-adapter integration suite.
+
+Main final `pnpm verify` passed: 291 Rust unit tests, two compile-fail doctests,
+85 TS/UI tests, fmt/workspace Clippy, generated drift, dependency boundaries,
+lint/typecheck, builds and actual local CLI/HTTP/auth/browser smoke. Product YAML/
+34 evidence IDs/decision/reference/disabled-capability and `git diff --check`
+passed separately. No live upstream/account/keychain, dependency, migration,
+schema/API/CLI/Core/Server/Storage production change, standalone search route or
+capability advertisement. Local Windows evidence is not hosted three-platform CI.
+CLI resolution-choice inputs and broader simulated-upstream negative/end-to-end
+acceptance remain pending; keep this child/parent active and personal writes disabled.

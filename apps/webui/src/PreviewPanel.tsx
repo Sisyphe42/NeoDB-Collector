@@ -2,8 +2,12 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'rea
 import {
   AccessClientError,
   PreviewAdmissionClientError,
+  validatePreviewCatalogReferenceRequest,
+  validatePreviewResolutionChoice,
   type AccessClient,
+  type PreviewCatalogReferenceRequest,
   type PreviewJobView,
+  type PreviewResolutionChoice,
   type PreviewResultPage,
 } from '@neodb-collector/core-client';
 
@@ -13,6 +17,33 @@ const LOCAL_ID = /^[A-Za-z0-9_.:-]{1,128}$/;
 type Result = PreviewResultPage['items'][number];
 type Outcome = Result['outcome'];
 type CatalogItem = Extract<Outcome, { item: unknown }>['item'];
+type ResolutionAssociation = {
+  file: File;
+  fileGeneration: number;
+  profileId: string;
+  profileVersion: number;
+  jobId: string;
+  attempt: number;
+  baseUrl?: string;
+  account?: string;
+};
+
+function rowMatchesJob(result: Result, job: PreviewJobView) {
+  return result.attempt === job.attempt
+    && result.ordinal < job.observationCount
+    && result.sourceConnectorId === 'imdb:ratings_csv'
+    && result.profileId === job.profileId
+    && result.profileVersion === job.profileVersion
+    && result.baseUrl === job.baseUrl
+    && result.account === job.account;
+}
+
+function pageMatchesJob(page: PreviewResultPage, job: PreviewJobView) {
+  const pageEnd = page.offset + page.limit;
+  return page.jobId === job.id
+    && page.attempt === job.attempt
+    && page.items.every(result => result.ordinal >= page.offset && result.ordinal < pageEnd && rowMatchesJob(result, job));
+}
 
 function errorText(error: unknown, uncertain = false) {
   const code = error instanceof AccessClientError ? error.code : 'unavailable';
@@ -62,7 +93,7 @@ function CatalogEvidence({ item }: { item: CatalogItem }) {
   </div>;
 }
 
-function OutcomeEvidence({ outcome }: { outcome: Outcome }) {
+function OutcomeEvidence({ outcome, stageManual, ordinal, stagingDisabled = false }: { outcome: Outcome; stageManual?: (item: CatalogItem) => void; ordinal: number; stagingDisabled?: boolean }) {
   switch (outcome.kind) {
     case 'compared':
       return <>
@@ -83,11 +114,11 @@ function OutcomeEvidence({ outcome }: { outcome: Outcome }) {
         </div>
       </>;
     case 'needs_review':
-      return <><p><strong>结果：</strong>需要检查 · {outcome.reason}</p><CatalogEvidence item={outcome.item} /></>;
+      return <><p><strong>结果：</strong>需要检查 · {outcome.reason}</p><CatalogEvidence item={outcome.item} />{stageManual && <button type="button" disabled={stagingDisabled} className="secondary preview-stage" onClick={() => stageManual(outcome.item)}>暂存记录 {ordinal} 的目录条目 {outcome.item.uuid}</button>}</>;
     case 'search_candidates':
       return <>
         <p><strong>结果：</strong>搜索候选 · {outcome.moreAvailable ? '服务端说明还有候选' : '服务端未说明还有候选'}</p>
-        {outcome.candidates.length ? outcome.candidates.map((candidate, index) => <div className="preview-candidate" key={`${candidate.item.uuid}:${index}`}><h5>{candidate.title}</h5><CatalogEvidence item={candidate.item} /></div>) : <p>本页没有候选。</p>}
+        {outcome.candidates.length ? outcome.candidates.map((candidate, index) => <div className="preview-candidate" key={`${candidate.item.uuid}:${index}`}><h5>{candidate.title}</h5><CatalogEvidence item={candidate.item} />{stageManual && <button type="button" disabled={stagingDisabled} className="secondary preview-stage" onClick={() => stageManual(candidate.item)}>暂存记录 {ordinal} 的目录条目 {candidate.item.uuid}</button>}</div>) : <p>本页没有候选。</p>}
       </>;
     case 'unsupported': return <p><strong>结果：</strong>不支持</p>;
     case 'rate_limited': return <p><strong>结果：</strong>目录服务限流</p>;
@@ -99,7 +130,32 @@ function OutcomeEvidence({ outcome }: { outcome: Outcome }) {
   }
 }
 
-function ResultCard({ result }: { result: Result }) {
+function ResolutionControls({ result, query, staged, onQuery, onStageSearch, onStageManual, onClear, disabled }: {
+  result: Result;
+  query: string;
+  staged?: PreviewResolutionChoice;
+  onQuery: (value: string) => void;
+  onStageSearch: () => void;
+  onStageManual: (item: CatalogItem) => void;
+  onClear: () => void;
+  disabled: boolean;
+}) {
+  const searchAllowed = result.outcome.kind === 'unsupported' || result.outcome.kind === 'search_candidates';
+  return <section className="preview-resolution-row" aria-label={`记录 ${result.ordinal} 的解析选择`}>
+    <p className="access-hint">原生解析始终优先；只有原生结果为“不支持”时才会使用显式搜索。人工选择会重新读取详情，不能证明 IMDb 身份一致，仍可能需要检查。</p>
+    {searchAllowed && <div className="preview-resolution-form">
+      <label>记录 {result.ordinal} 的搜索词<input disabled={disabled} value={query} maxLength={512} onChange={event => onQuery(event.target.value)} autoComplete="off" /></label>
+      <button type="button" disabled={disabled} className="secondary" onClick={onStageSearch}>暂存记录 {result.ordinal} 的搜索</button>
+    </div>}
+    <OutcomeEvidence outcome={result.outcome} stageManual={onStageManual} ordinal={result.ordinal} stagingDisabled={disabled} />
+    {staged && <div className="preview-staged-choice">
+      <p><strong>已暂存：</strong>{staged.kind === 'search' ? `搜索“${staged.query}”` : `人工目录条目 ${staged.item.uuid}（${staged.item.mediaType} / ${staged.item.model}）`}。历史结果未改变。</p>
+      <button type="button" disabled={disabled} className="secondary" onClick={onClear}>清除记录 {result.ordinal} 的选择</button>
+    </div>}
+  </section>;
+}
+
+function ResultCard({ result, resolution }: { result: Result; resolution?: ReactNode }) {
   return <article className="preview-result">
     <div className="section-title"><h4>记录序号 {result.ordinal}</h4><span>尝试 {result.attempt}</span></div>
     <p className="preview-history">历史证据 · 不可执行 · 结果保存时间 {timestamp(result.committedAt)}</p>
@@ -110,7 +166,7 @@ function ResultCard({ result }: { result: Result }) {
       <div><dt>配置</dt><dd>{result.profileId} v{result.profileVersion}</dd></div>
       <div><dt>NeoDB 绑定</dt><dd>{result.baseUrl} · {result.account}</dd></div>
     </dl>
-    <OutcomeEvidence outcome={result.outcome} />
+    {resolution ?? <OutcomeEvidence outcome={result.outcome} ordinal={result.ordinal} />}
   </article>;
 }
 
@@ -131,6 +187,9 @@ export function PreviewPanel({ client }: { client: AccessClient }) {
   const [authExpired, setAuthExpired] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [resolutionChoices, setResolutionChoices] = useState<PreviewResolutionChoice[]>([]);
+  const [resolutionQueries, setResolutionQueries] = useState<Record<number, string>>({});
+  const [, setAssociationVersion] = useState(0);
   const mounted = useRef(true);
   const mountEpoch = useRef(0);
   const actionControllers = useRef(new Set<AbortController>());
@@ -139,9 +198,34 @@ export function PreviewPanel({ client }: { client: AccessClient }) {
   const preserveMutationError = useRef(false);
   const selectionGeneration = useRef(0);
   const fileGeneration = useRef(0);
+  const profileGeneration = useRef(0);
+  const actionGeneration = useRef(0);
   const pageRequest = useRef<{ jobId: string; attempt: number; offset: number; limit: number } | undefined>(undefined);
   const suppressNextPageRefresh = useRef(false);
+  const suppressNextInspection = useRef<{ jobId: string; selectionGeneration: number } | undefined>(undefined);
+  const resolutionAssociation = useRef<ResolutionAssociation | undefined>(undefined);
+  const resolutionGeneration = useRef(0);
   const alive = (epoch: number) => mounted.current && mountEpoch.current === epoch;
+
+  function detachResolutionAssociation() {
+    resolutionAssociation.current = undefined;
+    setResolutionChoices([]);
+    setResolutionQueries({});
+    setAssociationVersion(value => value + 1);
+  }
+
+  function invalidateResolutionAssociation() {
+    resolutionGeneration.current += 1;
+    detachResolutionAssociation();
+  }
+
+  function associateReceipt(file: File, requestedFileGeneration: number, id: string, version: number, jobId: string, attempt: number, retainedChoices: PreviewResolutionChoice[] = []) {
+    resolutionGeneration.current += 1;
+    resolutionAssociation.current = { file, fileGeneration: requestedFileGeneration, profileId: id, profileVersion: version, jobId, attempt };
+    setResolutionChoices(retainedChoices);
+    setResolutionQueries({});
+    setAssociationVersion(value => value + 1);
+  }
 
   useEffect(() => {
     const epoch = ++mountEpoch.current;
@@ -150,10 +234,16 @@ export function PreviewPanel({ client }: { client: AccessClient }) {
       if (mountEpoch.current === epoch) mounted.current = false;
       for (const controller of actionControllers.current) controller.abort();
       actionControllers.current.clear();
+      resolutionAssociation.current = undefined;
     };
   }, []);
 
   useEffect(() => {
+    if (!mutating && suppressNextInspection.current) {
+      const suppression = suppressNextInspection.current;
+      suppressNextInspection.current = undefined;
+      if (selectedId === suppression.jobId && selectionGeneration.current === suppression.selectionGeneration) return;
+    }
     if (!selectedId || mutating) return;
     const epoch = mountEpoch.current;
     const generation = selectionGeneration.current;
@@ -168,6 +258,22 @@ export function PreviewPanel({ client }: { client: AccessClient }) {
         const next = await client.previewJob(selectedId, controller.signal);
         if (!active || controller.signal.aborted || !alive(epoch) || generation !== selectionGeneration.current) return;
         if (next.id !== selectedId) throw new AccessClientError('invalid_response');
+        const association = resolutionAssociation.current;
+        if (association) {
+          const associationChanged = next.id !== association.jobId
+            || next.attempt !== association.attempt
+            || next.profileId !== association.profileId
+            || next.profileVersion !== association.profileVersion
+            || next.bindingState !== 'current'
+            || (association.baseUrl !== undefined && next.baseUrl !== association.baseUrl)
+            || (association.account !== undefined && next.account !== association.account);
+          if (associationChanged) {
+            invalidateResolutionAssociation();
+          } else if (association.baseUrl === undefined || association.account === undefined) {
+            resolutionAssociation.current = { ...association, baseUrl: next.baseUrl, account: next.account };
+            setAssociationVersion(value => value + 1);
+          }
+        }
         let requestedPage = pageRequest.current;
         if (requestedPage && (requestedPage.jobId !== next.id || requestedPage.attempt !== next.attempt)) {
           requestedPage = undefined;
@@ -188,6 +294,7 @@ export function PreviewPanel({ client }: { client: AccessClient }) {
           if (nextPage.jobId !== requestedPage.jobId || nextPage.attempt !== requestedPage.attempt || nextPage.offset !== requestedPage.offset || nextPage.limit !== requestedPage.limit) {
             throw new AccessClientError('invalid_response');
           }
+          if (resolutionAssociation.current && !pageMatchesJob(nextPage, next)) invalidateResolutionAssociation();
           setPage(nextPage);
         }
         if (next.status === 'queued' || next.status === 'running') timer = setTimeout(() => void inspect(), POLL_DELAY_MS);
@@ -209,7 +316,7 @@ export function PreviewPanel({ client }: { client: AccessClient }) {
     };
   }, [client, selectedId, inspectionVersion, mutating]);
 
-  async function withAction(action: (signal: AbortSignal, epoch: number) => Promise<void>, uncertain = false) {
+  async function withAction(action: (signal: AbortSignal, epoch: number) => Promise<void>, uncertain = false, isCurrent: () => boolean = () => true) {
     if (actionBusy.current) return;
     actionBusy.current = true;
     // Invalidate observation synchronously, before React can run effect cleanup.
@@ -218,11 +325,12 @@ export function PreviewPanel({ client }: { client: AccessClient }) {
     preserveMutationError.current = false;
     const controller = new AbortController();
     const epoch = mountEpoch.current;
+    const actionId = ++actionGeneration.current;
     actionControllers.current.add(controller);
     setMutating(true); setError(''); setNotice('');
     try { await action(controller.signal, epoch); }
     catch (cause) {
-      if (alive(epoch)) {
+      if (alive(epoch) && isCurrent()) {
         if (cause instanceof AccessClientError && ['authentication_required', 'csrf_invalid'].includes(cause.code)) setAuthExpired(true);
         preserveMutationError.current = uncertain;
         setError(errorText(cause, uncertain));
@@ -231,13 +339,14 @@ export function PreviewPanel({ client }: { client: AccessClient }) {
     finally {
       actionControllers.current.delete(controller);
       actionBusy.current = false;
-      if (alive(epoch)) setMutating(false);
+      if (alive(epoch) && actionGeneration.current === actionId) setMutating(false);
     }
   }
 
   function inspect(id: string) {
     const normalized = id.trim();
     if (!LOCAL_ID.test(normalized) || normalized === '.' || normalized === '..') { setError('任务 ID 必须是 1–128 位 ASCII 字母、数字或 _ . : -，且不能是 . 或 ..。'); return; }
+    invalidateResolutionAssociation();
     selectionGeneration.current += 1;
     preserveMutationError.current = false;
     pageRequest.current = undefined;
@@ -248,6 +357,7 @@ export function PreviewPanel({ client }: { client: AccessClient }) {
   }
 
   function chooseFile(file: File | undefined) {
+    invalidateResolutionAssociation();
     fileGeneration.current += 1;
     setSelectedFile(undefined); setFileName(''); setError(''); setNotice('');
     if (!file) return;
@@ -265,62 +375,82 @@ export function PreviewPanel({ client }: { client: AccessClient }) {
     if (!LOCAL_ID.test(id) || !Number.isInteger(version) || version < 1 || version > 4_294_967_295) { setError('请明确填写合法的保存配置 ID 与正整数版本；不会自动选择最新版本。'); return; }
     const file = selectedFile;
     const requestedFileGeneration = fileGeneration.current;
+    const requestedProfileGeneration = profileGeneration.current;
+    const requestedSelectionGeneration = selectionGeneration.current;
+    const requestedResolutionGeneration = resolutionGeneration.current;
+    const frameCurrent = () => requestedFileGeneration === fileGeneration.current
+      && requestedProfileGeneration === profileGeneration.current
+      && requestedSelectionGeneration === selectionGeneration.current
+      && requestedResolutionGeneration === resolutionGeneration.current;
     void withAction(async (signal, epoch) => {
       let decoded: string;
       try {
         const bytes = await file.arrayBuffer();
         if (bytes.byteLength > CSV_LIMIT) {
-          if (alive(epoch) && requestedFileGeneration === fileGeneration.current) setError('CSV 超过 10 MiB，未读取或提交。');
+          if (alive(epoch) && frameCurrent()) setError('CSV 超过 10 MiB，未读取或提交。');
           return;
         }
         decoded = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
       } catch {
-        if (alive(epoch) && requestedFileGeneration === fileGeneration.current) setError('CSV 不是有效 UTF-8，未提交。');
+        if (alive(epoch) && frameCurrent()) setError('CSV 不是有效 UTF-8，未提交。');
         return;
       }
-      if (!alive(epoch) || requestedFileGeneration !== fileGeneration.current) return;
+      if (!alive(epoch) || !frameCurrent()) return;
+      detachResolutionAssociation();
       try {
         const accepted = await client.submitImdbRatings(decoded, { profileId: id, profileVersion: version }, signal);
-        if (!alive(epoch) || requestedFileGeneration !== fileGeneration.current) return;
+        if (!alive(epoch) || !frameCurrent()) return;
         selectionGeneration.current += 1;
         pageRequest.current = undefined;
         suppressNextPageRefresh.current = false;
+        setJob(undefined); setPage(undefined);
         setKnownId(accepted.preview.jobId);
         setSelectedId(accepted.preview.jobId);
+        associateReceipt(file, requestedFileGeneration, id, version, accepted.preview.jobId, accepted.preview.attempt);
         setInspectionVersion(value => value + 1);
         setNotice(`已接收任务 ${accepted.preview.jobId}，尝试 ${accepted.preview.attempt}；导入 ${accepted.observationCount} 条，跳过行 ${accepted.skippedRowCount}、列 ${accepted.skippedColumnCount}，重复行 ${accepted.duplicateRowCount}。`);
       } catch (cause) {
         if (cause instanceof PreviewAdmissionClientError) {
-          if (alive(epoch) && requestedFileGeneration === fileGeneration.current) {
+          if (alive(epoch) && frameCurrent()) {
             if (['authentication_required', 'csrf_invalid'].includes(cause.code)) setAuthExpired(true);
             selectionGeneration.current += 1;
+            invalidateResolutionAssociation();
             pageRequest.current = undefined;
             suppressNextPageRefresh.current = false;
+            setJob(undefined); setPage(undefined);
             setKnownId(cause.jobId); setSelectedId(cause.jobId); setInspectionVersion(value => value + 1);
             setNotice(`提交结果不确定（${cause.code}），但服务端返回任务 ${cause.jobId}、尝试 ${cause.attempt}。正在读取状态，未自动重试。`);
           }
           return;
         }
-        throw cause;
+        if (!alive(epoch) || !frameCurrent()) return;
+        resolutionGeneration.current += 1;
+        if (cause instanceof AccessClientError && ['authentication_required', 'csrf_invalid'].includes(cause.code)) setAuthExpired(true);
+        preserveMutationError.current = true;
+        setError(errorText(cause, true));
       }
-    }, true);
+    }, true, frameCurrent);
   }
 
   function mutate(kind: 'cancel' | 'resume' | 'delete') {
     if (!job) return;
     if (authExpired) { setError('本地授权已失效；重新授权并重新挂载页面前不会再提交变更。'); return; }
     if (kind === 'delete' && !window.confirm('仅删除此任务的运行历史；已创建的公共目录条目不会被撤销。确认删除？')) return;
+    const generation = selectionGeneration.current;
+    const requestedFileGeneration = fileGeneration.current;
+    const requestedProfileGeneration = profileGeneration.current;
+    const requestedResolutionGeneration = resolutionGeneration.current;
     void withAction(async (signal, epoch) => {
-      const generation = selectionGeneration.current;
       if (kind === 'resume') {
         try {
           const accepted = await client.resumePreview(job.id, { expectedAttempt: job.attempt }, signal);
           if (accepted.jobId !== job.id || accepted.attempt !== job.attempt + 1) throw new AccessClientError('invalid_response');
           if (!alive(epoch) || generation !== selectionGeneration.current) return;
+          invalidateResolutionAssociation();
           setNotice(`已接收恢复请求：尝试 ${accepted.attempt}。状态仍以服务器读取结果为准。`);
         } catch (cause) {
           if (cause instanceof PreviewAdmissionClientError) {
-            if (alive(epoch) && generation === selectionGeneration.current) {
+            if (alive(epoch) && generation === selectionGeneration.current && requestedFileGeneration === fileGeneration.current && requestedProfileGeneration === profileGeneration.current && requestedResolutionGeneration === resolutionGeneration.current) {
               if (['authentication_required', 'csrf_invalid'].includes(cause.code)) setAuthExpired(true);
               setKnownId(cause.jobId); setSelectedId(cause.jobId);
               setNotice(`恢复结果不确定，但保留任务 ${cause.jobId}、尝试 ${cause.attempt} 供核对；未自动重试。`);
@@ -332,12 +462,13 @@ export function PreviewPanel({ client }: { client: AccessClient }) {
         }
       } else if (kind === 'cancel') {
         const result = await client.cancelPreview(job.id, job.attempt, signal);
-        if (!alive(epoch) || generation !== selectionGeneration.current) return;
+        if (!alive(epoch) || generation !== selectionGeneration.current || requestedFileGeneration !== fileGeneration.current || requestedProfileGeneration !== profileGeneration.current || requestedResolutionGeneration !== resolutionGeneration.current) return;
         setNotice(result.applied ? '服务器确认取消已应用；部分历史证据仍保留。' : '服务器未应用取消；正在回读状态，未推断任务已取消。');
       } else {
         const result = await client.deletePreview(job.id, signal);
-        if (!alive(epoch) || generation !== selectionGeneration.current) return;
+        if (!alive(epoch) || generation !== selectionGeneration.current || requestedFileGeneration !== fileGeneration.current || requestedProfileGeneration !== profileGeneration.current || requestedResolutionGeneration !== resolutionGeneration.current) return;
         if (result.applied) {
+          invalidateResolutionAssociation();
           setNotice('服务器确认运行历史已删除；公共目录条目不受影响。');
           setSelectedId(''); setJob(undefined); setPage(undefined);
           return;
@@ -345,10 +476,14 @@ export function PreviewPanel({ client }: { client: AccessClient }) {
         setNotice('服务器未应用删除；正在回读状态，未推断历史已删除。');
       }
       setInspectionVersion(value => value + 1);
-    }, true);
+    }, true, () => generation === selectionGeneration.current
+      && requestedFileGeneration === fileGeneration.current
+      && requestedProfileGeneration === profileGeneration.current
+      && requestedResolutionGeneration === resolutionGeneration.current);
   }
 
   function refresh() {
+    suppressNextInspection.current = undefined;
     preserveMutationError.current = false;
     setError('');
     setInspectionVersion(value => value + 1);
@@ -362,17 +497,178 @@ export function PreviewPanel({ client }: { client: AccessClient }) {
     if (!Number.isInteger(requestedOffset) || requestedOffset < 0 || requestedOffset > 4_294_967_295 || !Number.isInteger(requestedLimit) || requestedLimit < 1 || requestedLimit > 100) {
       setError('页起始序号需为非负整数，单页数量需为 1–100。'); return;
     }
+    const generation = selectionGeneration.current;
+    const requestedFileGeneration = fileGeneration.current;
+    const requestedProfileGeneration = profileGeneration.current;
+    const requestedResolutionGeneration = resolutionGeneration.current;
     void withAction(async (signal, epoch) => {
-      const generation = selectionGeneration.current;
       const next = await client.previewResults(job.id, { attempt: job.attempt, offset: requestedOffset, limit: requestedLimit }, signal);
       if (next.jobId !== job.id || next.attempt !== job.attempt || next.offset !== requestedOffset || next.limit !== requestedLimit) throw new AccessClientError('invalid_response');
-      if (alive(epoch) && generation === selectionGeneration.current) {
+      if (alive(epoch) && generation === selectionGeneration.current && requestedFileGeneration === fileGeneration.current && requestedProfileGeneration === profileGeneration.current && requestedResolutionGeneration === resolutionGeneration.current) {
+        if (resolutionAssociation.current && !pageMatchesJob(next, job)) invalidateResolutionAssociation();
         pageRequest.current = { jobId: job.id, attempt: job.attempt, offset: requestedOffset, limit: requestedLimit };
         suppressNextPageRefresh.current = true;
         setPage(next);
         setNotice(`已读取尝试 ${next.attempt} 从序号 ${next.offset} 开始的一页；空页或稀疏页不表示任务完成。`);
       }
-    });
+    }, false, () => generation === selectionGeneration.current
+      && requestedFileGeneration === fileGeneration.current
+      && requestedProfileGeneration === profileGeneration.current
+      && requestedResolutionGeneration === resolutionGeneration.current);
+  }
+
+  const association = resolutionAssociation.current;
+  const associationMatchesJob = Boolean(association && job
+    && selectedFile === association.file
+    && fileGeneration.current === association.fileGeneration
+    && profileId.trim() === association.profileId
+    && Number(profileVersion) === association.profileVersion
+    && job.id === association.jobId
+    && job.attempt === association.attempt
+    && job.status === 'completed'
+    && job.bindingState === 'current'
+    && job.profileId === association.profileId
+    && job.profileVersion === association.profileVersion
+    && association.baseUrl === job.baseUrl
+    && association.account === job.account);
+
+  function stageChoice(choice: PreviewResolutionChoice) {
+    if (!associationMatchesJob || !validatePreviewResolutionChoice(choice)) {
+      setError('该记录或目录证据不符合当前任务的解析选择约束，未暂存。');
+      return;
+    }
+    if (resolutionChoices.length >= 10_000 && !resolutionChoices.some(item => item.ordinal === choice.ordinal)) {
+      setError('解析选择草稿最多包含 10,000 条，未暂存。');
+      return;
+    }
+    setResolutionChoices(current => [...current.filter(item => item.ordinal !== choice.ordinal), choice].sort((left, right) => left.ordinal - right.ordinal));
+    setError('');
+    setNotice(`已暂存记录 ${choice.ordinal} 的${choice.kind === 'search' ? '搜索' : '人工目录'}选择；尚未读取文件或发送请求，历史结果未改变。`);
+  }
+
+  function stageSearch(result: Result) {
+    const query = resolutionQueries[result.ordinal] ?? '';
+    const bytes = new TextEncoder().encode(query).byteLength;
+    if (!query.trim() || bytes > 512 || /\p{Cc}/u.test(query)) {
+      setError('搜索词必须非空、不含控制字符，且原始 UTF-8 编码不超过 512 字节。');
+      return;
+    }
+    stageChoice({ kind: 'search', ordinal: result.ordinal, sourceRecordId: result.sourceRecordId, query });
+  }
+
+  function stageManual(result: Result, item: CatalogItem) {
+    const reference: PreviewCatalogReferenceRequest = { uuid: item.uuid, mediaType: item.mediaType, model: item.model };
+    if (!validatePreviewCatalogReferenceRequest(reference)) {
+      setError('该历史目录证据不是安全、完整的可选择引用，未暂存。');
+      return;
+    }
+    stageChoice({ kind: 'manual', ordinal: result.ordinal, sourceRecordId: result.sourceRecordId, item: reference });
+  }
+
+  function clearChoice(ordinal: number) {
+    setResolutionChoices(current => current.filter(choice => choice.ordinal !== ordinal));
+    setError('');
+    setNotice(`已清除记录 ${ordinal} 的暂存选择；未读取文件或发送请求，历史结果未改变。`);
+  }
+
+  function submitResolution() {
+    if (!association || !associationMatchesJob || !job || resolutionChoices.length === 0) {
+      setError('只有本面板已确认提交、已完成且当前绑定的任务，才能按暂存选择生成新预览。');
+      return;
+    }
+    if (authExpired) { setError('本地授权已失效；重新授权并重新挂载页面前不会再提交变更。'); return; }
+    const snapshotAssociation = association;
+    const snapshotChoices = [...resolutionChoices].sort((left, right) => left.ordinal - right.ordinal);
+    const requestedResolutionGeneration = resolutionGeneration.current;
+    const requestedSelectionGeneration = selectionGeneration.current;
+    const requestedFileGeneration = fileGeneration.current;
+    const requestedProfileGeneration = profileGeneration.current;
+    const frameCurrent = () => requestedResolutionGeneration === resolutionGeneration.current
+      && requestedSelectionGeneration === selectionGeneration.current
+      && requestedFileGeneration === fileGeneration.current
+      && requestedProfileGeneration === profileGeneration.current;
+    const suppressOriginalFrameInspection = () => {
+      suppressNextInspection.current = {
+        jobId: snapshotAssociation.jobId,
+        selectionGeneration: requestedSelectionGeneration,
+      };
+    };
+    void withAction(async (signal, epoch) => {
+      let csv: string;
+      try {
+        const bytes = await snapshotAssociation.file.arrayBuffer();
+        if (bytes.byteLength > CSV_LIMIT) {
+          if (alive(epoch)) suppressOriginalFrameInspection();
+          if (alive(epoch) && frameCurrent()) setError('CSV 超过 10 MiB，未读取或提交。');
+          return;
+        }
+        csv = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+      } catch {
+        if (alive(epoch)) suppressOriginalFrameInspection();
+        if (alive(epoch) && frameCurrent()) setError('CSV 不是有效 UTF-8，未提交。');
+        return;
+      }
+      if (!alive(epoch) || !frameCurrent()) {
+        if (alive(epoch)) suppressOriginalFrameInspection();
+        return;
+      }
+      const body = { csv, resolutionInputs: snapshotChoices };
+      if (new TextEncoder().encode(JSON.stringify(body)).byteLength > CSV_LIMIT) {
+        suppressOriginalFrameInspection();
+        setError('包含解析选择后的 JSON 请求超过 10 MiB，未提交。');
+        return;
+      }
+      const current = await client.previewJob(snapshotAssociation.jobId, signal);
+      if (!alive(epoch) || !frameCurrent()) return;
+      if (current.id !== snapshotAssociation.jobId
+        || current.attempt !== snapshotAssociation.attempt
+        || current.status !== 'completed'
+        || current.bindingState !== 'current'
+        || current.profileId !== snapshotAssociation.profileId
+        || current.profileVersion !== snapshotAssociation.profileVersion
+        || current.baseUrl !== snapshotAssociation.baseUrl
+        || current.account !== snapshotAssociation.account) {
+        invalidateResolutionAssociation();
+        setError('原任务的尝试、配置或账户绑定已变化；暂存选择已失效，未生成新预览。');
+        return;
+      }
+      // Once transport begins, an absent/ambiguous receipt must not leave the old frame reusable.
+      detachResolutionAssociation();
+      try {
+        const accepted = await client.submitImdbRatingsWithResolution(body, {
+          profileId: snapshotAssociation.profileId,
+          profileVersion: snapshotAssociation.profileVersion,
+        }, signal);
+        if (!alive(epoch) || !frameCurrent()) return;
+        selectionGeneration.current += 1;
+        pageRequest.current = undefined;
+        suppressNextPageRefresh.current = false;
+        setJob(undefined); setPage(undefined);
+        setKnownId(accepted.preview.jobId);
+        setSelectedId(accepted.preview.jobId);
+        associateReceipt(snapshotAssociation.file, snapshotAssociation.fileGeneration, snapshotAssociation.profileId, snapshotAssociation.profileVersion, accepted.preview.jobId, accepted.preview.attempt, snapshotChoices);
+        setInspectionVersion(value => value + 1);
+        setNotice(`已按 ${snapshotChoices.length} 条显式选择接收新任务 ${accepted.preview.jobId}，尝试 ${accepted.preview.attempt}；旧任务与历史结果未改变。`);
+      } catch (cause) {
+        if (!alive(epoch) || !frameCurrent()) return;
+        resolutionGeneration.current += 1;
+        if (cause instanceof PreviewAdmissionClientError) {
+          if (alive(epoch) && requestedSelectionGeneration === selectionGeneration.current) {
+            if (['authentication_required', 'csrf_invalid'].includes(cause.code)) setAuthExpired(true);
+            selectionGeneration.current += 1;
+            pageRequest.current = undefined;
+            suppressNextPageRefresh.current = false;
+            setJob(undefined); setPage(undefined);
+            setKnownId(cause.jobId); setSelectedId(cause.jobId); setInspectionVersion(value => value + 1);
+            setNotice(`新预览提交结果不确定（${cause.code}），但服务端返回任务 ${cause.jobId}、尝试 ${cause.attempt}。正在读取状态，未自动重试；该任务未取得文件关联。`);
+          }
+          return;
+        }
+        if (cause instanceof AccessClientError && ['authentication_required', 'csrf_invalid'].includes(cause.code)) setAuthExpired(true);
+        preserveMutationError.current = true;
+        setError(errorText(cause, true));
+      }
+    }, true, frameCurrent);
   }
 
   let jobDetails: ReactNode = null;
@@ -402,7 +698,7 @@ export function PreviewPanel({ client }: { client: AccessClient }) {
 
   return <section className="preview-panel" aria-labelledby="preview-title" aria-busy={loading || mutating}>
     <div className="section-title"><h3 id="preview-title">历史预览</h3><span>{loading ? '正在读取' : mutating ? '正在处理' : '仅供检查'}</span></div>
-    <p className="preview-warning">预览可能让 NeoDB 创建公共目录条目，但不会写入 NeoDB 个人标记，也不会修改来源平台。所有结果都是历史证据、不可执行；当前界面不提供人工选择。</p>
+    <p className="preview-warning">预览可能让 NeoDB 创建公共目录条目，但不会写入 NeoDB 个人标记，也不会修改来源平台。所有结果都是历史证据、不可执行；显式搜索或人工目录选择只会生成新的预览任务。</p>
     {authExpired && <p role="alert" className="access-error">本地授权已失效。下方已读取内容仍可作为历史证据查看，但所有变更已停用；请重新授权。</p>}
     {error && <p role="alert" className="access-error">{error}</p>}
     {notice && <p role="status" className="preview-notice">{notice}</p>}
@@ -412,8 +708,8 @@ export function PreviewPanel({ client }: { client: AccessClient }) {
         <legend>导入本地 IMDb 评分 CSV</legend>
         <div className="preview-form-grid">
           <label>CSV 文件（UTF-8，最大 10 MiB）<input type="file" accept=".csv,text/csv" onChange={event => chooseFile(event.target.files?.[0])} /></label>
-          <label>保存的配置 ID<input required maxLength={128} value={profileId} onChange={event => setProfileId(event.target.value)} autoComplete="off" /></label>
-          <label>保存的配置版本<input required type="number" min="1" max="4294967295" value={profileVersion} onChange={event => setProfileVersion(event.target.value)} /></label>
+          <label>保存的配置 ID<input required maxLength={128} value={profileId} onChange={event => { profileGeneration.current += 1; invalidateResolutionAssociation(); setProfileId(event.target.value); }} autoComplete="off" /></label>
+          <label>保存的配置版本<input required type="number" min="1" max="4294967295" value={profileVersion} onChange={event => { profileGeneration.current += 1; invalidateResolutionAssociation(); setProfileVersion(event.target.value); }} /></label>
         </div>
         <p className="access-hint">{fileName ? `当前文件：${fileName}。` : '尚未选择文件。'} 必须明确填写版本；不会静默使用默认或最新配置。</p>
         <button type="submit">提交只读预览</button>
@@ -426,9 +722,31 @@ export function PreviewPanel({ client }: { client: AccessClient }) {
     </form>
 
     {jobDetails}
+    {association && <section className="preview-resolution-draft" aria-label="解析选择草稿">
+      <div className="section-title"><h4>解析选择草稿</h4><span>{resolutionChoices.length} 条已暂存</span></div>
+      <p className="access-hint">草稿仅属于当前文件、保存配置和任务尝试，并在本页内存中保留。暂存不会读取 CSV、发送请求或改变旧结果。</p>
+      {resolutionChoices.length > 0 && <ul>{resolutionChoices.map(choice => <li key={choice.ordinal}><span>记录 {choice.ordinal} · {choice.kind === 'search' ? `搜索“${choice.query}”` : `人工目录条目 ${choice.item.uuid}`}</span><button type="button" className="secondary" disabled={mutating || authExpired} onClick={() => clearChoice(choice.ordinal)}>清除草稿记录 {choice.ordinal} 的选择</button></li>)}</ul>}
+      <button type="button" disabled={mutating || authExpired || !associationMatchesJob || resolutionChoices.length === 0} onClick={submitResolution}>按选择生成新预览</button>
+      {!associationMatchesJob && <p className="access-hint">等待同一任务尝试完成并确认当前账户绑定；重新打开的历史任务不能使用本地文件草稿。</p>}
+    </section>}
     {page && <section className="preview-page" aria-label="历史结果页">
       <p className="preview-history">任务 {page.jobId} · 尝试 {page.attempt} · 起始序号 {page.offset} · 请求上限 {page.limit} · 历史、不可执行</p>
-      {page.items.length ? page.items.map(result => <ResultCard key={`${result.attempt}:${result.ordinal}`} result={result} />) : <p className="empty">本页为空；这不表示任务完成，也不表示后续没有稀疏结果。</p>}
+      {page.items.length ? page.items.map(result => {
+        const staged = resolutionChoices.find(choice => choice.ordinal === result.ordinal);
+        const canResolve = associationMatchesJob && job && rowMatchesJob(result, job)
+          && (staged !== undefined || ['unsupported', 'search_candidates', 'needs_review'].includes(result.outcome.kind));
+        const resolution = canResolve ? <ResolutionControls
+          result={result}
+          query={resolutionQueries[result.ordinal] ?? ''}
+          {...(staged ? { staged } : {})}
+          onQuery={value => setResolutionQueries(current => ({ ...current, [result.ordinal]: value }))}
+          onStageSearch={() => stageSearch(result)}
+          onStageManual={candidate => stageManual(result, candidate)}
+          onClear={() => clearChoice(result.ordinal)}
+          disabled={mutating || authExpired}
+        /> : undefined;
+        return <ResultCard key={`${result.attempt}:${result.ordinal}`} result={result} resolution={resolution} />;
+      }) : <p className="empty">本页为空；这不表示任务完成，也不表示后续没有稀疏结果。</p>}
     </section>}
   </section>;
 }

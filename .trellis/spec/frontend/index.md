@@ -6,7 +6,7 @@ The React status and local-session/client-pairing WebUI is implemented in `apps/
 |---|---|
 | [Shared WebUI Boundaries](./webui-boundaries.md) | Same-origin API, sessions, shared types, dry-run UI, and host parity |
 | [Mapping Editor](./mapping-editor.md) | Disabled configuration form, YAML/JSON interchange and version conflicts |
-| [Historical Preview](./preview-panel.md) | Explicit CSV upload, attempt-bound evidence, polling and local management |
+| [Historical Preview](./preview-panel.md) | Explicit CSV upload, attempt-bound evidence, local management and staged search/manual choices submitted as a new preview |
 | [Browser Extension Onboarding](./browser-extension-onboarding.md) | Chrome/Edge permission onboarding, per-site grants, and `activeTab` fallback |
 
 ## Pre-Development / Quality Check

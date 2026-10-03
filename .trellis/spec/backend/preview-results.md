@@ -15,7 +15,8 @@ Owners: `crates/collector-core/src/preview_results.rs`,
 [Single-attempt execution](./preview-runner.md) consumes these operations internally;
 startup composition, public API/thin clients and screens are implemented;
 [Structured submission](./preview-submission-http.md) exposes explicit search/manual
-inputs through the import API/thin client; interactive selection and broader
+inputs through the import API/thin client. The [WebUI](../frontend/preview-panel.md)
+stages explicit choices and submits a new preview; CLI choice inputs and broader
 integrated acceptance remain pending.
 The [owned runtime](./preview-runtime.md) adds bounded explicit admission and
 cancel/delete/shutdown/startup/retention and shared authenticated dispatch.

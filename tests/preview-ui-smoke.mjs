@@ -8,22 +8,22 @@ import Ajv2020 from 'ajv/dist/2020.js';
 // generated JSON schemas with the already installed AJV, not a second wire model.
 const ajv = new Ajv2020({ strict: true });
 for (const format of ['uint32', 'int64', 'double']) ajv.addFormat(format, true);
-const validators = await Promise.all(['PreviewJobView', 'PreviewResultPage', 'PreviewImportAccepted'].map(async name =>
+const validators = await Promise.all(['PreviewJobView', 'PreviewResultPage', 'PreviewImportAccepted', 'PreviewImdbResolutionRequest'].map(async name =>
   ajv.compile(JSON.parse(await readFile(new URL(`../contracts/json-schema/${name}.json`, import.meta.url), 'utf8'))),
 ));
-const [validatePreviewJobView, validatePreviewResultPage, validatePreviewImportAccepted] = validators;
+const [validatePreviewJobView, validatePreviewResultPage, validatePreviewImportAccepted, validatePreviewImdbResolutionRequest] = validators;
 
-export async function installPreviewUiFixture(page) {
+export async function installPreviewUiFixture(page, resolution = false) {
   const now = Math.floor(Date.now() / 1000);
   const job = {
-    id: 'preview_browser', status: 'running', attempt: 1,
+    id: resolution ? 'preview_resolution_0' : 'preview_browser', status: resolution ? 'completed' : 'running', attempt: 1,
     createdAt: now, updatedAt: now, expiresAt: now + 3600, observationCount: 6,
     profileId: 'imdb_ratings', profileVersion: 1, baseUrl: 'https://neodb.example',
     account: 'browser_fixture', bindingState: 'current', historical: true, executable: false,
   };
   const item = {
-    uuid: 'browser-item', canonicalUrl: 'https://neodb.example/movie/browser-item',
-    detailUrl: 'https://neodb.example/api/movie/browser-item', mediaType: 'movie',
+    uuid: 'BrowserItem123', canonicalUrl: 'https://neodb.example/movie/BrowserItem123',
+    detailUrl: 'https://neodb.example/api/movie/BrowserItem123', mediaType: 'movie',
     model: 'Movie', parentUuid: null,
     externalIds: [{ scheme: 'imdb:title', value: 'tt1234567' }],
   };
@@ -42,7 +42,9 @@ export async function installPreviewUiFixture(page) {
   ];
   let deleted = false;
   const mutations = [];
-  const csv = '\uFEFFConst,Your Rating,Title Type\r\ntt1234567,8,movie\r\n';
+  const submissions = [];
+  const history = new Map();
+  const csv = '\uFEFFConst,Your Rating,Title Type\r\n' + Array.from({ length: 6 }, (_, ordinal) => `tt123456${ordinal},8,movie\r\n`).join('');
   const reply = (route, body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
   await page.route('**/api/v1/imports/imdb/ratings?*', async route => {
     const request = route.request();
@@ -50,10 +52,34 @@ export async function installPreviewUiFixture(page) {
     assert.equal(request.method(), 'POST');
     assert.equal(url.searchParams.get('profileId'), job.profileId);
     assert.equal(url.searchParams.get('profileVersion'), '1'); // v2 already exists in real mapping storage.
-    assert.equal(request.headers()['content-type'], 'text/csv');
     assert(request.headers()['x-csrf-token']);
-    assert.deepEqual(request.postDataBuffer(), Buffer.from(csv));
-    mutations.push('upload');
+    if (request.headers()['content-type'] === 'application/json') {
+      assert(resolution);
+      const body = request.postDataJSON();
+      assert(validatePreviewImdbResolutionRequest(body), JSON.stringify(validatePreviewImdbResolutionRequest.errors));
+      assert.equal(body.csv, csv);
+      assert.equal(body.resolutionInputs.length, 1);
+      const choice = body.resolutionInputs[0];
+      assert.equal(choice.ordinal, 3);
+      assert.equal(choice.sourceRecordId, 'tt1234563');
+      history.set(job.id, { job: { ...job }, outcomes: structuredClone(outcomes) });
+      if (submissions.length === 0) {
+        assert.deepEqual(choice, { kind: 'search', ordinal: 3, sourceRecordId: 'tt1234563', query: '明确的电影搜索词' });
+        outcomes[3] = { kind: 'search_candidates', candidates: [{ title: '手动确认的电影候选', item }], moreAvailable: false };
+      } else {
+        assert.equal(submissions.length, 1);
+        assert.deepEqual(choice, { kind: 'manual', ordinal: 3, sourceRecordId: 'tt1234563', item: { uuid: item.uuid, mediaType: item.mediaType, model: item.model } });
+        outcomes[3] = { ...outcomes[0], provenance: 'manual' };
+      }
+      submissions.push(body);
+      mutations.push(`resolution_${choice.kind}`);
+      job.id = `preview_resolution_${submissions.length}`;
+      job.updatedAt = now + submissions.length;
+    } else {
+      assert.equal(request.headers()['content-type'], 'text/csv');
+      assert.deepEqual(request.postDataBuffer(), Buffer.from(csv));
+      mutations.push('upload');
+    }
     const receipt = { preview: { jobId: job.id, attempt: 1, executable: false }, observationCount: 6, skippedRowCount: 1, skippedColumnCount: 2, duplicateRowCount: 1 };
     assert(validatePreviewImportAccepted(receipt));
     await reply(route, receipt, 202);
@@ -61,7 +87,12 @@ export async function installPreviewUiFixture(page) {
   await page.route('**/api/v1/previews/**', async route => {
     const request = route.request();
     const url = new URL(request.url());
-    assert(url.pathname.startsWith(`/api/v1/previews/${job.id}`));
+    const requestedId = url.pathname.split('/')[4];
+    const archived = history.get(requestedId);
+    assert(requestedId === job.id || archived);
+    const requestedJob = archived?.job ?? job;
+    const requestedOutcomes = archived?.outcomes ?? outcomes;
+    if (archived) assert.equal(request.method(), 'GET');
     if (request.method() !== 'GET') {
       assert(request.headers()['x-csrf-token']);
       mutations.push(request.method() === 'DELETE' ? 'delete' : url.pathname.split('/').at(-1));
@@ -88,24 +119,24 @@ export async function installPreviewUiFixture(page) {
     assert.equal(request.method(), 'GET');
     if (deleted) return reply(route, { code: 'preview_job_not_found', message: 'Preview not found.', field: null, retryable: false }, 404);
     if (url.pathname.endsWith('/results')) {
-      assert.equal(Number(url.searchParams.get('attempt')), job.attempt);
+      assert.equal(Number(url.searchParams.get('attempt')), requestedJob.attempt);
       const offset = Number(url.searchParams.get('offset'));
       const limit = Number(url.searchParams.get('limit'));
-      const items = outcomes.map((outcome, ordinal) => ({
-        ordinal, outcome, attempt: job.attempt, committedAt: now + job.attempt,
+      const items = requestedOutcomes.map((outcome, ordinal) => ({
+        ordinal, outcome, attempt: requestedJob.attempt, committedAt: now + requestedJob.attempt,
         sourceConnectorId: 'imdb:ratings_csv', sourceRecordId: `tt123456${ordinal}`,
-        sourceFingerprint: `sha256-browser-${ordinal}`, profileId: job.profileId,
-        profileVersion: job.profileVersion, baseUrl: job.baseUrl, account: job.account,
+        sourceFingerprint: `sha256-browser-${ordinal}`, profileId: requestedJob.profileId,
+        profileVersion: requestedJob.profileVersion, baseUrl: requestedJob.baseUrl, account: requestedJob.account,
         historical: true, executable: false,
       })).filter(row => row.ordinal >= offset).slice(0, limit);
-      const result = { jobId: job.id, attempt: job.attempt, offset, limit, historical: true, executable: false, items };
+      const result = { jobId: requestedJob.id, attempt: requestedJob.attempt, offset, limit, historical: true, executable: false, items };
       assert(validatePreviewResultPage(result));
       return reply(route, result);
     }
-    assert(validatePreviewJobView(job));
-    return reply(route, job);
+    assert(validatePreviewJobView(requestedJob));
+    return reply(route, requestedJob);
   });
-  return { csv, mutations, job, cleanup: async () => {
+  return { csv, mutations, submissions, history, job, cleanup: async () => {
     await page.unroute('**/api/v1/imports/imdb/ratings?*');
     await page.unroute('**/api/v1/previews/**');
   } };
@@ -156,6 +187,8 @@ export async function runPreviewUiSmoke(page) {
     await panel.getByText('服务器确认运行历史已删除；公共目录条目不受影响。', { exact: true }).waitFor();
     assert.equal(await panel.getByRole('heading', { name: '任务 preview_browser', exact: true }).count(), 0);
     assert.deepEqual(fixture.mutations, ['upload', 'cancel', 'resume', 'delete']);
+    await fixture.cleanup();
+    await runPreviewResolutionSmoke(page);
     const capabilities = await page.request.get(new URL('/api/v1/capabilities', page.url()).href).then(response => response.json());
     delete capabilities.routes.previewResume;
     await page.route('**/api/v1/capabilities', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify(capabilities) }));
@@ -166,6 +199,65 @@ export async function runPreviewUiSmoke(page) {
     console.log('Mock preview browser/client flow and desktop/mobile evidence passed (not backend restart acceptance).');
   } finally {
     await page.unroute('**/api/v1/capabilities');
+    await fixture.cleanup();
+  }
+}
+
+async function runPreviewResolutionSmoke(page) {
+  const fixture = await installPreviewUiFixture(page, true);
+  try {
+    const panel = page.getByRole('region', { name: '历史预览' });
+    await panel.getByLabel('CSV 文件（UTF-8，最大 10 MiB）').setInputFiles({ name: 'resolution.csv', mimeType: 'text/csv', buffer: Buffer.from(fixture.csv) });
+    await panel.getByRole('button', { name: '提交只读预览', exact: true }).click();
+    await panel.getByRole('heading', { name: '任务 preview_resolution_0', exact: true }).waitFor();
+    await panel.getByRole('button', { name: '读取该尝试的一页结果', exact: true }).click();
+    const results = panel.getByRole('region', { name: '历史结果页' });
+    const query = panel.getByLabel('记录 3 的搜索词', { exact: true });
+    await query.fill('明确的电影搜索词');
+    const stageSearch = panel.getByRole('button', { name: '暂存记录 3 的搜索', exact: true });
+    await stageSearch.focus();
+    assert(await stageSearch.evaluate(element => element === document.activeElement));
+    await stageSearch.press('Enter');
+    const draft = panel.getByLabel('解析选择草稿', { exact: true });
+    await draft.getByText('明确的电影搜索词', { exact: false }).waitFor();
+    assert.deepEqual(fixture.mutations, ['upload']); // Local staging is not submission.
+    const submit = panel.getByRole('button', { name: '按选择生成新预览', exact: true });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await submit.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: 'test-results/preview-resolution-desktop.png' });
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await submit.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: 'test-results/preview-resolution-mobile.png' });
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await submit.click();
+    await panel.getByRole('heading', { name: '任务 preview_resolution_1', exact: true }).waitFor();
+    await panel.getByRole('button', { name: '读取该尝试的一页结果', exact: true }).click();
+    await results.getByText('手动确认的电影候选', { exact: true }).waitFor();
+    const stageManual = panel.getByRole('button', { name: '暂存记录 3 的目录条目 BrowserItem123', exact: true });
+    await stageManual.focus();
+    await stageManual.press('Enter');
+    assert.deepEqual(fixture.mutations, ['upload', 'resolution_search']);
+    await results.locator('.preview-result').nth(3).screenshot({ path: 'test-results/preview-resolution-candidate-mobile.png' });
+    await submit.click();
+    await panel.getByRole('heading', { name: '任务 preview_resolution_2', exact: true }).waitFor();
+    await panel.getByRole('button', { name: '读取该尝试的一页结果', exact: true }).click();
+    await results.locator('.preview-result').nth(3).getByText(/证据来源：人工/).waitFor();
+    assert.deepEqual(fixture.mutations, ['upload', 'resolution_search', 'resolution_manual']);
+    assert.equal(fixture.history.get('preview_resolution_0').outcomes[3].kind, 'unsupported');
+    assert.equal(fixture.history.get('preview_resolution_1').outcomes[3].kind, 'search_candidates');
+    assert.equal(await page.evaluate(() => localStorage.length), 0);
+    assert.equal(await page.evaluate(() => sessionStorage.length), 0);
+    // Even a known job ID cannot recover a File association after explicit reopen.
+    await panel.getByLabel('已有任务 ID', { exact: true }).fill('preview_resolution_1');
+    await panel.getByRole('button', { name: '打开任务', exact: true }).click();
+    await panel.getByRole('heading', { name: '任务 preview_resolution_1', exact: true }).waitFor();
+    await panel.getByRole('button', { name: '读取该尝试的一页结果', exact: true }).click();
+    await results.getByText('手动确认的电影候选', { exact: true }).waitFor();
+    assert.equal(await panel.getByRole('button', { name: '暂存记录 3 的目录条目 BrowserItem123', exact: true }).count(), 0);
+    assert.deepEqual(fixture.mutations, ['upload', 'resolution_search', 'resolution_manual']);
+    console.log('Generated-contract mock search → manual choice → new preview flow passed; original jobs unchanged.');
+  } finally {
     await fixture.cleanup();
   }
 }

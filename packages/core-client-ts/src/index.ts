@@ -1,4 +1,5 @@
 import createClient from 'openapi-fetch';
+export { validatePreviewResolutionChoice, validatePreviewCatalogReferenceRequest } from '@neodb-collector/contracts';
 export { createAccessClient, AccessClientError, PreviewAdmissionClientError, type AccessClient, type SessionView, type PairedClient, type PairingLink, type NeoDbStatus, type MappingProfile, type ProfileFormat, type PreviewJobView, type PreviewCancelRequest, type PreviewMutationResult, type PreviewResultPage, type PreviewImportSelection, type PreviewImdbResolutionRequest, type PreviewResolutionChoice, type PreviewCatalogReferenceRequest, type PreviewResumeRequest, type PreviewAccepted, type PreviewImportAccepted, type PreviewAdmissionFailure } from './access.js';
 import { API_VERSION, SCHEMA_VERSION, validateCapabilities, validateHealth, type paths, type components } from '@neodb-collector/contracts';
 

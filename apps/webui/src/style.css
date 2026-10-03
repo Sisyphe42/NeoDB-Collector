@@ -95,10 +95,23 @@ code, dd { font-family: "Cascadia Code", "SFMono-Regular", Consolas, "Microsoft 
 .preview-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-top: 14px; }
 .preview-field, .preview-candidate { border: 1px solid #dbe3e9; padding: 14px; min-width: 0; }
 .preview-result a { color: #243341; overflow-wrap: anywhere; }
+.preview-resolution-draft { margin-top: 24px; padding: 18px 20px; background: #edf2f5; border: 1px solid #cbd7df; }
+.preview-resolution-draft ul { margin: 12px 0 16px; padding-left: 20px; overflow-wrap: anywhere; }
+.preview-resolution-draft li { margin: 8px 0; }
+.preview-resolution-draft li button { margin-left: 10px; }
+.preview-resolution-row { margin-top: 16px; padding-top: 16px; border-top: 1px solid #dbe3e9; }
+.preview-resolution-form { display: flex; align-items: end; gap: 12px; margin: 12px 0; }
+.preview-resolution-form label { flex: 1; min-width: 0; }
+.preview-stage { margin-top: 10px; }
+.preview-staged-choice { margin-top: 14px; padding: 12px 14px; background: #edf2f5; border-left: 3px solid #26775f; }
+.preview-staged-choice p { margin-top: 0; overflow-wrap: anywhere; }
 @media (max-width: 720px) {
   .preview-form-grid { grid-template-columns: 1fr; }
   .access-panel .preview-open, .access-panel .preview-page-form { align-items: stretch; flex-direction: column; }
   .preview-open label, .preview-page-form label { width: 100%; flex-basis: auto; }
-  .preview-actions button, .preview-open button, .preview-page-form button { width: 100%; }
-  .preview-job, .preview-result { padding: 15px 12px; }
+  .preview-actions button, .preview-open button, .preview-page-form button, .preview-resolution-form button, .preview-resolution-draft > button { width: 100%; }
+  .preview-job, .preview-result, .preview-resolution-draft { padding: 15px 12px; }
+  .preview-resolution-form { align-items: stretch; flex-direction: column; }
+  .preview-resolution-form label { width: 100%; }
+  .preview-resolution-draft li button { display: block; margin: 8px 0 0; width: 100%; }
 }

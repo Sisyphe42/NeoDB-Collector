@@ -59,6 +59,7 @@ function mockClient(overrides: Partial<Record<keyof AccessClient, unknown>> = {}
     previewJob: vi.fn().mockResolvedValue(job()),
     previewResults: vi.fn().mockResolvedValue(resultPage),
     submitImdbRatings: vi.fn().mockResolvedValue({ preview: { jobId: 'preview_1', attempt: 1, executable: false }, observationCount: 7, skippedRowCount: 1, skippedColumnCount: 2, duplicateRowCount: 3 }),
+    submitImdbRatingsWithResolution: vi.fn().mockResolvedValue({ preview: { jobId: 'preview_2', attempt: 1, executable: false }, observationCount: 7, skippedRowCount: 0, skippedColumnCount: 0, duplicateRowCount: 0 }),
     resumePreview: vi.fn().mockResolvedValue({ jobId: 'preview_1', attempt: 3, executable: false }),
     cancelPreview: vi.fn().mockResolvedValue({ applied: true }),
     deletePreview: vi.fn().mockResolvedValue({ applied: true }),
@@ -70,7 +71,376 @@ function selectFile(file: File) {
   fireEvent.change(screen.getByLabelText('CSV 文件（UTF-8，最大 10 MiB）'), { target: { files: [file] } });
 }
 
+async function mountEligibleResolution(options: { outcome?: PreviewResultPage['items'][number]['outcome']; file?: File } = {}) {
+  const state = {
+    job: job({ attempt: 1, observationCount: 2 }),
+    page: { ...resultPage, attempt: 1, items: [{
+      ...resultPage.items[3]!, ordinal: 0, attempt: 1, sourceRecordId: 'tt1234567', outcome: options.outcome ?? { kind: 'unsupported' },
+    }] } as PreviewResultPage,
+  };
+  const previewJob = vi.fn(() => Promise.resolve(state.job));
+  const previewResults = vi.fn(() => Promise.resolve(state.page));
+  const submitImdbRatingsWithResolution = vi.fn().mockResolvedValue({ preview: { jobId: 'preview_2', attempt: 1, executable: false }, observationCount: 2, skippedRowCount: 0, skippedColumnCount: 0, duplicateRowCount: 0 });
+  const api = mockClient({
+    previewJob,
+    previewResults,
+    submitImdbRatings: vi.fn().mockResolvedValue({ preview: { jobId: 'preview_1', attempt: 1, executable: false }, observationCount: 2, skippedRowCount: 0, skippedColumnCount: 0, duplicateRowCount: 0 }),
+    submitImdbRatingsWithResolution,
+  });
+  const bytes = new TextEncoder().encode('Const,Your Rating,Title,Title Type\ntt1234567,8,Example,movie\n');
+  const file = options.file ?? ({ name: 'ratings.csv', size: bytes.byteLength, arrayBuffer: vi.fn().mockResolvedValue(bytes.buffer) } as unknown as File);
+  render(<PreviewPanel client={api} />);
+  selectFile(file);
+  fireEvent.change(screen.getByLabelText('保存的配置 ID'), { target: { value: 'imdb_ratings' } });
+  fireEvent.change(screen.getByLabelText('保存的配置版本'), { target: { value: '1' } });
+  fireEvent.click(screen.getByRole('button', { name: '提交只读预览' }));
+  await waitFor(() => expect(screen.getByText('任务 preview_1')).toBeTruthy());
+  fireEvent.click(screen.getByRole('button', { name: '读取该尝试的一页结果' }));
+  await screen.findByLabelText('记录 0 的解析选择');
+  return { api, state, file, previewJob, previewResults, submitImdbRatingsWithResolution };
+}
+
 describe('PreviewPanel', () => {
+  it('creates new jobs from explicit search then returned manual evidence without staging I/O or editing old history', async () => {
+    const selectableItem = { ...item, uuid: 'BrowserItem123' };
+    const jobs: Record<string, PreviewJobView> = {
+      preview_1: job({ id: 'preview_1', attempt: 1, observationCount: 1 }),
+      preview_2: job({ id: 'preview_2', attempt: 1, observationCount: 1 }),
+      preview_3: job({ id: 'preview_3', attempt: 1, observationCount: 1 }),
+    };
+    const pages: Record<string, PreviewResultPage> = {
+      preview_1: { ...resultPage, jobId: 'preview_1', attempt: 1, items: [{
+        ...resultPage.items[3]!, ordinal: 0, attempt: 1, sourceRecordId: 'tt1234567', outcome: { kind: 'unsupported' },
+      }] },
+      preview_2: { ...resultPage, jobId: 'preview_2', attempt: 1, items: [{
+        ...resultPage.items[2]!, ordinal: 0, attempt: 1, sourceRecordId: 'tt1234567', outcome: { kind: 'search_candidates', candidates: [{ title: 'Legacy unsafe', item }, { title: 'Candidate', item: selectableItem }], moreAvailable: false },
+      }] },
+      preview_3: { ...resultPage, jobId: 'preview_3', attempt: 1, items: [{
+        ...resultPage.items[0]!, ordinal: 0, attempt: 1, sourceRecordId: 'tt1234567', outcome: resultPage.items[0]!.outcome,
+      }] },
+    };
+    const previewJob = vi.fn((id: string) => Promise.resolve(jobs[id]!));
+    const previewResults = vi.fn((id: string) => Promise.resolve(pages[id]!));
+    const submitImdbRatings = vi.fn().mockResolvedValue({ preview: { jobId: 'preview_1', attempt: 1, executable: false }, observationCount: 1, skippedRowCount: 0, skippedColumnCount: 0, duplicateRowCount: 0 });
+    const submitImdbRatingsWithResolution = vi.fn()
+      .mockResolvedValueOnce({ preview: { jobId: 'preview_2', attempt: 1, executable: false }, observationCount: 1, skippedRowCount: 0, skippedColumnCount: 0, duplicateRowCount: 0 })
+      .mockResolvedValueOnce({ preview: { jobId: 'preview_3', attempt: 1, executable: false }, observationCount: 1, skippedRowCount: 0, skippedColumnCount: 0, duplicateRowCount: 0 });
+    const bytes = new TextEncoder().encode('Const,Your Rating,Title,Title Type\ntt1234567,8,Example,movie\n');
+    const arrayBuffer = vi.fn().mockResolvedValue(bytes.buffer);
+    const api = mockClient({ previewJob, previewResults, submitImdbRatings, submitImdbRatingsWithResolution });
+    render(<PreviewPanel client={api} />);
+    selectFile({ name: 'ratings.csv', size: bytes.byteLength, arrayBuffer } as unknown as File);
+    fireEvent.change(screen.getByLabelText('保存的配置 ID'), { target: { value: 'imdb_ratings' } });
+    fireEvent.change(screen.getByLabelText('保存的配置版本'), { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('button', { name: '提交只读预览' }));
+    await screen.findByText(/已接收任务 preview_1/);
+    await waitFor(() => expect(screen.getByText('任务 preview_1')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: '读取该尝试的一页结果' }));
+    await screen.findByLabelText('记录 0 的搜索词');
+
+    const readsBeforeStage = arrayBuffer.mock.calls.length;
+    const requestsBeforeStage = previewJob.mock.calls.length + previewResults.mock.calls.length;
+    fireEvent.change(screen.getByLabelText('记录 0 的搜索词'), { target: { value: 'Example' } });
+    fireEvent.click(screen.getByRole('button', { name: '暂存记录 0 的搜索' }));
+    expect(arrayBuffer).toHaveBeenCalledTimes(readsBeforeStage);
+    expect(previewJob.mock.calls.length + previewResults.mock.calls.length).toBe(requestsBeforeStage);
+    expect(screen.getByLabelText('解析选择草稿').textContent).toContain('1 条已暂存');
+    fireEvent.change(screen.getByLabelText('记录 0 的搜索词'), { target: { value: 'Bad\u0085Query' } });
+    fireEvent.click(screen.getByRole('button', { name: '暂存记录 0 的搜索' }));
+    expect(screen.getByRole('alert').textContent).toContain('控制字符');
+    expect(screen.getByLabelText('解析选择草稿').textContent).toContain('搜索“Example”');
+    fireEvent.change(screen.getByLabelText('记录 0 的搜索词'), { target: { value: 'Replacement' } });
+    fireEvent.click(screen.getByRole('button', { name: '暂存记录 0 的搜索' }));
+    expect(screen.getByLabelText('解析选择草稿').textContent).toContain('搜索“Replacement”');
+    expect(screen.getByLabelText('解析选择草稿').textContent).not.toContain('搜索“Example”');
+    fireEvent.click(screen.getByRole('button', { name: '清除记录 0 的选择' }));
+    expect(screen.getByLabelText('解析选择草稿').textContent).toContain('0 条已暂存');
+    fireEvent.change(screen.getByLabelText('记录 0 的搜索词'), { target: { value: 'Example' } });
+    fireEvent.click(screen.getByRole('button', { name: '暂存记录 0 的搜索' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '按选择生成新预览' }));
+    await waitFor(() => expect(submitImdbRatingsWithResolution).toHaveBeenCalledTimes(1));
+    expect(submitImdbRatingsWithResolution.mock.calls[0]![0]).toEqual({ csv: expect.any(String), resolutionInputs: [{ kind: 'search', ordinal: 0, sourceRecordId: 'tt1234567', query: 'Example' }] });
+    await screen.findByText(/新任务 preview_2/);
+    await waitFor(() => expect(screen.getByText('任务 preview_2')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: '读取该尝试的一页结果' }));
+    await screen.findByRole('button', { name: '暂存记录 0 的目录条目 BrowserItem123' });
+    fireEvent.click(screen.getByRole('button', { name: '暂存记录 0 的目录条目 item-1' }));
+    expect(screen.getByRole('alert').textContent).toContain('安全、完整');
+    expect(screen.getByLabelText('解析选择草稿').textContent).toContain('搜索“Example”');
+    fireEvent.click(screen.getByRole('button', { name: '暂存记录 0 的目录条目 BrowserItem123' }));
+    expect(screen.getByLabelText('解析选择草稿').textContent).toContain('人工目录条目 BrowserItem123');
+    expect(screen.getByLabelText('解析选择草稿').textContent).not.toContain('搜索“Example”');
+
+    fireEvent.click(screen.getByRole('button', { name: '按选择生成新预览' }));
+    await waitFor(() => expect(submitImdbRatingsWithResolution).toHaveBeenCalledTimes(2));
+    expect(submitImdbRatingsWithResolution.mock.calls[1]![0]).toEqual({ csv: expect.any(String), resolutionInputs: [{ kind: 'manual', ordinal: 0, sourceRecordId: 'tt1234567', item: { uuid: 'BrowserItem123', mediaType: 'movie', model: 'Movie' } }] });
+    expect(submitImdbRatings).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.getByText('任务 preview_3')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: '读取该尝试的一页结果' }));
+    await screen.findByRole('button', { name: '清除记录 0 的选择' });
+    fireEvent.click(screen.getByRole('button', { name: '清除记录 0 的选择' }));
+    expect(screen.getByLabelText('解析选择草稿').textContent).toContain('0 条已暂存');
+  });
+
+  it('invalidates a staged frame when the just-in-time job preflight changes attempt', async () => {
+    let remoteJob = job({ attempt: 1, observationCount: 1 });
+    const page: PreviewResultPage = { ...resultPage, attempt: 1, items: [{
+      ...resultPage.items[3]!, ordinal: 0, attempt: 1, sourceRecordId: 'tt1234567', outcome: { kind: 'unsupported' },
+    }] };
+    const previewJob = vi.fn(() => Promise.resolve(remoteJob));
+    const submitImdbRatingsWithResolution = vi.fn();
+    const bytes = new TextEncoder().encode('Const,Your Rating,Title,Title Type\ntt1234567,8,Example,movie\n');
+    const api = mockClient({
+      previewJob,
+      previewResults: vi.fn().mockResolvedValue(page),
+      submitImdbRatings: vi.fn().mockResolvedValue({ preview: { jobId: 'preview_1', attempt: 1, executable: false }, observationCount: 1, skippedRowCount: 0, skippedColumnCount: 0, duplicateRowCount: 0 }),
+      submitImdbRatingsWithResolution,
+    });
+    render(<PreviewPanel client={api} />);
+    selectFile({ name: 'ratings.csv', size: bytes.byteLength, arrayBuffer: vi.fn().mockResolvedValue(bytes.buffer) } as unknown as File);
+    fireEvent.change(screen.getByLabelText('保存的配置 ID'), { target: { value: 'imdb_ratings' } });
+    fireEvent.change(screen.getByLabelText('保存的配置版本'), { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('button', { name: '提交只读预览' }));
+    await waitFor(() => expect(screen.getByText('任务 preview_1')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: '读取该尝试的一页结果' }));
+    await screen.findByLabelText('记录 0 的搜索词');
+    fireEvent.change(screen.getByLabelText('记录 0 的搜索词'), { target: { value: 'Example' } });
+    fireEvent.click(screen.getByRole('button', { name: '暂存记录 0 的搜索' }));
+    remoteJob = job({ attempt: 2, observationCount: 1 });
+    fireEvent.click(screen.getByRole('button', { name: '按选择生成新预览' }));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('已变化'));
+    expect(submitImdbRatingsWithResolution).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText('解析选择草稿')).toBeNull();
+  });
+
+  it('clears the old selected job and page synchronously for a raw known ambiguous receipt', async () => {
+    const fixture = await mountEligibleResolution();
+    expect(screen.getByText('任务 preview_1')).toBeTruthy();
+    expect(screen.getByLabelText('历史结果页')).toBeTruthy();
+    vi.mocked(fixture.api.submitImdbRatings).mockRejectedValueOnce(new PreviewAdmissionClientError('preview_unavailable', undefined, 'raw_known', 3));
+    let resolveKnown!: (value: PreviewJobView) => void;
+    fixture.previewJob.mockImplementationOnce(() => new Promise<PreviewJobView>(resolve => { resolveKnown = resolve; }));
+    fireEvent.click(screen.getByRole('button', { name: '提交只读预览' }));
+    await screen.findByText(/服务端返回任务 raw_known/);
+    expect(screen.queryByText('任务 preview_1')).toBeNull();
+    expect(screen.queryByLabelText('历史结果页')).toBeNull();
+    expect((screen.getByLabelText('已有任务 ID') as HTMLInputElement).value).toBe('raw_known');
+    expect(fixture.api.submitImdbRatings).toHaveBeenCalledTimes(2);
+    await act(async () => { resolveKnown(job({ id: 'raw_known', attempt: 3 })); await Promise.resolve(); });
+  });
+
+  it('keeps a sparse choice across pages, enforces the 512-byte query boundary, and makes explicit reopen read-only', async () => {
+    const fixture = await mountEligibleResolution();
+    const exactQuery = `${'界'.repeat(170)}ab`;
+    fireEvent.change(screen.getByLabelText('记录 0 的搜索词'), { target: { value: exactQuery } });
+    fireEvent.click(screen.getByRole('button', { name: '暂存记录 0 的搜索' }));
+    expect(screen.getByLabelText('解析选择草稿').textContent).toContain('1 条已暂存');
+    fixture.state.page = { ...fixture.state.page, offset: 1, items: [] };
+    fireEvent.change(screen.getByLabelText('起始记录序号'), { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('button', { name: '读取该尝试的一页结果' }));
+    await waitFor(() => expect(screen.getByText(/起始序号 1/)).toBeTruthy());
+    expect(screen.getByLabelText('解析选择草稿').textContent).toContain('1 条已暂存');
+    const callsBeforeClear = fixture.previewJob.mock.calls.length + fixture.previewResults.mock.calls.length;
+    fireEvent.click(screen.getByRole('button', { name: '清除草稿记录 0 的选择' }));
+    expect(screen.getByLabelText('解析选择草稿').textContent).toContain('0 条已暂存');
+    expect(fixture.previewJob.mock.calls.length + fixture.previewResults.mock.calls.length).toBe(callsBeforeClear);
+    fireEvent.change(screen.getByLabelText('已有任务 ID'), { target: { value: 'preview_1' } });
+    fireEvent.click(screen.getByRole('button', { name: '打开任务' }));
+    await waitFor(() => expect(screen.queryByLabelText('解析选择草稿')).toBeNull());
+    expect(fixture.submitImdbRatingsWithResolution).not.toHaveBeenCalled();
+  });
+
+  it('submits an off-page sparse choice with its original ordinal, source ID, and exact profile revision', async () => {
+    const fixture = await mountEligibleResolution();
+    fireEvent.change(screen.getByLabelText('记录 0 的搜索词'), { target: { value: 'Off-page search' } });
+    fireEvent.click(screen.getByRole('button', { name: '暂存记录 0 的搜索' }));
+    fixture.state.page = { ...fixture.state.page, offset: 1, items: [] };
+    fireEvent.change(screen.getByLabelText('起始记录序号'), { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('button', { name: '读取该尝试的一页结果' }));
+    await waitFor(() => expect(screen.getByText(/起始序号 1/)).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: '按选择生成新预览' }));
+    await waitFor(() => expect(fixture.submitImdbRatingsWithResolution).toHaveBeenCalledTimes(1));
+    expect(fixture.submitImdbRatingsWithResolution).toHaveBeenCalledWith({
+      csv: expect.any(String),
+      resolutionInputs: [{ kind: 'search', ordinal: 0, sourceRecordId: 'tt1234567', query: 'Off-page search' }],
+    }, { profileId: 'imdb_ratings', profileVersion: 1 }, expect.any(AbortSignal));
+  });
+
+  it('invalidates local resolution ownership on profile, file, binding, and row-frame changes', async () => {
+    const profileFixture = await mountEligibleResolution();
+    fireEvent.change(screen.getByLabelText('保存的配置版本'), { target: { value: '2' } });
+    expect(screen.queryByLabelText('解析选择草稿')).toBeNull();
+    cleanup();
+
+    await mountEligibleResolution();
+    selectFile(new File(['x'], 'other.csv', { type: 'text/csv' }));
+    expect(screen.queryByLabelText('解析选择草稿')).toBeNull();
+    cleanup();
+
+    const bindingFixture = await mountEligibleResolution();
+    bindingFixture.state.job = job({ attempt: 1, observationCount: 2, status: 'running' });
+    fireEvent.click(screen.getByRole('button', { name: '读取状态' }));
+    await waitFor(() => expect((screen.getByRole('button', { name: '按选择生成新预览' }) as HTMLButtonElement).disabled).toBe(true));
+    bindingFixture.state.job = job({ attempt: 1, observationCount: 2, bindingState: 'changed' });
+    fireEvent.click(screen.getByRole('button', { name: '读取状态' }));
+    await waitFor(() => expect(screen.queryByLabelText('解析选择草稿')).toBeNull());
+    cleanup();
+
+    const rowFixture = await mountEligibleResolution();
+    rowFixture.state.page = { ...rowFixture.state.page, items: [{ ...rowFixture.state.page.items[0]!, account: 'mallory' }] };
+    fireEvent.click(screen.getByRole('button', { name: '读取该尝试的一页结果' }));
+    await waitFor(() => expect(screen.queryByLabelText('解析选择草稿')).toBeNull());
+    expect(profileFixture.submitImdbRatingsWithResolution).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['exact', 0, true],
+    ['plus one', 1, false],
+  ] as const)('%s encoded JSON boundary includes escaping before preflight and transport', async (_label, extraByte, admitted) => {
+    const small = new TextEncoder().encode('Const,Your Rating,Title,Title Type\ntt1234567,8,Example,movie\n');
+    const query = 'quote " and slash \\';
+    const choice = { kind: 'search' as const, ordinal: 0, sourceRecordId: 'tt1234567', query };
+    const marker = 'csv "escaped" \\ value\n';
+    const emptySize = new TextEncoder().encode(JSON.stringify({ csv: marker, resolutionInputs: [choice] })).byteLength;
+    const csv = `${marker}${'a'.repeat(10 * 1024 * 1024 - emptySize + extraByte)}`;
+    expect(new TextEncoder().encode(JSON.stringify({ csv, resolutionInputs: [choice] })).byteLength).toBe(10 * 1024 * 1024 + extraByte);
+    const encodedCsv = new TextEncoder().encode(csv);
+    const arrayBuffer = vi.fn().mockResolvedValueOnce(small.buffer).mockResolvedValueOnce(encodedCsv.buffer);
+    const fixture = await mountEligibleResolution({ file: { name: 'ratings.csv', size: small.byteLength, arrayBuffer } as unknown as File });
+    fireEvent.change(screen.getByLabelText('记录 0 的搜索词'), { target: { value: query } });
+    fireEvent.click(screen.getByRole('button', { name: '暂存记录 0 的搜索' }));
+    const preflightCalls = fixture.previewJob.mock.calls.length;
+    fireEvent.click(screen.getByRole('button', { name: '按选择生成新预览' }));
+    if (admitted) {
+      await waitFor(() => expect(fixture.submitImdbRatingsWithResolution).toHaveBeenCalledTimes(1));
+      expect(fixture.previewJob.mock.calls.length).toBeGreaterThan(preflightCalls);
+      expect(fixture.submitImdbRatingsWithResolution.mock.calls[0]![0]).toEqual({ csv, resolutionInputs: [choice] });
+    } else {
+      await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('JSON 请求超过 10 MiB'));
+      expect(fixture.previewJob).toHaveBeenCalledTimes(preflightCalls);
+      expect(fixture.submitImdbRatingsWithResolution).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole('button', { name: '读取状态' }));
+      await waitFor(() => expect(fixture.previewJob).toHaveBeenCalledTimes(preflightCalls + 1));
+    }
+  });
+
+  it.each([
+    ['File replacement', 'fulfill'],
+    ['profile replacement', 'reject'],
+    ['unmount', 'fulfill'],
+  ] as const)('does not preflight or POST when structured File reading settles after %s (%s)', async (change, mode) => {
+    const small = new TextEncoder().encode('Const,Your Rating,Title,Title Type\ntt1234567,8,Example,movie\n');
+    let settle!: (value: ArrayBuffer | Error) => void;
+    const pending = new Promise<ArrayBuffer>((resolve, reject) => { settle = value => mode === 'fulfill' ? resolve(value as ArrayBuffer) : reject(value); });
+    const arrayBuffer = vi.fn().mockResolvedValueOnce(small.buffer).mockReturnValueOnce(pending);
+    const fixture = await mountEligibleResolution({ file: { name: 'ratings.csv', size: small.byteLength, arrayBuffer } as unknown as File });
+    fireEvent.change(screen.getByLabelText('记录 0 的搜索词'), { target: { value: 'Example' } });
+    fireEvent.click(screen.getByRole('button', { name: '暂存记录 0 的搜索' }));
+    const preflightCalls = fixture.previewJob.mock.calls.length;
+    fireEvent.click(screen.getByRole('button', { name: '按选择生成新预览' }));
+    await waitFor(() => expect(arrayBuffer).toHaveBeenCalledTimes(2));
+    if (change === 'File replacement') selectFile(new File(['changed'], 'changed.csv', { type: 'text/csv' }));
+    else if (change === 'profile replacement') fireEvent.change(screen.getByLabelText('保存的配置版本'), { target: { value: '2' } });
+    else cleanup();
+    settle(mode === 'fulfill' ? small.buffer : new Error('late file read'));
+    await act(async () => { try { await pending; } catch { /* Component consumes stale file rejection. */ } });
+    if (change !== 'unmount') await waitFor(() => expect(fixture.previewJob).toHaveBeenCalledTimes(preflightCalls));
+    expect(fixture.submitImdbRatingsWithResolution).not.toHaveBeenCalled();
+  });
+
+  it('does not let a stale structured File read suppress an explicitly opened new job', async () => {
+    const small = new TextEncoder().encode('Const,Your Rating,Title,Title Type\ntt1234567,8,Example,movie\n');
+    let settle!: (value: ArrayBuffer) => void;
+    const pending = new Promise<ArrayBuffer>(resolve => { settle = resolve; });
+    const arrayBuffer = vi.fn().mockResolvedValueOnce(small.buffer).mockReturnValueOnce(pending);
+    const fixture = await mountEligibleResolution({ file: { name: 'ratings.csv', size: small.byteLength, arrayBuffer } as unknown as File });
+    fireEvent.change(screen.getByLabelText('记录 0 的搜索词'), { target: { value: 'Example' } });
+    fireEvent.click(screen.getByRole('button', { name: '暂存记录 0 的搜索' }));
+    fireEvent.click(screen.getByRole('button', { name: '按选择生成新预览' }));
+    await waitFor(() => expect(arrayBuffer).toHaveBeenCalledTimes(2));
+
+    fixture.state.job = job({ id: 'new_job', attempt: 7 });
+    fireEvent.change(screen.getByLabelText('已有任务 ID'), { target: { value: 'new_job' } });
+    fireEvent.submit(screen.getByRole('button', { name: '打开任务' }).closest('form')!);
+    settle(small.buffer);
+    await act(async () => { await pending; });
+
+    await waitFor(() => expect(fixture.previewJob).toHaveBeenCalledWith('new_job', expect.any(AbortSignal)));
+    expect(await screen.findByText('任务 new_job')).toBeTruthy();
+    expect(fixture.submitImdbRatingsWithResolution).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['known', new PreviewAdmissionClientError('preview_unavailable', undefined, 'preview_known', 1)],
+    ['unknown', new AccessClientError('unavailable')],
+    ['auth', new AccessClientError('csrf_invalid')],
+  ] as const)('does not retry or retain ownership after a %s structured admission rejection', async (_kind, rejection) => {
+    const fixture = await mountEligibleResolution();
+    fixture.submitImdbRatingsWithResolution.mockRejectedValue(rejection);
+    fireEvent.change(screen.getByLabelText('记录 0 的搜索词'), { target: { value: 'Example' } });
+    fireEvent.click(screen.getByRole('button', { name: '暂存记录 0 的搜索' }));
+    fireEvent.click(screen.getByRole('button', { name: '按选择生成新预览' }));
+    await waitFor(() => expect(fixture.submitImdbRatingsWithResolution).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByLabelText('解析选择草稿')).toBeNull());
+    expect(fixture.submitImdbRatingsWithResolution).toHaveBeenCalledTimes(1);
+    if (rejection instanceof PreviewAdmissionClientError) expect(await screen.findByText(/preview_known/)).toBeTruthy();
+    if (rejection instanceof AccessClientError && rejection.code === 'csrf_invalid') expect(screen.getAllByText(/本地授权已失效/).length).toBeGreaterThan(0);
+  });
+
+  it.each(['fulfill', 'reject'] as const)('ignores stale structured %s after File replacement and blocks same-tick double submission', async mode => {
+    let settle!: (value?: unknown) => void;
+    const pending = new Promise((resolve, reject) => { settle = mode === 'fulfill' ? resolve : reject; });
+    const fixture = await mountEligibleResolution();
+    fixture.submitImdbRatingsWithResolution.mockReturnValue(pending);
+    fireEvent.change(screen.getByLabelText('记录 0 的搜索词'), { target: { value: 'Example' } });
+    fireEvent.click(screen.getByRole('button', { name: '暂存记录 0 的搜索' }));
+    const button = screen.getByRole('button', { name: '按选择生成新预览' });
+    fireEvent.click(button); fireEvent.click(button);
+    await waitFor(() => expect(fixture.submitImdbRatingsWithResolution).toHaveBeenCalledTimes(1));
+    selectFile(new File(['changed'], 'changed.csv', { type: 'text/csv' }));
+    settle(mode === 'fulfill' ? { preview: { jobId: 'stale_job', attempt: 1, executable: false }, observationCount: 2, skippedRowCount: 0, skippedColumnCount: 0, duplicateRowCount: 0 } : new AccessClientError('csrf_invalid'));
+    await act(async () => { try { await pending; } catch { /* Component consumes stale rejection. */ } });
+    expect(screen.queryByText('任务 stale_job')).toBeNull();
+    expect(screen.queryByLabelText('解析选择草稿')).toBeNull();
+    expect(screen.queryByText(/请重新授权后再检查状态/)).toBeNull();
+  });
+
+  it.each(['fulfill', 'reject'] as const)('ignores a stale structured preflight %s after profile replacement', async mode => {
+    const fixture = await mountEligibleResolution();
+    fireEvent.change(screen.getByLabelText('记录 0 的搜索词'), { target: { value: 'Example' } });
+    fireEvent.click(screen.getByRole('button', { name: '暂存记录 0 的搜索' }));
+    let settle!: (value?: unknown) => void;
+    const pending = new Promise((resolve, reject) => { settle = mode === 'fulfill' ? resolve : reject; });
+    fixture.previewJob.mockImplementationOnce(() => pending as Promise<PreviewJobView>);
+    fireEvent.click(screen.getByRole('button', { name: '按选择生成新预览' }));
+    await waitFor(() => expect(fixture.previewJob.mock.results.at(-1)?.value).toBe(pending));
+    fireEvent.change(screen.getByLabelText('保存的配置版本'), { target: { value: '2' } });
+    settle(mode === 'fulfill' ? fixture.state.job : new AccessClientError('csrf_invalid'));
+    await act(async () => { try { await pending; } catch { /* The panel owns the rejected preflight. */ } });
+    expect(fixture.submitImdbRatingsWithResolution).not.toHaveBeenCalled();
+    expect(screen.queryByText(/请重新授权后再检查状态/)).toBeNull();
+    expect(screen.queryByLabelText('解析选择草稿')).toBeNull();
+  });
+
+  it('aborts and ignores a pending structured submission on unmount', async () => {
+    let reject!: (reason: unknown) => void;
+    const pending = new Promise((_resolve, rejectPromise) => { reject = rejectPromise; });
+    const fixture = await mountEligibleResolution();
+    fixture.submitImdbRatingsWithResolution.mockReturnValue(pending);
+    fireEvent.change(screen.getByLabelText('记录 0 的搜索词'), { target: { value: 'Example' } });
+    fireEvent.click(screen.getByRole('button', { name: '暂存记录 0 的搜索' }));
+    fireEvent.click(screen.getByRole('button', { name: '按选择生成新预览' }));
+    await waitFor(() => expect(fixture.submitImdbRatingsWithResolution).toHaveBeenCalledTimes(1));
+    const signal = fixture.submitImdbRatingsWithResolution.mock.calls[0]![2] as AbortSignal;
+    expect(signal.aborted).toBe(false);
+    cleanup();
+    expect(signal.aborted).toBe(true);
+    reject(new AccessClientError('csrf_invalid'));
+    await act(async () => { try { await pending; } catch { /* Component consumes this after unmount. */ } });
+    expect(fixture.submitImdbRatingsWithResolution).toHaveBeenCalledTimes(1);
+  });
+
   it('does nothing on mount or StrictMode replay and reads raw BOM only after an exact revision is valid', async () => {
     const api = mockClient();
     const bytes = new TextEncoder().encode('\uFEFFTitle,Const,Your Rating\nA,tt1,8\n');

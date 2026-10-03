@@ -65,7 +65,8 @@ CLI serve shares exactly one owner; recovery/cleanup never enqueue or resume sav
   workflow engine, polling database scheduler or custom future race. The runner
   retains exact binding/profile and per-record deadlines, using native resolution
   by default and only immutable explicit search/manual inputs from the job repository.
-  Runtime ownership/admission is unchanged by E4a/E4b; no public query/selection action exists.
+  Runtime ownership/admission is unchanged by E4a/E4b. Explicit inputs use the
+  existing structured import route and WebUI, not a standalone query/selection route.
 - Serialize registration/spawn with the closed-state check. TaskTracker close
   alone does not prohibit later spawns. Release task registration and permits
   before delivering a normal result; panic/drop must release them through RAII.
@@ -232,7 +233,8 @@ the full endpoint tuple, both revisions, session and paired-client authenticatio
 This is backend integration evidence, not CLI/browser-to-real-NeoDB-client
 end-to-end or live-account evidence. [Structured submission](./preview-submission-http.md)
 now exposes immutable search/manual inputs through the import API/thin client;
-interactive selection and broader acceptance remain pending.
+the [WebUI](../frontend/preview-panel.md) stages explicit choices and submits a new
+preview. CLI choice inputs and broader acceptance remain pending.
 
 ## 7. Wrong vs Correct
 

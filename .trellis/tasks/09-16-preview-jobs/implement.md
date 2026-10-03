@@ -16,6 +16,44 @@ than silently substituting a different model. This does not remove review gates.
 
 ## Activation gate
 
+E4d checkpoint (2026-10-03): Sol/medium owns PreviewPanel, focused tests and
+preview-only CSS (a small named panel-specific component/helper is allowed).
+Main owns narrow generated validator re-exports from core-client-ts, task/specs,
+existing schema-validated Chromium smoke, screenshots,
+independent review, full gate and commit. Follow E4d design, frontend preview-panel/
+webui-boundaries and backend preview HTTP/submission/repository-layout. Use existing
+generated types/validators/client/action guards, no new parser/dependency/API,
+CLI/Core/Server/Storage change, capability, write, recursive delegation or commit.
+No live upstream/account/keychain. Scoped lint/typecheck/tests/build first;
+no Cargo from agent while main owns smoke/full gate.
+
+- [x] E4d: Interactive WebUI search/manual sparse choices and explicit new-job
+  resubmission of this mounted panel's confirmed File/profile association.
+
+E4d verification (2026-10-03): Sol/medium implemented mounted receipt/File/profile
+ownership, generated source-bound search/manual staging, sparse replacement/reset/
+pagination, exact frame guards and explicit new-job resubmission. Main reviewed
+the complete client/UI/test diff, required Unicode Cc reuse, stale rejected-path
+guards, off-page/Compared reset, exact encoded JSON bounds, delayed File/preflight/
+submission evidence and identity-scoped inspection suppression. Main's explicit
+refresh clears suppression. The shared client only re-exports existing generated
+validators; no new dependency, parser, API, schema, CLI/Core/Storage/Server behavior
+or capability is added. Raw upload remains compatible and unknown receipts detach
+old resolution authority without retries or rollback claims.
+
+Focused panel tests passed (35). Main extended the existing schema-validated
+Chromium fixture with raw -> explicit Search -> new candidate job -> Manual ->
+another new job, exact BOM/CSV/profile/source ID/ordinal payloads, preserved old
+jobs, read-only reopen, keyboard/desktop/mobile/overflow and empty storage evidence.
+Main final `pnpm verify` passed after all code/test edits: 291 Rust unit tests,
+two compile-fail doctests, 85 TS/UI tests, workspace fmt/Clippy, contracts/boundaries,
+lint/typecheck, WebUI/CLI builds and actual local host/auth/browser smoke. Product
+YAML/34 evidence IDs, decision/reference/disabled-capability and diff checks passed
+separately. Screenshots were visually inspected; upstream/account/keychain ports
+are fake, not live catalog-fetch or hosted three-platform acceptance. CLI choice
+inputs and broader real-client/simulated-upstream acceptance remain pending; keep
+the child/parent active with connectorIds empty and personal/source writes disabled.
+
 E4c checkpoint (2026-10-03): Sol/medium owns Domain request DTOs, Server additive
 JSON CSV/resolution submission and tests, focused OpenAPI registration/closure,
 contract generation and shared TS client/tests. Main owns task/spec edits,

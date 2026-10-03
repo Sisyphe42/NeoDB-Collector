@@ -11,7 +11,9 @@ and [upload/resume screens](../frontend/preview-panel.md) in E3b. E3c verifies
 routed CSV -> real runner/SQLite -> close/reopen -> explicit fresh resume ->
 delete with fake upstream ports. Broader client/NeoDB-adapter end-to-end acceptance
 remains pending. E4c adds structured search/manual inputs to the same submission
-route and thin client; interactive selection screens/commands remain pending.
+route and thin client; the [WebUI](../frontend/preview-panel.md) stages explicit
+choices against its confirmed local File/job association and submits a new preview.
+CLI choice inputs and broader integrated acceptance remain pending.
 No source write, personal NeoDB write, migration or automatic resume is added.
 Native catalog fetch during an accepted preview may create a public catalog item.
 

@@ -16,6 +16,38 @@ than silently substituting a different model. This does not remove review gates.
 
 ## Activation gate
 
+E5a checkpoint (2026-10-04): Sol/medium owns a CLI test-only integration module
+and its cfg(test) registration. Compose the real CLI client, authenticated
+loopback HTTP router, temp SQLite, preview runtime/runner/producer and production
+NeoDbClient against a simulated loopback NeoDB server. Main owns task/specs,
+independent review, full verification and commit. Read E5a design plus CLI,
+submission/history, runtime/runner/record, mapping storage and NeoDB contracts.
+No fake preview replies or catalog/mark/identity ports, production behavior,
+dependency/API/schema change, capability, writes, live account/keychain, recursive
+delegation or agent commit. Scoped Cargo builds are serial before main full gate.
+
+- [x] E5a: Real CLI/client-to-adapter native comparison acceptance.
+
+E5a verification (2026-10-04): Sol/medium implemented only the CLI test module
+and cfg(test) registration. Main reviewed real HTTP pairing/client/runtime/SQLite/
+adapter composition and required exact Chinese-title retention, public credential
+redaction, unchanged credential entries and closed DB/WAL marker/token checks.
+The synthetic upstream gate distinguishes Running from persisted Completed;
+exact ten-request GET order proves native fetch/detail/personal-read boundaries.
+Equal/conflict/missing-shelf, selected v1 despite changed v2, stable paginated
+history and normalized reopened storage are asserted. Scoped CLI tests (39),
+fmt/Clippy and five main exact-test repetitions passed.
+
+Main final `pnpm verify` passed: 298 Rust unit tests, two compile-fail doctests,
+85 TS/UI tests, workspace fmt/Clippy, contract drift, dependency boundaries,
+lint/typecheck, builds and actual local CLI/HTTP/auth/browser smoke. Product YAML/
+34 evidence IDs/decision/reference/disabled-capability checks and diff checks
+passed separately. No production/dependency/API/schema/migration/capability/write
+change. This proves the Rust CLI client's native happy path against synthetic
+NeoDB HTTP, not real accounts/keychain, shipped-process successful preview,
+browser-to-upstream, integrated negatives or restart/migration acceptance. Keep
+child/parent active and capability IDs empty; next cover integrated failures.
+
 E4e checkpoint (2026-10-03): Sol/medium owns CLI parsing, bounded structured
 input/preview HTTP and Rust tests only. Read E4e design, cli-preview/cli-client,
 preview-submission-http and repository-layout. Main owns task/specs, README,

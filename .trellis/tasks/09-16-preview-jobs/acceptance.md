@@ -22,6 +22,45 @@ credential-store verification is implied. Local Windows checks are not three-OS 
   `tests/smoke.mjs` runs real host/auth/client boundaries. Neither alone proves
   the full CLI/WebUI-to-real-NeoDB-adapter preview path across restart.
 
+## E5a native CLI client integration evidence (2026-10-04)
+
+`crates/collector-cli/src/client/preview_integration_tests.rs::cli_import_uses_real_native_neodb_adapters_and_persists_bounded_history`
+uses real Rust pair()/PreviewClient over authenticated Core HTTP, temporary SQLite,
+PreviewRuntime::start/runner/record/snapshot and production NeoDbClient. A second
+literal-loopback Axum server is the synthetic NeoDB upstream; no catalog/mark/
+identity port or Core preview response is substituted. Only clock/secrets are fake.
+
+Raw BOM/Chinese-title CSV yields three observations, one skipped row/column and
+one duplicate. Disabled v2 clamps to 5 but explicit v1 still suggests 8/7/6.
+The public and stored results preserve equal/skipped, conflict/needs_review with
+sink 5, and exact missing-shelf 404 followed by /api/me account confirmation:
+unknown rating, `rating_requires_shelf`, never confirmed empty. A final identity
+gate proves Running before release; bounded CLI status reconciliation then proves
+durable Completed attempt 1. Two result pages preserve stable ordinals, source
+IDs/fingerprints, automatic provenance, snapshot/account/profile/time/expiry and
+historical=true/executable=false. Normalized observations retain the Chinese title;
+closed/reopened storage retains completed history without granting fresh authority.
+
+The exact ten-request upstream trace contains only GET: public native fetch 302
+and detail have no authorization; mark/me use only the NeoDB Bearer token. No
+Cookie, refetch, CLI Bearer, search, personal mutation or duplicate remote row
+request occurs. Public status/pages omit internal credential references, tokens
+and discarded raw markers. Preview leaves both fake credential entries unchanged;
+closed database and any remaining WAL bytes exclude raw markers/plaintext tokens.
+Runtime, maintenance, HTTP servers and SQLite owners are drained/closed within
+the scenario's outer bound. Scoped CLI tests (39), fmt/Clippy and main's five
+independent exact-test repetitions passed; full-gate evidence follows below.
+
+Main final `pnpm verify` passed: 298 Rust unit tests, two compile-fail doctests,
+85 TS/UI tests, workspace fmt/Clippy, contracts/boundaries, lint/typecheck, builds
+and actual local CLI/HTTP/auth/browser smoke. Product YAML/34 evidence IDs/
+decisions/references/disabled capabilities and `git diff --check` passed separately.
+No production behavior, dependencies, API/schema/migration or capability changed.
+
+This is the Rust CLI client's real-adapter native happy path, not shipped-process/
+native-keychain, browser-to-upstream, integrated negative, restart/migration or
+live-account evidence. Keep both tasks active, connector IDs empty and writes off.
+
 ## Criterion audit (2026-10-03, before E3c verification)
 
 | PRD area | Concrete existing evidence | Still missing |

@@ -3,6 +3,33 @@
 Status: approved for implementation by user continuation on 2026-09-18.
 Product scope is already approved in the parent and `prd.md`.
 
+## E5a: Real CLI client and native adapter integration acceptance (2026-10-04)
+
+Test-only composition uses actual PreviewClient pairing/import/status/results,
+the protected loopback router, temporary SQLite, PreviewRuntime::start and the
+real runner/record/snapshot services. Production NeoDbClient supports literal
+loopback HTTP, so a second Axum server supplies synthetic upstream responses
+without a new dependency, TLS exception or fake transport port.
+
+One raw BOM/UTF-8 CSV submission produces three normalized native rows: equal
+rating, conflict preserving the sink, and exact missing-shelf 404 followed by
+authenticated identity confirmation (unknown rating, not empty). Include skipped
+and duplicate inputs and discarded raw-column/upstream markers. Save changed v2
+before submitting explicit disabled v1; prove exact revision, stable ordinals,
+pagination, durable completed attempt 1, historical/non-executable output and
+absence of raw payload/credential values in persisted normalized evidence.
+
+Record every upstream request: public fetch 302 and fresh detail are unauthenticated,
+mark and identity use only the fixture NeoDB Bearer token; all requests are GET,
+with no Cookie, refetch or source interaction. Use bounded event/status waits,
+then drain runtime and shut down HTTP servers/SQLite. Fake only secret store and
+clock; no real account or OS credential access. This proves the Rust CLI client
+chain, not a shipped-process/native-keychain or browser acceptance result.
+
+Pending polling/search/manual, integrated timeout/429/auth/redirect, restart,
+migration and browser-to-real-adapter acceptance remain later bounded slices.
+Keep this child and parent active, capability IDs empty and writes disabled.
+
 ## Boundaries and existing owners
 
 - Reuse `collector-connectors/src/imdb.rs` observations (`imdb:title` identity),

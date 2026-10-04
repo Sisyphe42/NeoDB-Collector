@@ -19,6 +19,9 @@ pub mod preview;
 #[cfg(test)]
 mod preview_tests;
 
+#[cfg(test)]
+mod preview_integration_tests;
+
 fn error(code: &str, message: &str) -> ApiError {
     ApiError::new(code, message)
 }

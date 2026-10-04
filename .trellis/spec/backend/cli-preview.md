@@ -135,6 +135,21 @@ local preparation failure. Core still owns source/ordinal/query/reference semant
 unsafe/invalid commands before native keychain access. Full `pnpm verify` and
 `git diff --check`; no real-account/keychain tests.
 
+`crates/collector-cli/src/client/preview_integration_tests.rs` composes the real
+Rust CLI client with authenticated loopback Core HTTP, temporary SQLite, the
+owned preview runtime and production NeoDbClient against a second synthetic
+loopback HTTP server. Fake only clock/secrets; do not replace catalog/mark/identity
+ports or preview API responses when claiming this integrated evidence. Assert
+native fetch/detail identity, account-bound equal/conflict/missing-shelf comparison,
+exact disabled profile revision despite a changed latest version, skipped/duplicate
+counts, stable result pages and historical/non-executable metadata. Check exact
+upstream request order, GET-only behavior, no Cookie/refetch, no catalog credential
+and only the NeoDB credential on personal reads. Inspect normalized repository
+data and closed fixture database bytes for discarded raw markers/plaintext tokens.
+Drain runtime and close HTTP/storage owners under bounded waits. This is not
+shipped-process/native-keychain, browser, restart/migration or live-account proof;
+those acceptance paths require their own explicit evidence.
+
 ## 7. Wrong vs Correct
 
 Wrong: read collector.db, parse CSV, recalculate conflicts, silently retry.

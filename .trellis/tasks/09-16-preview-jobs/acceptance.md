@@ -22,6 +22,59 @@ credential-store verification is implied. Local Windows checks are not three-OS 
   `tests/smoke.mjs` runs real host/auth/client boundaries. Neither alone proves
   the full CLI/WebUI-to-real-NeoDB-adapter preview path across restart.
 
+## E5c polling and explicit resolution integration evidence (2026-10-04)
+
+`crates/collector-cli/src/client/preview_integration_tests/resolution.rs` adds
+three scenarios through the existing real Rust pair/client, protected Core HTTP,
+SQLite/runtime/runner and production NeoDbClient. Only synthetic upstream replies
+and the existing fake clock/secret store are substituted; prior E5a/E5b assertions
+are unchanged. Structured imports use actual CSV/choice temp files through CLI's
+`connect_with_resolution_request` and existing JSON submission method.
+
+| Scenario | Observed result | Personal credential reads |
+|---|---|---|
+| Native 202 -> 302 -> detail | Running/empty page before Completed automatic comparison; next fetch >=15s after first response preparation | 0 while unresolved, then 1 |
+| Cancel after first fetch arrives | Actual applied=true, persisted Cancelled, retained job/empty results; one fetch only after runtime drain | 0 |
+| Explicit Search followed by new Manual jobs | Unsupported-only exact-ID singleton remains candidates; missing-ID fresh detail compares Manual; contradictory fresh ID remains NeedsReview | 1 for separate native match, 1 for valid Manual; none for unresolved rows |
+
+Search/native-match/rate-limit inputs are mixed in one three-row structured job.
+Exactly one trimmed query/category/page=1 search is sent; native match and 429
+do not search. New manual jobs read fresh detail only, never fetch/search or cached
+candidate evidence. The selected item's fresh empty identity evidence differs
+from its exact-ID search candidate. A conflicting fresh ID is retained with
+`item_identity_conflict`, not converted into a comparison. Original search status
+and full page remain equal after both new jobs.
+
+Assertions cover normalized immutable Native/Search/compact Manual inputs,
+exact selected v1 with source 8/sink 8/Skipped/already_equal, automatic/manual
+provenance, full endpoint tuple, retained v1 and disabled v2 clamp 5, unchanged
+two credential entries and no credential writes. Exact request vectors are GET
+only, no Cookie/refetch/retry, public catalog no Bearer and personal reads only
+the NeoDB Bearer. Public DTOs/observations and mandatory closed collector.db plus
+optional WAL exclude credential values and discarded raw/upstream markers.
+
+The polling test uses real production timers, no sleeps or shortened interval.
+Request-arrival notification does not prove receipt of 202 or entry into an
+internal timer wait; cancellation proves local interruption, not remote rollback.
+Terminal reconciliation is bounded at 22s inside a 25s scenario; outer timeout
+alone cannot extend a reused 15s inner helper. Runtime/maintenance/HTTP/storage
+owners drain within bounded scenarios. Scoped CLI 45 tests/fmt/Clippy and two
+main independent full integration-module repetitions (seven tests each) passed.
+Main `pnpm verify` passed: 304 Rust unit tests, two compile-fail doctests,
+85 TS/UI tests, workspace fmt/Clippy, contracts/boundaries, lint/typecheck,
+builds and actual local CLI/HTTP/auth/browser smoke. Product YAML/34 evidence IDs/
+11 evidence refs/8 path refs/unique-disjoint decisions/disabled capabilities and
+diff checks passed separately.
+
+One scoped rustc/LLVM out-of-memory failure was reported by the implementing
+agent; unchanged retry compiled and focused/full CLI suites passed. Initial Sol
+work was interrupted by a usage limit and resumed with the same Sol/medium model,
+without substitution or production workaround.
+
+These are Rust-client synthetic-upstream assertions, not shipped-process preview
+success, live accounts/keychain, browser-to-upstream or integrated restart/migration
+acceptance. Keep child/parent active, connector IDs empty and writes disabled.
+
 ## E5b native failure-path integration evidence (2026-10-04)
 
 `crates/collector-cli/src/client/preview_integration_tests.rs` adds three tests

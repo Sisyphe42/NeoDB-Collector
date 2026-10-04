@@ -171,6 +171,32 @@ Concrete tests in that owner are
 `cli_native_redirect_detail_and_mark_failures_preserve_the_first_result` and
 `cli_native_real_timeouts_fail_without_late_result_revival`.
 
+The named child `preview_integration_tests/resolution.rs` owns polling and
+explicit search/manual acceptance over the same concrete fixture. Exercise actual
+production >=15-second pending spacing with response/request timestamps and
+bounded event waits, not shortened timers or sleep-based settlement. Inspect
+Running/unresolved evidence before resolving; cancel through the real CLI client
+and drain the owner before asserting no later request/result. Local cancellation
+cannot prove remote catalog rollback.
+
+Structured acceptance must use the real CSV/choice file preparation and client
+submission. Unsupported-only page-1 search leaves even exact-ID candidates
+review-only without details or personal reads. A new explicit Manual job reads
+fresh detail: compatible missing-ID evidence may compare with Manual provenance;
+contradictory fresh identity remains NeedsReview without credentials. Assert the
+original candidate job/page unchanged, normalized immutable input modes, selected
+disabled profile/full binding, exact GET/auth/no-cookie trace and public/closed
+DB-WAL redaction. Search opt-in must not override native match or rate limit.
+This is synthetic-upstream Rust-client evidence, not shipped-process success,
+browser/restart/migration or complete capability acceptance.
+Concrete tests are `cli_native_pending_polling_uses_real_interval_before_comparison`,
+`cli_cancel_during_pending_drains_without_follow_up_or_result` and
+`cli_structured_search_and_fresh_manual_jobs_preserve_resolution_boundaries`.
+The first-fetch notification establishes request arrival, not client receipt or
+entry into an internal timer wait. A real polling test's terminal reconciliation
+budget must exceed the 15-second interval plus subsequent I/O; wrapping a shorter
+inner wait in a longer outer timeout cannot extend that inner budget.
+
 ## 7. Wrong vs Correct
 
 Wrong: read collector.db, parse CSV, recalculate conflicts, silently retry.

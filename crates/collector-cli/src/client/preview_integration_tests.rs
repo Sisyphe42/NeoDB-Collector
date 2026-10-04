@@ -47,6 +47,8 @@ use std::{
 };
 use tokio::sync::{Notify, oneshot};
 
+mod resolution;
+
 type IdentityFn = fn(&ObservedItem) -> Result<CatalogIdentity, ApiError>;
 type NativePreviewRuntime = PreviewRuntime<NeoDbClient, IdentityFn>;
 

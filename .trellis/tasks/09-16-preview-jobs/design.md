@@ -3,6 +3,39 @@
 Status: approved for implementation by user continuation on 2026-09-18.
 Product scope is already approved in the parent and `prd.md`.
 
+## E5c: Polling and explicit resolution integration acceptance (2026-10-04)
+
+Extend the existing real Rust pair/PreviewClient -> authenticated Core HTTP ->
+SQLite/runtime/runner -> production NeoDbClient fixture, without substituting
+preview replies or catalog/search/mark/identity ports. Keep new scenarios in a
+named child of the existing integration test module; reuse its concrete fixture
+and preserve E5a/E5b regression assertions.
+
+Exercise native 202 -> validated 302/detail -> automatic comparison using the
+actual production >=15-second polling interval and bounded event-driven waits.
+Record response preparation and subsequent request timestamps; check Running
+before completion and no credential/mark reads while unresolved. Separately
+cancel pending work through the real CLI client, drain the owned runtime, and
+prove no follow-up request/result or fabricated remote rollback. Do not shorten
+timers, use sleeps as settlement evidence or create fake completion watchers.
+
+Submit explicit Search choices through CLI's existing structured input path.
+Only Unsupported permits one public page-1 search; even an exact-ID singleton
+remains review-only with no detail expansion or credential read. A selected
+compact reference is submitted as a NEW job through the same path; fresh detail
+with compatible missing identity may compare with Manual provenance. Fresh
+contradictory identity must remain NeedsReview without a personal read. Preserve
+the original candidate job/page exactly; never consume cached candidate metadata
+as matching authority. Also check explicit search cannot override a native match
+or rate limit. Assert exact normalized stored inputs, immutable disabled v1 even
+with v2 present, full endpoint/credential preservation, exact GET/auth/no-cookie
+traces and public/closed DB-WAL raw marker/token absence.
+
+No production/dependency/API/schema/migration/capability/write change, live
+account/keychain access, browser or restart/migration scope. Keep child and parent
+active; this is Rust-client synthetic-upstream acceptance, not shipped-process
+success or complete product acceptance.
+
 ## E5b: Real adapter failure-path acceptance (2026-10-04)
 
 Extend E5a's test-only composition through the same real Rust CLI client, Core

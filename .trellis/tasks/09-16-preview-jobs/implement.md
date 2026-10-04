@@ -16,6 +16,45 @@ than silently substituting a different model. This does not remove review gates.
 
 ## Activation gate
 
+E5c checkpoint (2026-10-04): Sol/medium owns a named resolution integration-test
+child module and its registration in the existing CLI integration module. Reuse
+the concrete CoreFixture and only narrowly extend test helpers if required.
+Read E5c design plus CLI client/preview, submission/history, runtime/runner/record,
+catalog resolver/search, comparison, NeoDB catalog/mark and repository-layout
+contracts. Main owns task/specs, independent review/repetitions/full gate/commit.
+Use real 15-second polling and actual HTTP responses; no production edits,
+dependency/schema/API/migration, timer override, live account/keychain, capability/
+write, recursive delegation or agent commit. Scoped Cargo tests/fmt/Clippy are
+serial; stop Cargo before main validation. Report blockers rather than expand scope.
+
+- [x] E5c: Native polling/cancel and explicit search-to-fresh-manual integration.
+
+E5c verification (2026-10-04): Sol/medium added a named test-only child and parent
+registration, reusing the concrete CoreFixture. Main reviewed all assertions and
+required complete comparisons/fresh identity evidence, unchanged original status/
+page, normalized input modes, preserved endpoint/profiles/secrets, public redaction
+and mandatory closed DB/optional WAL scans for all scenarios. Real pending polling
+keeps >=15s response-to-request spacing; cancellation observes arrival and owned
+drain, never asserts receipt/internal timer entry or remote rollback. Main caught
+the reused 15s terminal helper under a longer outer timeout; a local bounded 22s
+reconciliation inside the 25s scenario preserves the actual production interval.
+Structured imports exercise real temp files, Unsupported-only exact-ID singleton
+review, native-match/429 search exclusion and fresh missing/conflicting Manual
+detail. Original candidate history remains unchanged and comparisons use v1.
+
+Scoped E5c 3/3, CLI 45/45, fmt/Clippy and two main independent full integration-
+module repetitions (seven tests each) passed. Main `pnpm verify` passed: 304 Rust
+unit tests, two compile-fail doctests, 85 TS/UI tests, workspace fmt/Clippy,
+contracts/boundaries, lint/typecheck, builds and actual local CLI/HTTP/auth/browser
+smoke. Product YAML/34 evidence IDs/11 evidence refs/8 path refs/decisions/disabled
+capabilities and diff checks passed separately. The implementing agent reported
+one rustc/LLVM OOM; unchanged retry compiled and passed. An initial usage-limit
+interruption resumed on the same Sol/medium model without substitution. No
+production/dependency/API/schema/migration/capability/write change. Synthetic
+Rust-client evidence is not shipped-process success, live account/keychain,
+browser-to-upstream or integrated restart/migration acceptance. Keep both tasks
+active and connector IDs empty; next cover real-adapter restart/resume/delete.
+
 E5b checkpoint (2026-10-04): Sol/medium owns test-only changes to the existing
 CLI preview integration module and an optional named child failure-test module.
 Read E5b design plus CLI client/preview, submission/history, runtime/runner,

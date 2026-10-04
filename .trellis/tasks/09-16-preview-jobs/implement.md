@@ -16,6 +16,40 @@ than silently substituting a different model. This does not remove review gates.
 
 ## Activation gate
 
+E5b checkpoint (2026-10-04): Sol/medium owns test-only changes to the existing
+CLI preview integration module and an optional named child failure-test module.
+Read E5b design plus CLI client/preview, submission/history, runtime/runner,
+catalog resolver, comparison, NeoDB catalog/mark and repository-layout contracts.
+Reuse a concrete shared fixture without weakening E5a; main owns task/specs,
+review/full gate/commit. Fault only the simulated HTTP upstream. No production
+change, new dependency/schema/API/migration, timeout override, live account,
+credential-store access, capability/write, recursive delegation or agent commit.
+Run scoped CLI tests/fmt/Clippy serially, then stop Cargo for main validation.
+
+- [x] E5b: Integrated native terminal outcomes and catalog/mark failure boundaries.
+
+E5b verification (2026-10-04): Sol/medium implemented three test-only scenarios
+covering ten faults and concrete shared fixture extraction. Main reviewed E5a
+preservation, exact requests/auth, first comparison metadata, full endpoint and
+profile/credential preservation, public and closed DB/WAL redaction. Main required
+valid held responses plus an actual handler responded-or-dropped RAII signal;
+an independent release watcher is not handler completion or delivery evidence.
+Scoped CLI tests (42), fmt/Clippy and two main full integration-module repetitions
+(four tests each, including production ten-second timeouts) passed.
+
+Main final `pnpm verify` passed: 301 Rust unit tests, two compile-fail doctests,
+85 TS/UI tests, workspace fmt/Clippy, contract drift, dependency boundaries,
+lint/typecheck, builds and actual local CLI/HTTP/auth/browser smoke. The first
+full gate stopped at eleven Vitest worker startup exits (3221226505), with no
+tests executed. Standalone Vitest and the unchanged full gate then passed; cause
+is unconfirmed, and no code/configuration workaround was applied. Product YAML/
+34 evidence IDs/11 evidence refs/8 path refs/unique-disjoint decisions/disabled
+capabilities and diff checks passed separately. No production/dependency/API/
+schema/migration/capability/write change. Synthetic Rust-client/native-adapter
+evidence is not shipped-process success, browser-to-upstream, live account/native
+keychain or restart/migration acceptance. Keep child/parent active and connector
+IDs empty; next cover integrated polling/search/manual and remaining acceptance.
+
 E5a checkpoint (2026-10-04): Sol/medium owns a CLI test-only integration module
 and its cfg(test) registration. Compose the real CLI client, authenticated
 loopback HTTP router, temp SQLite, preview runtime/runner/producer and production

@@ -22,6 +22,58 @@ credential-store verification is implied. Local Windows checks are not three-OS 
   `tests/smoke.mjs` runs real host/auth/client boundaries. Neither alone proves
   the full CLI/WebUI-to-real-NeoDB-adapter preview path across restart.
 
+## E5b native failure-path integration evidence (2026-10-04)
+
+`crates/collector-cli/src/client/preview_integration_tests.rs` adds three tests
+covering ten fault modes through the real Rust pair/client, authenticated Core
+HTTP, SQLite/runtime/runner/producer/snapshot and production NeoDbClient. The
+concrete shared CoreFixture reuses setup/shutdown without weakening E5a assertions.
+Only synthetic upstream HTTP replies/gates and fake clock/secrets are injected.
+
+| Second observation's upstream behavior | Persisted status/results | NeoDB secret reads |
+|---|---|---|
+| Fetch 422 or 429 | Completed; first Compared plus Unsupported or RateLimited | 1 |
+| Fetch timeout, foreign/same-origin noncatalog 302, detail 429 | Failed; first Compared only | 1 |
+| Mark 401, 302, Item-not-found 404 or timeout | Failed; first Compared only | 2 |
+
+Each case preserves the first ordinal's source/profile/account/snapshot/automatic
+provenance and exact rating 8 / sink 8 / Skipped / already_equal comparison. Public
+attempt/time/expiry/binding/non-executability and normalized repository row parity
+are checked. Both disabled profile revisions (v1 max 10, v2 max 5), full original
+endpoint tuple and two fake credential entries survive unchanged. No failed row
+becomes an Empty/Unknown comparison or causes /api/me, search or retry.
+
+Exact request vectors assert GET-only, correct source/detail/mark URLs, public
+catalog no auth, personal reads only the NeoDB Bearer, no Cookie/refetch. A real
+foreign-origin loopback trap receives zero requests, rechecked after all servers
+drain. Public DTOs, normalized observations and mandatory closed database/optional
+WAL byte checks exclude internal references, raw/diagnostic markers and plaintext
+tokens as appropriate to each boundary.
+
+Timeout cases retain the actual production ten-second timeout and assert at least
+nine elapsed seconds before Failed. Valid held fetch/mark replies are released;
+a RAII lifecycle guard confirms the handler either constructed the response or
+was cancelled/dropped before full historical page equality is asserted. There is
+no detached release watcher, fabricated delivery claim or sleep-based settlement.
+Runtime, maintenance, HTTP/trap and SQLite shutdown remain explicitly bounded.
+Scoped CLI tests (42), fmt/Clippy and two main independent integration-module
+repetitions (four tests each) passed. Main final `pnpm verify` passed: 301 Rust
+unit tests, two compile-fail doctests, 85 TS/UI tests, workspace fmt/Clippy,
+contracts/boundaries, lint/typecheck, builds and actual local CLI/HTTP/auth/browser
+smoke. Product YAML/34 evidence IDs/11 evidence refs/8 path refs/decisions/disabled
+capabilities and diff checks passed separately.
+
+The first full gate stopped before any Vitest test ran: eleven workers exited
+during startup with 3221226505. Standalone Vitest and the unchanged full gate
+subsequently passed. Cause remains unconfirmed; no code/configuration workaround
+or weakened verification was applied.
+
+These are Rust client/real-adapter synthetic upstream scenarios, not shipped-process
+preview success, native keychain, browser, restart/migration, live account or all
+possible upstream failure coverage. Pending polling/search/manual, restart,
+migration and browser-to-real-adapter acceptance remain; keep both tasks active,
+connector IDs empty and writes disabled.
+
 ## E5a native CLI client integration evidence (2026-10-04)
 
 `crates/collector-cli/src/client/preview_integration_tests.rs::cli_import_uses_real_native_neodb_adapters_and_persists_bounded_history`

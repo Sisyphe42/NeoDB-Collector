@@ -150,6 +150,27 @@ Drain runtime and close HTTP/storage owners under bounded waits. This is not
 shipped-process/native-keychain, browser, restart/migration or live-account proof;
 those acceptance paths require their own explicit evidence.
 
+The same integration test owner also covers synthetic upstream failure paths.
+For a batch with a committed first comparison, native fetch 422/429 retains
+Unsupported/RateLimited as historical outcomes and can complete without a personal
+read for that row. Fetch timeout/unsafe 302, detail 429 and personal-mark
+401/302/non-missing 404/timeout must instead preserve Failed and the first result,
+with no fabricated comparison for the failed row. Assert no retry/search/identity
+fallback, exact GET/auth trace, zero foreign redirect-trap requests, unchanged
+endpoint/profiles/credentials and no raw diagnostic/token persistence. Hang gates
+exercise the production ten-second adapter timeout; do not override it or use
+sleeps as completion evidence. Release held handlers and await their actual
+responded-or-dropped lifecycle with a test-only RAII guard before asserting the
+full historical page unchanged. A separate spawned release watcher is not handler
+completion evidence; a cancelled handler is not a delivered late response.
+Existing status DTOs expose lifecycle, not a new last-error code.
+Shared fixture extraction must preserve the native happy-path
+regression assertions and drain runtime/HTTP/storage owners under bounded waits.
+Concrete tests in that owner are
+`cli_native_terminal_fetch_outcomes_complete_with_historical_rows`,
+`cli_native_redirect_detail_and_mark_failures_preserve_the_first_result` and
+`cli_native_real_timeouts_fail_without_late_result_revival`.
+
 ## 7. Wrong vs Correct
 
 Wrong: read collector.db, parse CSV, recalculate conflicts, silently retry.

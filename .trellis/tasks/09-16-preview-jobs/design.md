@@ -3,6 +3,40 @@
 Status: approved for implementation by user continuation on 2026-09-18.
 Product scope is already approved in the parent and `prd.md`.
 
+## E5b: Real adapter failure-path acceptance (2026-10-04)
+
+Extend E5a's test-only composition through the same real Rust CLI client, Core
+HTTP, SQLite/runtime/runner and production NeoDbClient. Extract only the concrete
+fixture setup/shutdown already needed by both suites; preserve E5a assertions.
+Keep fault injection exclusively in synthetic upstream HTTP responses/gates,
+never substitute catalog/mark/identity ports or shorten production timeouts.
+
+Each submitted batch first commits an equal comparison, then encounters the
+faulting second observation. Native fetch 422/429 are terminal Unsupported/
+RateLimited historical outcomes and may complete the job without a personal read
+for that row. Fetch timeout/unsafe 302, detail 429 and mark 401/302/non-missing
+404/timeout are errors: persist Failed with the original first result only;
+never invent an Empty/Unknown comparison for the failed row or erase history.
+Check the full singleton tuple, exact disabled v1/profile retention, unchanged
+credential entries, historical/non-executable output and no raw diagnostic/token
+persistence. Status is authoritative; its existing shape exposes no last-error
+code, so do not assert a new public diagnostic contract.
+
+Record exact GET order/auth/cookie/refetch behavior. A second-origin loopback
+trap must observe zero requests for foreign catalog redirects; same-instance
+noncatalog/mark redirect targets also must not be followed. No retry, implicit
+search, identity lookup after a failed mark or credential read after unresolved
+catalog work. Upstream hangs use release gates, actual ten-second adapter timeout
+and bounded terminal status reconciliation, not sleeps or a timeout override.
+Release held handlers and await their actual responded-or-dropped lifecycle
+before checking unchanged history and gracefully draining all runtime/HTTP/storage
+owners. A cancelled handler does not prove delivery of a late response.
+Main independently reviews/repeats and runs the full workspace gate.
+
+No production/dependency/API/schema/migration/capability/write changes, real
+account/keychain access, restart/migration/browser or polling/search/manual scope.
+Keep child and parent active after this bounded checkpoint.
+
 ## E5a: Real CLI client and native adapter integration acceptance (2026-10-04)
 
 Test-only composition uses actual PreviewClient pairing/import/status/results,

@@ -367,3 +367,53 @@ Implemented E4e explicit file-based CLI choices and new-job submission; full ver
 ### Next Steps
 
 - Finish real-client/simulated-NeoDB-adapter negative, migration and end-to-end acceptance. Keep connector capabilities empty and personal/source writes disabled.
+
+
+## Session 11: CLI native preview integration acceptance
+
+**Date**: 2026-10-04
+**Task**: CLI native preview integration acceptance
+**Branch**: `master`
+
+### Summary
+
+Verified real Rust CLI client to Core HTTP, SQLite runtime and production NeoDB adapter against synthetic loopback upstream; native comparison, exact profile, pagination and persistence boundaries; workspace gate passed. Broader acceptance remains pending.
+
+### Main Changes
+
+- Sol/medium implemented the test-only CLI module and registration; main planned,
+  reviewed composition/assertions and maintained the task/CLI contract evidence.
+- Real pair/client, Core HTTP, temp SQLite, runtime/runner/record/snapshot and
+  NeoDbClient exercise native fetch/detail/equal/conflict/missing-shelf identity.
+- Assert exact v1 despite changed v2, BOM/Chinese title, skips/duplicates, stable
+  pagination, persisted historical/non-executable output, unchanged credentials,
+  exact GET/auth/no-cookie trace and closed DB/WAL marker/token absence.
+- No production/dependency/API/schema/migration/capability/write change or live
+  account/keychain access. Rust client evidence is not shipped-process preview,
+  browser-to-real-upstream, integrated negatives or restart/migration evidence.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f88d31d` | test: verify CLI native NeoDB preview integration |
+
+### Testing
+
+- Scoped CLI 39/39, fmt and Clippy passed; main independently repeated the exact
+  integration test five times after final test edits, all passed.
+- Main `pnpm verify`: 298 Rust unit tests, two compile-fail doctests, 85 TS/UI
+  tests, workspace fmt/Clippy, contracts/boundaries, lint/typecheck, builds and
+  actual local CLI/HTTP/auth/browser smoke passed.
+- Product YAML, 34 evidence IDs, decisions/references/disabled capability checks
+  and staged/full diff checks passed. Local Windows, not hosted three-OS CI.
+
+### Status
+
+[OK] **E5a checkpoint complete; child and parent remain active.**
+
+### Next Steps
+
+- Extend the integrated adapter chain to timeout/429/auth/redirect and explicit
+  search/manual, then client restart/migration and browser-to-upstream acceptance.
+- Keep connector IDs empty and writes/scheduling disabled until reviewed acceptance.

@@ -417,3 +417,56 @@ Verified real Rust CLI client to Core HTTP, SQLite runtime and production NeoDB 
 - Extend the integrated adapter chain to timeout/429/auth/redirect and explicit
   search/manual, then client restart/migration and browser-to-upstream acceptance.
 - Keep connector IDs empty and writes/scheduling disabled until reviewed acceptance.
+
+
+## Session 12: CLI native preview failure acceptance
+
+**Date**: 2026-10-04
+**Task**: CLI native preview failure acceptance
+**Branch**: `master`
+
+### Summary
+
+Verified real Rust CLI/Core HTTP/SQLite/NeoDbClient composition across ten synthetic failure modes; preserved first results and read-only/redaction boundaries, with real timeouts and handler lifecycle acknowledgement. Full gate passed after an unconfirmed Vitest worker startup failure; broader acceptance remains pending.
+
+### Main Changes
+
+- Sol/medium implemented three test-only scenarios and a shared concrete fixture;
+  main planned, reviewed and synchronized CLI contracts/task evidence.
+- Fetch 422/429 completes with Unsupported/RateLimited; fetch timeout/unsafe
+  redirects, detail 429 and mark 401/302/Item-not-found/timeout preserve Failed
+  and the first comparison without fabricated failed-row state.
+- Assert exact GET/auth/no-cookie/no-retry trace, zero foreign redirect requests,
+  full endpoint/profile/credential preservation and public/closed DB/WAL redaction.
+- Real ten-second timeouts and actual handler responded-or-dropped RAII lifecycle
+  establish unchanged history; a cancelled handler is not a delivered late reply.
+- No production/dependency/API/schema/migration/capability/write changes or live
+  account/native-keychain access; synthetic Rust-client evidence only.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b5446be` | test: verify CLI native preview failure boundaries |
+
+### Testing
+
+- Scoped CLI 42/42, fmt/Clippy and two main full integration-module repetitions
+  (four tests each) passed; E5a's happy-path regression remains included.
+- Main final `pnpm verify`: 301 Rust unit tests, two compile-fail doctests,
+  85 TS/UI tests, workspace fmt/Clippy, contracts/boundaries, lint/typecheck,
+  builds and actual local CLI/HTTP/auth/browser smoke passed.
+- First gate stopped before Vitest tests: eleven worker startup exits 3221226505.
+  Standalone Vitest and unchanged full gate passed; cause unconfirmed, no workaround.
+- Product YAML/34 evidence IDs/11 evidence refs/8 path refs/decisions/disabled
+  capabilities and staged/full diff checks passed. Local Windows, not three-OS CI.
+
+### Status
+
+[OK] **E5b checkpoint complete; child and parent remain active and unarchived.**
+
+### Next Steps
+
+- Cover real-client/native-adapter polling/search/manual and client restart,
+  migration and browser-to-upstream acceptance; no shipped-process success claim.
+- Keep connector IDs empty and writes/scheduling disabled until reviewed acceptance.

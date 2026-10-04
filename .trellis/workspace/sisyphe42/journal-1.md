@@ -580,3 +580,56 @@ Verified real CLI client/Core HTTP/SQLite/NeoDbClient close-reopen interruption,
 - Cover integrated migration and browser-to-upstream acceptance. Restarted fixture
   evidence is not shipped-process restart, native-keychain or live-account proof.
 - Keep connector IDs empty and writes/scheduling disabled pending reviewed acceptance.
+
+
+## Session 15: CLI populated legacy-schema migration acceptance
+
+**Date**: 2026-10-04
+**Task**: CLI populated legacy-schema migration acceptance
+**Branch**: `master`
+
+### Summary
+
+Verified genuine populated v5/v6 Native schema upgrades through production Storage open and the complete original-client CLI restart/resume/delete chain. Full gate passed; browser-to-upstream and shipped-process acceptance remain separate.
+
+### Main Changes
+
+- Sol/medium implemented two test-only prior-schema cases; main planned, reviewed,
+  independently repeated, verified dependencies and maintained contracts/evidence.
+- Reuse every E5d assertion and its default None path. Drain all original owners
+  and acknowledge the held handler before transforming closed temporary SQLite.
+- Compare genuine v5/v6 preview structures against committed-migration reference
+  SQL, including columns, CHECK/FK, indexes and triggers. Preserve full prior ledger
+  history/checksums and operational rows; production open restores v7 before runtime.
+- Same original client/origin/history survives recovery without remote work;
+  explicit resume gets fresh original-v1 comparisons and deletion is job-only.
+- SQLx is CLI test-only through existing workspace settings. Lock diff is one edge;
+  main metadata confirms the same seven SQLx packages/features. No production/API/
+  new migration/capability/write change, live account or OS keychain access.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3506694` | test: verify CLI populated legacy-schema migration chain |
+
+### Testing
+
+- Scoped E5e 2/2, CLI 48/48, fmt/Clippy passed. Main repeated all ten integration
+  tests twice (20.55s/20.58s), preserving E5a-d and production polling/timeouts.
+- Main pnpm verify passed: 307 Rust unit tests, two compile-fail doctests, 85 TS/UI
+  tests, workspace fmt/Clippy, contracts/boundaries, lint/typecheck, builds and
+  actual local CLI/HTTP/auth/browser smoke.
+- Product YAML/34 evidence IDs/11 evidence refs/8 path refs/unique-disjoint decisions/
+  disabled capabilities and staged/full diff checks passed. Local Windows only.
+
+### Status
+
+[OK] **E5e checkpoint complete; child and parent remain active and unarchived.**
+
+### Next Steps
+
+- Cover browser-to-upstream acceptance. Both migration variants use Native only;
+  v6 Search/manual history remains separate Storage-test evidence. Rust-client
+  composition is not shipped-process/native-keychain/live-account acceptance.
+- Keep connector IDs empty and writes/scheduling disabled pending reviewed acceptance.

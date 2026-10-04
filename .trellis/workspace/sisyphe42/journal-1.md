@@ -525,3 +525,58 @@ Verified real CLI/Core HTTP/SQLite/NeoDbClient polling, cancellation and explici
   and browser-to-upstream. Synthetic Rust-client evidence is not shipped-process
   preview success, native credentials or live-account acceptance.
 - Keep connector IDs empty and writes/scheduling disabled until reviewed acceptance.
+
+
+## Session 14: CLI native preview restart acceptance
+
+**Date**: 2026-10-04
+**Task**: CLI native preview restart acceptance
+**Branch**: `master`
+
+### Summary
+
+Verified real CLI client/Core HTTP/SQLite/NeoDbClient close-reopen interruption, original client authorization, explicit fresh resume and job-only deletion against synthetic upstream. Full gate passed; integrated migration/browser acceptance remains pending.
+
+### Main Changes
+
+- Sol/medium implemented a test-only restart child and narrow fixture composition;
+  main planned, reviewed, independently repeated and maintained contracts/evidence.
+- Same actual Core origin, original paired identity/hash/token and fake secret
+  entries survive reopen without reseeding or re-pairing. Shutdown leaves Running;
+  startup makes Interrupted, retaining the exact partial page without remote work.
+- Explicit attempt 2 clears old results and rereads all original observations;
+  later snapshots and changed marks produce fresh conflicts with original v1/expiry.
+- Job-only deletion preserves full profiles/endpoint/auth/secrets. Check exact
+  GET/auth/no-cookie trace, normalized modes/fingerprints and public/closed DB-WAL
+  redaction before reopen and after deletion, including post-drain preservation.
+- No production/dependency/API/schema/migration/capability/write change, native
+  credentials or live-account access. Handler lifecycle is not delivery/rollback;
+  drain shutdown before releasing a held reply to avoid cancellation races.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cdcb2a2` | test: verify CLI native preview restart and fresh resume |
+
+### Testing
+
+- Scoped E5d 1/1 and CLI 46/46, fmt/Clippy passed. Main repeated all eight native
+  integration tests twice, preserving E5a-c and real production polling/timeouts.
+- Main `pnpm verify`: 305 Rust unit tests, two compile-fail doctests, 85 TS/UI
+  tests, workspace fmt/Clippy, contract drift, dependency boundaries, lint/typecheck,
+  builds and actual local CLI/HTTP/auth/browser smoke passed.
+- Product YAML/34 evidence IDs/11 evidence refs/8 path refs/unique-disjoint decisions/
+  disabled capabilities and staged/full diff checks passed. Local Windows only.
+- A relative test-only detail URL expectation was corrected to normalized absolute
+  form before final verification; no production workaround or timer change.
+
+### Status
+
+[OK] **E5d checkpoint complete; child and parent remain active and unarchived.**
+
+### Next Steps
+
+- Cover integrated migration and browser-to-upstream acceptance. Restarted fixture
+  evidence is not shipped-process restart, native-keychain or live-account proof.
+- Keep connector IDs empty and writes/scheduling disabled pending reviewed acceptance.

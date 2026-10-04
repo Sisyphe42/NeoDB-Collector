@@ -1,6 +1,6 @@
 //! Rust CLI client acceptance over real loopback Core and NeoDB adapters.
 //! This does not launch the shipped CLI process or access native credentials.
-use super::{pair, preview::PreviewClient};
+use super::{pair, preview::PreviewClient, status};
 use axum::{
     Json, Router,
     body::Body,
@@ -10,7 +10,9 @@ use axum::{
 };
 use collector_connectors::neodb::NeoDbClient;
 use collector_core::{
-    access::{AccessRepository, AccessService, Clock, Endpoint, PortFuture, SecretStore},
+    access::{
+        AccessRepository, AccessService, Clock, Endpoint, PortFuture, SecretStore, TokenSource,
+    },
     catalog_resolver::CatalogIdentity,
     mapping::{MappingRepository, imdb_default},
     preview::{ComparisonStatus, SinkValue},
@@ -48,6 +50,7 @@ use std::{
 use tokio::sync::{Notify, oneshot};
 
 mod resolution;
+mod restart;
 
 type IdentityFn = fn(&ObservedItem) -> Result<CatalogIdentity, ApiError>;
 type NativePreviewRuntime = PreviewRuntime<NeoDbClient, IdentityFn>;
@@ -61,11 +64,11 @@ const UPSTREAM_MARKER: &str = "DISCARDED_UPSTREAM_PAYLOAD_E5A";
 const IDS: [&str; 3] = ["tt1111111", "tt2222222", "tt3333333"];
 const UUIDS: [&str; 3] = ["Movie1111111", "Movie2222222", "Movie3333333"];
 
-struct FixedClock;
+struct FixedClock(i64);
 
 impl Clock for FixedClock {
     fn now(&self) -> i64 {
-        NOW
+        self.0
     }
 }
 
@@ -302,8 +305,73 @@ impl CoreFixture {
         *max = 5.0;
         storage.save(v2, 1).await.unwrap();
 
-        let clock = Arc::new(FixedClock);
         let secrets = Arc::new(FixtureSecrets::new());
+        let clock = Arc::new(FixedClock(NOW));
+        let core_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let (parts, access) =
+            Self::compose(temp, storage, secrets.clone(), clock, core_listener).await;
+
+        let pairing = access
+            .create_pairing(PairingRequest {
+                client_name: client_name.into(),
+                client_kind: "cli".into(),
+            })
+            .await
+            .unwrap();
+        let report = pair(&pairing.uri, client_name, secrets.as_ref())
+            .await
+            .unwrap();
+        let cli_token = secrets.cli_token();
+        let client = PreviewClient::connect(&report.core_url, secrets.as_ref())
+            .await
+            .unwrap();
+        Self {
+            storage: parts.storage,
+            secrets,
+            runtime: parts.runtime,
+            maintenance: parts.maintenance,
+            core_shutdown_tx: parts.core_shutdown_tx,
+            core_server: parts.core_server,
+            client,
+            report,
+            cli_token,
+        }
+    }
+
+    async fn reopen(
+        temp: &tempfile::TempDir,
+        secrets: Arc<FixtureSecrets>,
+        clock: Arc<dyn Clock>,
+        core_listener: tokio::net::TcpListener,
+        report: super::PairReport,
+        cli_token: String,
+    ) -> Self {
+        let storage = Storage::open(temp.path()).await.unwrap();
+        let (parts, _) = Self::compose(temp, storage, secrets.clone(), clock, core_listener).await;
+        assert_eq!(parts.core_base, report.core_url);
+        let client = PreviewClient::connect(&report.core_url, secrets.as_ref())
+            .await
+            .unwrap();
+        Self {
+            storage: parts.storage,
+            secrets,
+            runtime: parts.runtime,
+            maintenance: parts.maintenance,
+            core_shutdown_tx: parts.core_shutdown_tx,
+            core_server: parts.core_server,
+            client,
+            report,
+            cli_token,
+        }
+    }
+
+    async fn compose(
+        temp: &tempfile::TempDir,
+        storage: Storage,
+        secrets: Arc<FixtureSecrets>,
+        clock: Arc<dyn Clock>,
+        core_listener: tokio::net::TcpListener,
+    ) -> (CoreParts, Arc<AccessService>) {
         let neodb = Arc::new(NeoDbClient::new().unwrap());
         let snapshots = Arc::new(collector_core::preview::PreviewSnapshotService::new(
             Arc::new(storage.clone()),
@@ -333,7 +401,6 @@ impl CoreFixture {
         .unwrap();
         let runtime = Arc::new(runtime);
 
-        let core_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let core_address = core_listener.local_addr().unwrap();
         let core_base = format!("http://{core_address}");
         let access = Arc::new(AccessService {
@@ -365,40 +432,36 @@ impl CoreFixture {
             .unwrap();
         });
 
-        let pairing = access
-            .create_pairing(PairingRequest {
-                client_name: client_name.into(),
-                client_kind: "cli".into(),
-            })
-            .await
-            .unwrap();
-        let report = pair(&pairing.uri, client_name, secrets.as_ref())
-            .await
-            .unwrap();
-        let cli_token = secrets.cli_token();
-        let client = PreviewClient::connect(&core_base, secrets.as_ref())
-            .await
-            .unwrap();
-        Self {
-            storage,
-            secrets,
-            runtime,
-            maintenance,
-            core_shutdown_tx,
-            core_server,
-            client,
-            report,
-            cli_token,
-        }
+        (
+            CoreParts {
+                storage,
+                runtime,
+                maintenance,
+                core_shutdown_tx,
+                core_server,
+                core_base,
+            },
+            access,
+        )
     }
 
-    async fn shutdown(self) {
+    async fn shutdown(self) -> super::PairReport {
         self.runtime.shutdown().await;
         self.maintenance.wait().await.unwrap();
         let _ = self.core_shutdown_tx.send(());
         self.core_server.await.unwrap();
         self.storage.close().await;
+        self.report
     }
+}
+
+struct CoreParts {
+    storage: Storage,
+    runtime: Arc<NativePreviewRuntime>,
+    maintenance: PreviewMaintenanceObserver,
+    core_shutdown_tx: oneshot::Sender<()>,
+    core_server: tokio::task::JoinHandle<()>,
+    core_base: String,
 }
 
 const FAILURE_RAW_MARKER: &str = "DISCARDED_RAW_FAILURE_E5B";

@@ -22,6 +22,60 @@ credential-store verification is implied. Local Windows checks are not three-OS 
   `tests/smoke.mjs` runs real host/auth/client boundaries. Neither alone proves
   the full CLI/WebUI-to-real-NeoDB-adapter preview path across restart.
 
+## E5d real-adapter restart/resume/delete evidence (2026-10-04)
+
+`crates/collector-cli/src/client/preview_integration_tests/restart.rs::cli_restart_resume_and_delete_preserve_auth_and_unrelated_state`
+uses actual Rust pair/status/PreviewClient, authenticated Core HTTP, temporary
+SQLite, production runtime/runner/snapshot/producer and NeoDbClient against
+synthetic upstream HTTP. A narrow concrete fixture refactor separates initial
+seeding/pairing from composition/reopen, preserving every E5a-c assertion.
+The actual original Core origin/port and original client token/identity/hash,
+PairReport, secret entries, endpoint tuple and both disabled revisions are reused;
+no reseeding or new pairing substitutes for credential restart evidence.
+
+First native comparison commits source 8/sink 8/Skipped/already_equal; the second
+fetch is held. The runtime/maintenance/Core HTTP drain and SQLite closes BEFORE
+releasing that reply. A RAII guard acknowledges the actual handler responded or
+dropped, not delivery or remote rollback. Reopened storage before recovery still
+has Running attempt 1 and one row. Production startup at NOW+60 changes it to
+Interrupted, preserving the exact full public partial page and normalized original
+observations/native modes, v1 and fixed expiry. Startup plus authenticated history
+inspection leave the request count at four and NeoDB-secret reads at one.
+Original public client identity and complete stored access hash/metadata survive.
+
+Explicit CLI resume accepts attempt 2. A fresh first-fetch gate proves both old
+and new repository result pages empty and obsolete attempt-1 HTTP reads rejected.
+Every original ordinal gets fresh fetch/detail/mark; source 8/7 versus changed
+sink 5/4 produces NeedsReview/sink_conflict_needs_review at NOW+60. Assertions
+retain original fingerprint, item identity, automatic provenance, account,
+historical/non-executable metadata, fixed expiry and exact v1 rather than v2's
+clamp-to-5 rule. Exact ten-request traces contain GET only, public catalog no auth,
+personal marks only NeoDB Bearer and no Cookie/refetch/search/retry.
+
+Real CLI deletion removes job/observations/results only; repeated deletion returns
+false and status is not-found. Full endpoint, both profile contents, original
+secret values and original client's hash/metadata/authenticated status remain.
+Request vectors, secret values and write/read counters are rechecked after owned
+shutdown. Public DTOs omit internal references/credential values/discarded markers;
+mandatory closed collector.db and optional WAL scans run before reopen while
+partial history exists and after deletion. DB metadata may retain opaque credential
+references; plaintext tokens/raw payloads are forbidden. No timing sleeps or
+production timeout/interval overrides are used.
+
+Scoped E5d 1/1 and CLI 46/46/fmt/Clippy passed. Main independently repeated all
+eight integration tests twice, then `pnpm verify` passed: 305 Rust unit tests,
+two compile-fail doctests, 85 TS/UI tests, workspace fmt/Clippy, contract drift,
+dependency boundaries, lint/typecheck, builds and actual local CLI/HTTP/auth/browser
+smoke. Product YAML/34 evidence IDs/11 evidence refs/8 path refs/decisions/disabled
+capabilities and diff checks passed separately. A relative test-only detail URL
+expectation was corrected to normalized absolute URL before final verification.
+
+No production/dependency/API/schema/migration/capability/write change or live
+account/keychain access. This proves restarted synthetic Rust-client composition,
+not shipped CLI-process restart, browser-to-upstream, integrated migration,
+live account or complete product acceptance. Keep child/parent active, connector
+IDs empty and writes disabled; integrated migration/browser acceptance remains.
+
 ## E5c polling and explicit resolution integration evidence (2026-10-04)
 
 `crates/collector-cli/src/client/preview_integration_tests/resolution.rs` adds

@@ -16,6 +16,49 @@ than silently substituting a different model. This does not remove review gates.
 
 ## Activation gate
 
+E5d checkpoint (2026-10-04): Sol/medium owns a named restart integration-test
+child and registration plus narrow shared CoreFixture composition changes. Read
+E5d design, CLI client/preview, runtime/runner/record/jobs/results, submission/
+inspection/management HTTP, account comparison, NeoDB catalog/marks, mapping
+storage, state/pairing and repository-layout contracts. Main owns task/specs,
+review, independent repetitions, full gate and checkpoint commit. Preserve E5a-c
+assertions; reuse original origin/client/secrets on reopen without reseeding or
+re-pairing. Bound handler lifecycle and fresh-attempt gates. No production,
+dependency/API/schema/migration/capability/write/live-account/keychain change,
+recursive delegation or agent commit. Run scoped tests/fmt/Clippy serially, stop
+Cargo before main verification, and report blockers rather than broaden scope.
+
+- [x] E5d: Real-adapter CLI restart, explicit fresh resume and job-only deletion.
+
+E5d verification (2026-10-04): Sol/medium added the named restart child and
+narrow concrete fixture composition/reopen. Seeding/pairing remain first-start
+only; the same actual Core port/origin, PairReport, client token/hash and fake
+secret store survive reopen. Main reviewed all code and required deterministic
+shutdown before held-response release, actual handler lifecycle acknowledgment,
+pre-recovery Running versus startup Interrupted, full partial-page equality,
+fresh source/sink/identity/fingerprint/time assertions and complete preservation.
+Closed DB/optional WAL scans run while partial evidence exists and after deletion;
+opaque credential references remain permitted DB metadata but absent publicly.
+
+Explicit real CLI resume clears attempt-1 rows before gated attempt-2 fetch,
+rejects the obsolete page and freshly compares both original ordinals with later
+snapshots, changed marks and original disabled v1/fixed expiry despite v2. Exact
+ten GET requests/no-cookie/auth boundaries, zero automatic startup work, full
+endpoint/profile/secret and original client hash/metadata preservation, repeat
+delete false and not-found inspection are asserted through owned shutdown.
+Scoped E5d 1/1, CLI 46/46, fmt/Clippy and two main independent integration-module
+repetitions (eight tests each) passed. Main `pnpm verify` passed: 305 Rust unit
+tests, two compile-fail doctests, 85 TS/UI tests, workspace fmt/Clippy, contracts/
+boundaries, lint/typecheck, builds and actual local CLI/HTTP/auth/browser smoke.
+Product YAML/34 evidence IDs/11 evidence refs/8 path refs/unique-disjoint decisions/
+disabled capabilities and diff checks passed separately. A test-only detail URL
+expectation was corrected from relative to the actual normalized absolute form;
+no production workaround or timer change. No production/dependency/API/schema/
+migration/capability/write/live account/keychain change. Restarted synthetic
+Rust-client composition is not shipped-process restart, browser-to-upstream,
+migration or complete product acceptance. Keep both tasks active; next cover
+integrated migration and remaining browser acceptance without enabling writes.
+
 E5c checkpoint (2026-10-04): Sol/medium owns a named resolution integration-test
 child module and its registration in the existing CLI integration module. Reuse
 the concrete CoreFixture and only narrowly extend test helpers if required.

@@ -3,6 +3,36 @@
 Status: approved for implementation by user continuation on 2026-09-18.
 Product scope is already approved in the parent and `prd.md`.
 
+## E5d: Real-adapter restart/resume/delete acceptance (2026-10-04)
+
+Add a named test-only restart child of the CLI integration suite. Use the real
+pair/PreviewClient, Core HTTP, temporary SQLite, production runtime/runner and
+NeoDbClient against synthetic upstream HTTP. Narrowly factor fixture composition
+so reopening does not reseed endpoint/profiles/secrets or re-pair: retain the same
+Core origin, original client credential and secret store. Preserve existing tests.
+
+Commit one comparison and hold the second native fetch, then drain/drop old
+runtime/server owners and close SQLite. Observe the actual upstream handler's
+responded-or-dropped lifecycle; cancellation is not remote rollback or delivery.
+Reopen/start at a later fake wall time: startup marks Interrupted, preserves the
+exact partial historical page, original observations/modes/revision/fixed expiry,
+and performs no upstream or NeoDB-secret read and no automatic resume.
+
+Explicit CLI resume makes attempt 2. Gate fresh work to prove old results clear
+and obsolete attempt-1 reads fail. Fresh native fetch/detail/mark reads for ALL
+original ordinals must produce changed comparisons and fresh snapshot times,
+retaining disabled v1 despite changed v2. Assert exact GET/auth/no-cookie trace,
+full endpoint/profile/secret preservation, continued authentication using the
+original paired client, public redaction and mandatory closed DB/optional WAL
+scans for discarded markers and plaintext tokens. CLI delete removes only job,
+observations and results; repeated deletion is false, inspection is not-found,
+and unrelated configuration/auth/credentials remain intact with no remote I/O.
+
+Use bounded event/status waits, no timer overrides or sleeps as settlement proof.
+No production/dependency/API/schema/migration/capability/write, live account,
+native keychain, browser or migration acceptance change. Keep both tasks active.
+This is a restarted test composition, not a shipped-process restart assertion.
+
 ## E5c: Polling and explicit resolution integration acceptance (2026-10-04)
 
 Extend the existing real Rust pair/PreviewClient -> authenticated Core HTTP ->

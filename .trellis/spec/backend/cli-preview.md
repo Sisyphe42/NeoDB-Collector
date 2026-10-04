@@ -197,6 +197,31 @@ entry into an internal timer wait. A real polling test's terminal reconciliation
 budget must exceed the 15-second interval plus subsequent I/O; wrapping a shorter
 inner wait in a longer outer timeout cannot extend that inner budget.
 
+Restart acceptance lives in the test-only child
+`preview_integration_tests/restart.rs`, test
+`cli_restart_resume_and_delete_preserve_auth_and_unrelated_state`.
+Close/drain the original Core runtime and
+HTTP owner before releasing a held upstream reply; starting shutdown in a task
+and immediately releasing the reply races cancellation and is not shutdown
+evidence. Await the actual upstream handler's responded-or-dropped lifecycle,
+without claiming delivery or remote rollback. Reopen the same SQLite directory
+and Core origin using the original paired client and secret store, without
+reseeding configuration or re-pairing. Distinguish shutdown's retained Running
+state from startup's Interrupted state and assert unchanged partial history and
+zero automatic upstream/NeoDB-secret reads.
+
+Gate explicit attempt-2 work to prove old results cleared and obsolete page
+reads rejected. Require fresh fetch/detail/mark for every original ordinal,
+changed sink values and later snapshot times, with exact original profile/binding/
+expiry and normalized input modes. Job-only deletion must preserve full profile,
+endpoint, client hash/metadata and credential values, verified by authenticated
+status with the same token. Scan closed DB/optional WAL while evidence is still
+retained as well as after deletion: forbid discarded payload markers/plaintext
+tokens, not the opaque credential references deliberately stored as metadata.
+Public DTOs must omit both secret values and internal references. This fixture
+restart is not a shipped-process, browser, migration, native-keychain or live-
+account acceptance claim.
+
 ## 7. Wrong vs Correct
 
 Wrong: read collector.db, parse CSV, recalculate conflicts, silently retry.

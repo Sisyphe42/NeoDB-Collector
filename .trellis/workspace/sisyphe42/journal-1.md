@@ -470,3 +470,58 @@ Verified real Rust CLI/Core HTTP/SQLite/NeoDbClient composition across ten synth
 - Cover real-client/native-adapter polling/search/manual and client restart,
   migration and browser-to-upstream acceptance; no shipped-process success claim.
 - Keep connector IDs empty and writes/scheduling disabled until reviewed acceptance.
+
+
+## Session 13: CLI polling and explicit resolution acceptance
+
+**Date**: 2026-10-04
+**Task**: CLI polling and explicit resolution acceptance
+**Branch**: `master`
+
+### Summary
+
+Verified real CLI/Core HTTP/SQLite/NeoDbClient polling, cancellation and explicit file-backed search/manual submissions against synthetic upstream. Preserved old candidate history, fresh manual identity, normalized inputs, read-only and redaction boundaries. Full gate passed; real-adapter restart/migration/browser acceptance remains pending.
+
+### Main Changes
+
+- Sol/medium added a test-only resolution child module and registration; main
+  planned, independently reviewed/repeated and maintained CLI/task contracts.
+- Real >=15s native polling produces an automatic comparison; real client cancel
+  retains historical metadata with no later request/result after runtime drain.
+- Explicit file-backed search remains review-only, cannot override native match/
+  429, and new Manual jobs reread missing/conflicting identity without changing
+  the original candidate status/page. Normalized input modes and v1 are preserved.
+- Assert complete comparisons, exact GET/auth/no-cookie traces, endpoint/profile/
+  secret preservation and public/mandatory closed DB plus optional WAL redaction.
+- No production/dependency/API/schema/migration/capability/write change or live
+  account/keychain access. Arrival signals do not prove internal timer entry or
+  remote rollback; terminal reconciliation must exceed real poll spacing plus I/O.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c7d9b7c` | test: verify CLI polling and explicit resolution integration |
+
+### Testing
+
+- Scoped E5c 3/3 and CLI 45/45, fmt/Clippy passed; two main full integration-module
+  repetitions (seven tests each) passed, preserving E5a/E5b regression coverage.
+- Main `pnpm verify`: 304 Rust unit tests, two compile-fail doctests, 85 TS/UI
+  tests, workspace fmt/Clippy, contracts/boundaries, lint/typecheck, builds and
+  actual local CLI/HTTP/auth/browser smoke passed.
+- Product YAML/34 evidence IDs/11 evidence refs/8 path refs/decisions/disabled
+  capabilities and staged/full diff checks passed. Local Windows, not three-OS CI.
+- Agent reported one scoped rustc/LLVM OOM; unchanged retry passed. Initial quota
+  interruption resumed with the same Sol/medium model; no substitution/workaround.
+
+### Status
+
+[OK] **E5c checkpoint complete; child and parent remain active and unarchived.**
+
+### Next Steps
+
+- Extend real-adapter client acceptance to restart/fresh resume/delete, migration
+  and browser-to-upstream. Synthetic Rust-client evidence is not shipped-process
+  preview success, native credentials or live-account acceptance.
+- Keep connector IDs empty and writes/scheduling disabled until reviewed acceptance.

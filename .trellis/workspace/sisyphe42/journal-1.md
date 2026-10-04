@@ -330,3 +330,40 @@ Implemented E4d explicit source-bound WebUI search/manual staging and new-job re
 ### Next Steps
 
 - Add CLI resolution-choice inputs and finish real-client/simulated-upstream negative/end-to-end acceptance. Keep connector capabilities empty and personal/source writes disabled.
+
+
+## Session 10: CLI preview resolution inputs checkpoint
+
+**Date**: 2026-10-04
+**Task**: CLI preview resolution inputs checkpoint
+**Branch**: `master`
+
+### Summary
+
+Implemented E4e explicit file-based CLI choices and new-job submission; full verification passed; broader simulated-upstream integration acceptance remains pending.
+
+### Main Changes
+
+- Sol/medium added file-only `--resolution-inputs`, strict bounded existing Domain shapes, BOM/UTF-8 and encoded JSON limits, preparation before health/token I/O and shared raw/structured admission transport. Existing raw upload is unchanged; each structured request creates a new immutable preview.
+- Main strengthened actual file/Bearer/revision and no-I/O boundary evidence, extended shipped-process refusal/redaction smoke, and synchronized README/canonical specs/task acceptance. No dependency, API/schema/Core/Server/Storage production change or personal/source write.
+- Full-gate WebUI fixture repair by Luna/max waits for observable busy-state settlement before its request-count baseline; no-staging-I/O assertions and production behavior are unchanged.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a3ae601` | feat: submit explicit CLI preview resolution inputs |
+
+### Testing
+
+- Scoped CLI: 38 tests, fmt and Clippy passed. Panel: 35 tests and five repeated target runs passed after the fixture repair.
+- Main final `pnpm verify`: 297 Rust unit tests, two compile-fail doctests, 85 TS/UI tests, workspace fmt/Clippy, contracts/boundaries, lint/typecheck, builds and actual local CLI/HTTP/auth/browser smoke passed.
+- Product YAML/34 evidence IDs/decision/reference/disabled-capability and diff checks passed. Synthetic loopback/upstream/credential fixtures only; local Windows is not hosted three-platform or live-account evidence.
+
+### Status
+
+[OK] **E4e checkpoint committed; preview-jobs and its parent remain unfinished and unarchived.**
+
+### Next Steps
+
+- Finish real-client/simulated-NeoDB-adapter negative, migration and end-to-end acceptance. Keep connector capabilities empty and personal/source writes disabled.

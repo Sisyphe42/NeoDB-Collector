@@ -808,6 +808,40 @@ Show that preview may create public catalog entries but changes no personal mark
 
 ## Compatibility and rollback
 
+### E4e: explicit CLI resolution inputs (2026-10-03)
+
+Extend `import imdb-ratings FILE --profile-id ID --profile-version N` with
+optional `--resolution-inputs PATH`. PATH is a UTF-8 JSON array of the existing
+Domain `PreviewResolutionChoice`; it is a file only (`-` is refused), so CSV can
+continue using piped stdin without competing readers. Missing flag keeps the
+existing raw byte transport unchanged. Do not parse CSV, infer choices from
+titles/history, mutate old jobs or create a separate request schema/dependency.
+
+The structured path reads bounded CSV/choice inputs before health/credential I/O,
+strictly deserializes existing closed Domain shapes, preserves CSV UTF-8/BOM, and
+serializes `PreviewImdbResolutionRequest` once. Bound both input files and the
+actual encoded request to 10 MiB, and array count to 10,000. Standard bounded Read,
+strict serde and existing preview transport/error/receipt guards remain owners.
+Core remains authoritative for normalized ordinals/source IDs, duplicate inputs,
+query semantics and supported reference media/model pairs; do not duplicate its
+CSV parser or identity policy in CLI. Local errors must not echo paths, CSV,
+queries or credentials. No health/token/POST after a local structured input error.
+
+Use the same exact saved profile revision, literal-loopback origin, no proxy,
+redirect or retry, health-before-token, 30-second request/64 KiB receipt bounds and
+truthful ambiguous-admission behavior. Every successful structured POST admits
+a NEW immutable job. No client schema/API/Core/Server/Storage change, capability,
+personal/source write or persistence of the local input is added.
+
+Sol/medium owns CLI argument parsing, bounded input/transport and Rust tests;
+main owns existing actual-process smoke/help/early refusal evidence, README,
+task/spec updates, independent review, full gate and checkpoint commit. Tests
+cover mixed Search/Manual/Native-default payloads, exact BOM/UTF-8 and revision,
+closed nested shapes/numeric errors, file/encoded exact/+1 bounds, count cap,
+file-only choices, raw compatibility and inherited authenticated/ambiguous receipt
+handling without retries. Only fake credentials and loopback endpoints are used.
+Broader real-client/simulated-NeoDB-adapter acceptance remains pending.
+
 ### E4d: explicit WebUI resolution resubmission (2026-10-03)
 
 Extend the existing PreviewPanel and blue-grey evidence cards, not the API or a

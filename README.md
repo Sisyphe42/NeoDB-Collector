@@ -66,7 +66,7 @@ YAML 使用 `schema_version: 1`，其中相对路径相对 YAML 文件目录；C
 | `GET /api/v1/previews/{id}/results?attempt=N&offset=0&limit=50` | 历史条目证据及字段差异，limit 为 1–100，offset 为原始记录序号 |
 | `POST /api/v1/previews/{id}/cancel` | 显式取消指定 attempt，JSON 为 `{"expectedAttempt": 1}` |
 | `DELETE /api/v1/previews/{id}` | 删除任务及预览数据，不删除配置或凭据 |
-| `POST /api/v1/imports/imdb/ratings?profileId=ID&profileVersion=N` | 原始 UTF-8 `text/csv`，最多 10 MiB；选择已保存的禁用配置版本，202 返回任务回执及跳过数量 |
+| `POST /api/v1/imports/imdb/ratings?profileId=ID&profileVersion=N` | 原始 UTF-8 `text/csv` 或 `{csv, resolutionInputs}` JSON，编码后最多 10 MiB；选择已保存的禁用配置版本，202 返回新任务回执及跳过数量 |
 | `POST /api/v1/previews/{id}/resume` | 显式恢复保留期内的中断/失败/取消任务，JSON 为 `{"expectedAttempt": 1}`，202 返回新 attempt |
 
 健康、能力和契约端点公开；本地管理接口要求 8 小时有效的 HttpOnly / SameSite=Strict 会话，修改操作还要求同源 Origin 与 CSRF 令牌。浏览器请求须同源，Host 仅允许实际监听地址或相同端口的 localhost。不开放 CORS。配对、CLI 认证状态与 NeoDB 只读 OAuth 已可用；WebUI 支持授权、账户状态及取消。令牌仅保存在系统凭据库中。媒体同步尚未接入；配对客户端不能管理 OAuth 或其他客户端。
@@ -119,6 +119,28 @@ CLI 不自动轮询或重试；上传/恢复失败若带 `jobId`、`attempt`，�
 响应丢失也不意味着回滚。预览可能创建公共目录条目，但不会修改个人标记或来源平台。
 `--format json` 输出 API DTO，成功退出 0（包括 `applied=false`），失败退出 1；参数语法错误退出 2。
 客户端命令不读取服务 YAML/环境配置，也不读取数据库或保存原始 CSV。
+
+显式搜索或人工选择可通过 `--resolution-inputs choices.json` 提交。该文件为
+UTF-8 JSON 数组（仅文件路径，不支持 `-`）；CSV 仍可从管道读取。例：
+
+```json
+[
+  {"kind": "search", "ordinal": 0, "sourceRecordId": "tt1234567", "query": "Example"},
+  {"kind": "manual", "ordinal": 1, "sourceRecordId": "tt2345678", "item": {"uuid": "AbC123", "mediaType": "movie", "model": "Movie"}}
+]
+```
+
+```sh
+collector import imdb-ratings ratings.csv --profile-id imdb_ratings --profile-version 1 --resolution-inputs choices.json --format json
+```
+
+`ordinal` 是 Core 跳过/去重后的零起始记录序号，必须与 `sourceRecordId` 同时匹配；
+可从原预览结果读取，不是 CSV 行号。未列出的记录仍使用原生匹配。搜索仅在原生
+不支持时回退，候选不会自动确认；人工引用可取自预览中的候选或条目证据，Core
+会重新读取详情，不将人工选择视为外部 ID 等价证明。每次提交生成新任务，不修改
+原预览。选择最多 10,000 个；两个输入文件各限 10 MiB，实际 JSON 请求也限
+10 MiB（包含转义与选择信息），因此接近上限的原始 CSV 可能不适合结构化提交。
+CLI 严格检查 JSON 结构与本地大小，Core 负责来源绑定及条目语义校验；不额外解析 CSV。
 
 ## WebUI 导入与预览
 

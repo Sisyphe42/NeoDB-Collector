@@ -10,7 +10,7 @@ credential-store verification is implied. Local Windows checks are not three-OS 
 - Catalog transport loopback tests prove restrictive request/response handling;
   Core resolver tests prove polling, identity/granularity and explicit selection.
   E4a/E4b integrate explicit inputs into the internal runner; E4c exposes structured
-  submission and E4d adds explicit WebUI choices. CLI choice inputs remain pending.
+  submission, E4d adds explicit WebUI choices and E4e adds file-based CLI choices.
 - Core comparison/record tests prove account binding, non-executable comparisons
   and Known/Empty/Unknown semantics. Storage tests prove normalized persistence,
   atomic guards, retention, reopen and migration independently of clients.
@@ -40,9 +40,9 @@ NeoDB-adapter end-to-end suite. Audit was read-only and did not run tests.
 
 ### Next acceptance checkpoints
 
-- Finish CLI resolution-choice inputs after E4c/E4d's structured API/shared client
-  and interactive WebUI; never turn title hints or a singleton candidate into
-  automatic identity proof. Checkpoint evidence is recorded below once verified.
+- E4e completes CLI resolution-choice inputs after E4c/E4d's structured API/shared
+  client and interactive WebUI; never turn title hints or a singleton candidate
+  into automatic identity proof. Verified checkpoint evidence is recorded below.
 - Audit upstream timeout/429/auth/redirect and migration through the integrated
   path, distinguishing prior component evidence from end-to-end coverage.
 - Finish parent CLI/WebUI integration review against a simulated upstream server.
@@ -220,3 +220,44 @@ schema/API/CLI/Core/Server/Storage production change, standalone search route or
 capability advertisement. Local Windows evidence is not hosted three-platform CI.
 CLI resolution-choice inputs and broader simulated-upstream negative/end-to-end
 acceptance remain pending; keep this child/parent active and personal writes disabled.
+
+## E4e CLI resolution-choice evidence (2026-10-04)
+
+`collector import imdb-ratings ... --resolution-inputs PATH` accepts a file-only
+UTF-8 array of existing Domain choices and submits the existing structured import
+API as a new job. Missing flag preserves raw transport. The CLI owns no CSV
+parser/identity policy and persists neither raw CSV nor choice-file JSON. Core
+still owns normalized ordinal/source matching and validated immutable choices.
+
+Six additional CLI tests (38 total) cover strict nested/duplicate fields and
+integer shapes, choice-file 10 MiB and +1, 10,000 and +1 inputs, actual encoded
+JSON exact/+1 with escaping, BOM/UTF-8, mixed Search/Manual with Native omission,
+actual temp-file preparation and exact health/token/Bearer/body/revision, and
+no health/secret/POST after missing/invalid/count/encoded input refusal. Structured
+requests share existing admission validation and preserve known IDs without retry.
+Known query/search/manual/resolution/reference refusals retain their codes with
+static messages; unknown diagnostics and dynamic field paths remain sanitized.
+
+`tests/smoke.mjs` now exercises the shipped flag/help, choice-stdin syntax refusal,
+unsafe-origin structured requests and malformed/unknown nested fields, invalid
+UTF-8 and missing choice files against an unavailable literal-loopback endpoint.
+It asserts local static errors without private path/query/CSV leakage. Synthetic
+loopback unit tests prove actual health/secret/POST counters remain zero; these
+process refusals do not imply a real-account CLI-to-NeoDB success scenario.
+
+The first full gate found an existing WebUI fixture count race: a page may render
+before post-action status reconciliation finishes. Luna/max added only an
+observable `aria-busy=false` wait before the baseline; no-staging-I/O assertions
+remain intact. All 35 panel tests plus five repeated target runs passed. Main
+reviewed that one-line fix and documented settlement in the frontend contract.
+
+Main final `pnpm verify` passed after all code/test changes: 297 Rust unit tests,
+two compile-fail doctests, 85 TS/UI tests, workspace fmt/Clippy, contracts/boundaries,
+lint/typecheck, builds and actual local CLI/HTTP/auth/browser smoke. Product YAML/
+34 evidence IDs/decision/reference/disabled-capability and diff checks passed
+separately. No new dependency, schema/API/migration/Core/Server/Storage production
+behavior, source/personal write or capability. All upstream/account/credential
+fixtures are fake; this is local Windows, not hosted three-platform evidence.
+CLI choice inputs are delivered; broader real-client/simulated-NeoDB-adapter
+negative, migration and end-to-end acceptance remains pending. Keep this child
+and parent active rather than treating this client checkpoint as PRD completion.

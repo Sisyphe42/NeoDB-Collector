@@ -157,6 +157,11 @@ For attempt-change tests, model mutable remote job state rather than a finite
 settlement, so both reconciliation and an explicit refresh may read status.
 Keep the old attempt until the test deliberately changes the remote state;
 assert the new attempt clears old evidence without an error or timeout padding.
+For no-staging-I/O assertions, settle the preceding page-read action and its
+automatic status reconciliation before recording call-count baselines. The page
+can render before action finalization restarts inspection; finding a row alone
+does not prove those reads are drained. Use async React `act`/observable completion,
+not arbitrary sleeps, larger timeouts or a weakened no-request assertion.
 `tests/smoke.mjs` exercises actual local host/session/mapping and browser UI;
 preview-specific browser responses use clearly isolated mocks, not real NeoDB or
 OS credentials. Capture preview desktop/mobile screenshots and check overflow,

@@ -43,7 +43,8 @@ request/response validation on the existing import route. Its JSON search/manual
 inputs create a new preview job. The [preview panel](./preview-panel.md) stages
 explicit source-bound choices only for its own confirmed local File/job association
 and resubmits them as a new preview. Its ordinary raw CSV path remains compatible;
-CLI resolution-choice inputs and broader client/upstream acceptance remain pending.
+[CLI](../backend/cli-preview.md) accepts explicit file-based resolution inputs;
+broader client/upstream acceptance remains pending.
 
 ## 3. Behavioral Contracts
 

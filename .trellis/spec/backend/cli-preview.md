@@ -5,15 +5,16 @@
 E3a delivers thin commands in `collector-cli/src/main.rs` and
 `src/client/preview.rs`; tests live in `src/client/preview_tests.rs` and main's
 command parsing tests. Reuse pairing's origin/health/credential helpers and Domain
-wire types. [WebUI screens](../frontend/preview-panel.md) are delivered separately;
-final mock restart/resume acceptance remains pending.
+wire types. E4e adds explicit file-based structured resolution inputs to the same
+command. [WebUI screens](../frontend/preview-panel.md) are delivered separately;
+broader real-client/simulated-NeoDB-adapter acceptance remains pending.
 No source/personal-state writes, direct DB access, alternate parser/planner,
 API change or dependency is added.
 
 ## 2. Signatures
 
 ```text
-collector import imdb-ratings FILE --profile-id ID --profile-version N
+collector import imdb-ratings FILE --profile-id ID --profile-version N [--resolution-inputs PATH]
 collector preview status ID
 collector preview results ID --attempt N [--offset 0] [--limit 50]
 collector preview cancel ID --expected-attempt N
@@ -47,6 +48,18 @@ applied=false), failure exits 1; command-line syntax errors exit 2.
   Send original bytes as text/csv; Server owns UTF-8/BOM/CSV validation,
   normalization and skip counts. No client parsing, raw-data persistence or
   implicit latest/default profile selection.
+- With `--resolution-inputs PATH`, read a file-only UTF-8 JSON array of existing
+  Domain `PreviewResolutionChoice` values; refuse `-` for choices. CSV may still
+  use piped stdin. Strict serde closes nested shapes; no second schema/parser.
+  Bound each input file and the actual serialized `PreviewImdbResolutionRequest`
+  to 10 MiB and choices to 10,000. Preserve CSV BOM and exact UTF-8 characters.
+  Local structured-input failures occur before health/credential/POST access,
+  with static diagnostics only. Core owns normalized ordinal/source binding,
+  duplicates, query semantics and supported media/model references; CLI does not
+  parse CSV or duplicate identity policy. Send `application/json` to the same
+  import route using the exact selected revision, creating a NEW job rather than
+  editing history. CLI never persists raw CSV or choice-file JSON; Core may retain
+  the validated normalized choices under the existing immutable job contract.
 - Preview requests are bounded at 30 seconds, responses at 64 KiB except
   result pages at the existing 8 MiB cap. Require 200 for inspection/management
   and 202 for admission; no automatic polling/retry/redirect following.
@@ -67,6 +80,9 @@ applied=false), failure exits 1; command-line syntax errors exit 2.
   Only the contract's 400/409/413/503 admission error statuses can carry a receipt;
   unknown codes become core_unavailable while retaining the uncertain-outcome
   warning and validated ID/generation. Allowlist safe diagnostic field names.
+  Preserve known structured query/search/manual/resolution/reference error codes
+  with static messages; never collapse those semantic refusals into an invented
+  network failure or forward their upstream diagnostic text.
 - Human output states historical/non-executable evidence and that accepted
   previews may create public catalog entries without changing personal marks or
   source data. JSON-escape payload strings to prevent terminal control injection;
@@ -83,6 +99,10 @@ applied=false), failure exits 1; command-line syntax errors exit 2.
 | Missing revision/attempt, zero/overflow, limit outside 1..100 | Clap refusal before credential or HTTP operation |
 | Unsafe origin | core_url_invalid before network/credential access |
 | Interactive stdin, unreadable or over-cap source | Static input error; no path/data echo or submission |
+| Choice PATH is `-` | Clap refusal; choices never consume stdin |
+| Unreadable/invalid UTF-8/JSON/closed choice shape | preview_resolution_inputs_invalid before health/token access |
+| Choice file over 10 MiB / array over 10,000 | preview_resolution_inputs_too_large / preview_resolution_inputs_too_many |
+| Structured CSV is not UTF-8 / encoded JSON over 10 MiB | preview_input_encoding_invalid / preview_request_too_large before health/token access |
 | Unsupported API/schema | core_incompatible before credential lookup/mutation |
 | Invalid/revoked token / HTTP 401 | authentication_required; no fallback |
 | Redirect, malformed/over-cap/wrong-status reply, flags/echo mismatch | Static core_unavailable; no retry |
@@ -107,7 +127,11 @@ status/flags/ID/generation checks, sparse order, evidence and field distinctions
 sanitized errors/admission metadata, no retries, compatibility/revocation/redirect/
 timeout and input/response limits. Parsing tests cover missing/zero/overflow
 parameters. Human output must escape control characters; JSON retains Domain
-shape/non-executability. `tests/smoke.mjs` checks the shipped command tree and
+shape/non-executability. Structured tests assert file-only choice paths, strict
+closed Domain shapes, exact UTF-8/BOM preservation and selected revision,
+mixed sparse choices, file/count/encoded bounds and no health/secret access on
+local preparation failure. Core still owns source/ordinal/query/reference semantics.
+`tests/smoke.mjs` checks the shipped command tree and
 unsafe/invalid commands before native keychain access. Full `pnpm verify` and
 `git diff --check`; no real-account/keychain tests.
 

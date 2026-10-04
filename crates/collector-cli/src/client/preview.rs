@@ -5,9 +5,9 @@ use collector_core::secrets::{ExposeSecret, SecretString};
 use collector_domain::{
     ApiError,
     preview::{
-        PreviewAccepted, PreviewAdmissionFailure, PreviewCancelRequest, PreviewImportAccepted,
-        PreviewJobView, PreviewMutationResult, PreviewOutcomeView, PreviewResultPage,
-        PreviewResumeRequest,
+        PreviewAccepted, PreviewAdmissionFailure, PreviewCancelRequest,
+        PreviewImdbResolutionRequest, PreviewImportAccepted, PreviewJobView, PreviewMutationResult,
+        PreviewOutcomeView, PreviewResolutionChoice, PreviewResultPage, PreviewResumeRequest,
     },
 };
 use reqwest::{Client, Response, StatusCode};
@@ -21,6 +21,7 @@ use std::{
 use url::Url;
 
 pub const MAX_IMPORT_BYTES: usize = 10 * 1024 * 1024;
+pub const MAX_PREVIEW_RECORDS: usize = 10_000;
 const NORMAL_RESPONSE_BYTES: usize = 64 * 1024;
 const RESULTS_RESPONSE_BYTES: usize = 8 * 1024 * 1024;
 const ADMISSION_UNCERTAIN: &str =
@@ -65,6 +66,87 @@ pub fn read_import_file(path: &str) -> Result<Vec<u8>, ApiError> {
     read_import(file)
 }
 
+pub fn parse_resolution_inputs_path(value: &str) -> Result<String, String> {
+    if value == "-" {
+        Err("must be a file path; '-' is not supported".into())
+    } else {
+        Ok(value.to_owned())
+    }
+}
+
+/// Validates the literal-loopback boundary without performing health or credential I/O.
+pub fn validate_origin(input: &str) -> Result<(), ApiError> {
+    origin(input).map(drop)
+}
+
+pub fn read_resolution_request(
+    csv_path: &str,
+    resolution_inputs_path: &str,
+) -> Result<Vec<u8>, ApiError> {
+    let csv = String::from_utf8(read_import_file(csv_path)?).map_err(|_| {
+        error(
+            "preview_input_encoding_invalid",
+            "CSV input is not valid UTF-8.",
+        )
+    })?;
+    let inputs = read_resolution_inputs_file(resolution_inputs_path)?;
+    encode_resolution_request(csv, inputs)
+}
+
+fn read_resolution_inputs_file(path: &str) -> Result<Vec<PreviewResolutionChoice>, ApiError> {
+    let file = File::open(Path::new(path)).map_err(|_| resolution_inputs_invalid())?;
+    read_resolution_inputs(file)
+}
+
+pub(crate) fn read_resolution_inputs(
+    reader: impl Read,
+) -> Result<Vec<PreviewResolutionChoice>, ApiError> {
+    let mut bytes = Vec::new();
+    reader
+        .take((MAX_IMPORT_BYTES + 1) as u64)
+        .read_to_end(&mut bytes)
+        .map_err(|_| resolution_inputs_invalid())?;
+    if bytes.len() > MAX_IMPORT_BYTES {
+        return Err(error(
+            "preview_resolution_inputs_too_large",
+            "Resolution inputs exceed the 10 MiB limit.",
+        ));
+    }
+    serde_json::from_slice::<Vec<PreviewResolutionChoice>>(&bytes)
+        .map_err(|_| resolution_inputs_invalid())
+}
+
+pub(crate) fn encode_resolution_request(
+    csv: String,
+    resolution_inputs: Vec<PreviewResolutionChoice>,
+) -> Result<Vec<u8>, ApiError> {
+    if resolution_inputs.len() > MAX_PREVIEW_RECORDS {
+        return Err(error(
+            "preview_resolution_inputs_too_many",
+            "Resolution inputs exceed the 10,000 choice limit.",
+        ));
+    }
+    let bytes = serde_json::to_vec(&PreviewImdbResolutionRequest {
+        csv,
+        resolution_inputs,
+    })
+    .map_err(|_| resolution_inputs_invalid())?;
+    if bytes.len() > MAX_IMPORT_BYTES {
+        return Err(error(
+            "preview_request_too_large",
+            "Encoded preview request exceeds the 10 MiB limit.",
+        ));
+    }
+    Ok(bytes)
+}
+
+fn resolution_inputs_invalid() -> ApiError {
+    error(
+        "preview_resolution_inputs_invalid",
+        "Resolution inputs must be a valid UTF-8 JSON array.",
+    )
+}
+
 pub(crate) fn read_import(reader: impl Read) -> Result<Vec<u8>, ApiError> {
     let mut bytes = Vec::new();
     reader
@@ -92,6 +174,19 @@ pub struct PreviewClient {
 }
 
 impl PreviewClient {
+    /// Validates and prepares every local structured input before health/token I/O.
+    pub async fn connect_with_resolution_request(
+        input: &str,
+        secrets: &dyn SecretStore,
+        csv_path: &str,
+        resolution_inputs_path: &str,
+    ) -> Result<(Self, Vec<u8>), ApiError> {
+        validate_origin(input)?;
+        let encoded_request = read_resolution_request(csv_path, resolution_inputs_path)?;
+        let client = Self::connect(input, secrets).await?;
+        Ok((client, encoded_request))
+    }
+
     /// Performs compatibility preflight and loads this origin's token once.
     pub async fn connect(input: &str, secrets: &dyn SecretStore) -> Result<Self, ApiError> {
         Self::connect_with_timeout(input, secrets, Duration::from_secs(30)).await
@@ -124,6 +219,38 @@ impl PreviewClient {
         if bytes.len() > MAX_IMPORT_BYTES || !valid_id(profile_id) || profile_version == 0 {
             return Err(unavailable().into());
         }
+        self.import_imdb_payload(bytes, "text/csv", profile_id, profile_version)
+            .await
+    }
+
+    pub async fn import_imdb_ratings_with_resolution(
+        &self,
+        encoded_request: Vec<u8>,
+        profile_id: &str,
+        profile_version: u32,
+    ) -> Result<PreviewImportAccepted, PreviewFailure> {
+        if encoded_request.len() > MAX_IMPORT_BYTES {
+            return Err(unavailable().into());
+        }
+        self.import_imdb_payload(
+            encoded_request,
+            "application/json",
+            profile_id,
+            profile_version,
+        )
+        .await
+    }
+
+    async fn import_imdb_payload(
+        &self,
+        bytes: Vec<u8>,
+        content_type: &'static str,
+        profile_id: &str,
+        profile_version: u32,
+    ) -> Result<PreviewImportAccepted, PreviewFailure> {
+        if !valid_id(profile_id) || profile_version == 0 {
+            return Err(unavailable().into());
+        }
         let mut url = self.url("api/v1/imports/imdb/ratings")?;
         url.query_pairs_mut()
             .append_pair("profileId", profile_id)
@@ -132,7 +259,7 @@ impl PreviewClient {
             .request(
                 self.client
                     .post(url)
-                    .header("content-type", "text/csv")
+                    .header("content-type", content_type)
                     .body(bytes),
             )
             .await?;
@@ -374,6 +501,11 @@ fn sanitize_error(value: ApiError, ambiguous_admission: bool) -> ApiError {
         "imdb_id_invalid" | "imdb_rating_invalid" | "imdb_title_too_long" => {
             "CSV input contains an invalid IMDb value."
         }
+        "catalog_search_query_invalid" => "A resolution search query is invalid.",
+        "preview_search_plan_invalid" => "Preview search choices are invalid.",
+        "preview_manual_plan_invalid" => "Preview manual choices are invalid.",
+        "preview_resolution_plan_invalid" => "Preview resolution choices conflict.",
+        "neodb_catalog_reference_invalid" => "A NeoDB catalog reference is invalid.",
         "preview_binding_changed"
         | "preview_profile_changed"
         | "preview_transition_invalid"
@@ -463,9 +595,9 @@ fn validate_accepted(value: &PreviewAccepted) -> Result<(), PreviewFailure> {
 }
 
 fn validate_counts(value: &PreviewImportAccepted) -> Result<(), PreviewFailure> {
-    if value.observation_count > 10_000
-        || value.skipped_row_count > 10_000
-        || value.duplicate_row_count > 10_000
+    if value.observation_count > MAX_PREVIEW_RECORDS as u32
+        || value.skipped_row_count > MAX_PREVIEW_RECORDS as u32
+        || value.duplicate_row_count > MAX_PREVIEW_RECORDS as u32
         || value.skipped_column_count > MAX_IMPORT_BYTES as u32
     {
         return Err(unavailable().into());
@@ -480,7 +612,7 @@ fn validate_job(value: &PreviewJobView, id: &str) -> Result<(), PreviewFailure> 
         || value.created_at < 0
         || value.updated_at < 0
         || value.expires_at < 0
-        || value.observation_count > 10_000
+        || value.observation_count > MAX_PREVIEW_RECORDS as u32
         || !value.historical
         || value.executable
     {
@@ -790,5 +922,48 @@ mod invariant_tests {
         assert!(!clean.retryable);
         assert!(decode_api_error(br#"{"code":"request_invalid","message":"private","retryable":false,"secret":"token"}"#).is_none());
         assert!(decode_admission_failure(br#"{"jobId":"job:new","attempt":1,"error":{"code":"request_invalid","message":"private","retryable":false,"secret":"token"}}"#).is_none());
+    }
+
+    #[test]
+    fn structured_semantic_errors_keep_only_known_codes_and_static_messages() {
+        let cases = [
+            (
+                "catalog_search_query_invalid",
+                "A resolution search query is invalid.",
+            ),
+            (
+                "preview_search_plan_invalid",
+                "Preview search choices are invalid.",
+            ),
+            (
+                "preview_manual_plan_invalid",
+                "Preview manual choices are invalid.",
+            ),
+            (
+                "preview_resolution_plan_invalid",
+                "Preview resolution choices conflict.",
+            ),
+            (
+                "neodb_catalog_reference_invalid",
+                "A NeoDB catalog reference is invalid.",
+            ),
+        ];
+        for (code, message) in cases {
+            let mut upstream = ApiError::new(code, "private query token=SECRET");
+            upstream.field = Some("resolutionInputs[9].query".into());
+            upstream.retryable = true;
+            let clean = sanitize_error(upstream, false);
+            assert_eq!(clean.code, code);
+            assert_eq!(clean.message, message);
+            assert!(clean.field.is_none());
+            assert!(!clean.retryable);
+        }
+
+        let unknown = sanitize_error(
+            ApiError::new("future_private_code", "token=SECRET private query"),
+            false,
+        );
+        assert_eq!(unknown.code, "core_unavailable");
+        assert!(!unknown.message.contains("SECRET"));
     }
 }

@@ -68,6 +68,9 @@ enum ImportCommand {
         profile_id: String,
         #[arg(long, value_parser = clap::value_parser!(u32).range(1..))]
         profile_version: u32,
+        /// UTF-8 JSON file containing explicit search/manual resolution choices.
+        #[arg(long, value_parser = client::preview::parse_resolution_inputs_path)]
+        resolution_inputs: Option<String>,
         #[arg(long, default_value = "http://127.0.0.1:19423")]
         core_url: String,
         #[arg(long, value_enum, default_value = "human")]
@@ -417,11 +420,32 @@ async fn main() -> ExitCode {
                 file,
                 profile_id,
                 profile_version,
+                resolution_inputs,
                 core_url,
                 format,
             } => {
                 let secrets = collector_storage::credentials::OsSecretStore;
-                let result =
+                let result = if let Some(resolution_inputs) = resolution_inputs {
+                    match client::preview::PreviewClient::connect_with_resolution_request(
+                        &core_url,
+                        &secrets,
+                        &file,
+                        &resolution_inputs,
+                    )
+                    .await
+                    {
+                        Ok((client, encoded_request)) => {
+                            client
+                                .import_imdb_ratings_with_resolution(
+                                    encoded_request,
+                                    &profile_id,
+                                    profile_version,
+                                )
+                                .await
+                        }
+                        Err(error) => Err(error.into()),
+                    }
+                } else {
                     match client::preview::PreviewClient::connect(&core_url, &secrets).await {
                         Ok(client) => match client::preview::read_import_file(&file) {
                             Ok(bytes) => {
@@ -432,7 +456,8 @@ async fn main() -> ExitCode {
                             Err(error) => Err(error.into()),
                         },
                         Err(error) => Err(error.into()),
-                    };
+                    }
+                };
                 print_preview(result, format)
             }
         },
@@ -659,6 +684,18 @@ mod tests {
                 "--expected-attempt",
                 "0",
             ],
+            vec![
+                "collector",
+                "import",
+                "imdb-ratings",
+                "input.csv",
+                "--profile-id",
+                "profile:1",
+                "--profile-version",
+                "1",
+                "--resolution-inputs",
+                "-",
+            ],
             vec!["collector", "preview", "status", "bad/id"],
             vec![
                 "collector",
@@ -703,6 +740,21 @@ mod tests {
                 "1",
                 "--format",
                 "json"
+            ])
+            .is_ok()
+        );
+        assert!(
+            Cli::try_parse_from([
+                "collector",
+                "import",
+                "imdb-ratings",
+                "-",
+                "--profile-id",
+                "profile:1",
+                "--profile-version",
+                "1",
+                "--resolution-inputs",
+                "choices.json",
             ])
             .is_ok()
         );

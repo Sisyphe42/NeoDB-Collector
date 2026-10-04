@@ -137,6 +137,7 @@ describe('PreviewPanel', () => {
     await waitFor(() => expect(screen.getByText('任务 preview_1')).toBeTruthy());
     fireEvent.click(screen.getByRole('button', { name: '读取该尝试的一页结果' }));
     await screen.findByLabelText('记录 0 的搜索词');
+    await waitFor(() => expect(screen.getByRole('region', { name: '历史预览' }).getAttribute('aria-busy')).toBe('false'));
 
     const readsBeforeStage = arrayBuffer.mock.calls.length;
     const requestsBeforeStage = previewJob.mock.calls.length + previewResults.mock.calls.length;

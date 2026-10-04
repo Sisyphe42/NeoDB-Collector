@@ -16,6 +16,51 @@ than silently substituting a different model. This does not remove review gates.
 
 ## Activation gate
 
+E4e checkpoint (2026-10-03): Sol/medium owns CLI parsing, bounded structured
+input/preview HTTP and Rust tests only. Read E4e design, cli-preview/cli-client,
+preview-submission-http and repository-layout. Main owns task/specs, README,
+existing actual-process smoke, independent review, full gate and commit. Reuse
+Domain wire shapes, standard Read/UTF-8/serde and existing transport/receipt guards.
+No dependency/API/schema/Core/Server/Storage/TS/WebUI change, CSV parser, capability,
+write, recursive delegation, live upstream/keychain or agent commit. Cargo is
+serial; stop scoped builds before main verification.
+
+- [x] E4e: Optional file-based explicit CLI choices submit a bounded NEW preview.
+
+E4e verification (2026-10-04): Sol/medium implemented file-only choice inputs,
+bounded strict Domain deserialization, exact UTF-8/BOM and encoded JSON guards,
+local preparation before health/token I/O, shared raw/structured admission
+transport, static semantic diagnostics and focused CLI tests. Main reviewed all
+production/test changes and required actual temp-file success, exact Bearer/body/
+revision, no-I/O failure tables, count/encoded exact/+1 and strict numeric/duplicate
+field checks. Scoped CLI tests (38), fmt and Clippy passed; no new dependency,
+schema/API/Core/Server/Storage behavior, CSV parser or capability was introduced.
+
+Main extended existing actual-process smoke with the shipped flag/help, file-only
+stdin refusal, unsafe origins, strict nested shapes/UTF-8/missing input and static
+redaction before native keychain access. The first full gate exposed the WebUI
+test settlement race recorded below; Luna/max repaired only its observable busy
+state wait. All 35 panel tests and five repeated target runs passed without
+weakening no-staging-I/O assertions, changing production UI or padding timeouts.
+
+Main final `pnpm verify` after all code/test changes passed: 297 Rust unit tests,
+two compile-fail doctests, 85 TS/UI tests, workspace fmt/Clippy, contract drift,
+dependency boundaries, lint/typecheck, WebUI/CLI builds and actual local CLI/HTTP/
+auth/browser smoke. Product YAML/34 evidence IDs/decision/reference/disabled
+capability and diff checks passed separately. Fixture ports/upstream/accounts/
+credentials are fake; local Windows checks are not hosted three-platform or live
+NeoDB evidence. Broader real-client/simulated-NeoDB-adapter negative, migration
+and end-to-end acceptance remains pending; keep child/parent active, connectorIds
+empty and personal/source writes disabled.
+
+E4e full-gate repair (2026-10-04): Rust/Clippy/contracts/boundaries/lint/typecheck
+passed; WebUI's existing new-job selection test counted a post-page action status
+reconciliation as staging I/O. Luna/max owns only PreviewPanel.test.tsx's fixture
+settlement/assertion repair. Preserve the no-staging-I/O assertion, wait for real
+action/reconciliation settlement rather than timeouts, and do not change production
+UI or polling. Main owns the corresponding spec rule and full rerun. Run focused
+panel tests and repeat the target case five times before handing back control.
+
 E4d checkpoint (2026-10-03): Sol/medium owns PreviewPanel, focused tests and
 preview-only CSS (a small named panel-specific component/helper is allowed).
 Main owns narrow generated validator re-exports from core-client-ts, task/specs,

@@ -10,8 +10,9 @@ this resolver slice. The separate [job contract](./preview-jobs.md) now persists
 explicit per-record search opt-ins and compact manual choices for the existing
 runner. [Structured submission](./preview-submission-http.md) exposes explicit
 inputs through the existing import API and thin client. The [WebUI](../frontend/preview-panel.md)
-stages explicit choices and submits a new preview; CLI choice inputs and broader
-acceptance remain pending. There is no standalone catalog-search HTTP route.
+stages explicit choices and submits a new preview; [CLI](./cli-preview.md) accepts
+explicit file-based choices. Broader acceptance remains pending. There is no
+standalone catalog-search HTTP route.
 
 ## 2. Signatures
 

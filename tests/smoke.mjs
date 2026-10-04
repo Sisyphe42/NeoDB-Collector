@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
@@ -31,8 +31,40 @@ try {
   assert.equal(importHelp.status, 0);
   assert(importHelp.stdout.includes('--profile-id'));
   assert(importHelp.stdout.includes('--profile-version'));
+  assert(importHelp.stdout.includes('--resolution-inputs'));
+  // Structured local refusals must happen before health or the native keychain.
+  const choicesPath = join(directory, 'resolution-private-choices.json');
+  const structuredArgs = ['import', 'imdb-ratings', '-', '--profile-id', 'imdb_ratings',
+    '--profile-version', '1', '--resolution-inputs', choicesPath,
+    '--core-url', 'http://127.0.0.1:1', '--format', 'json'];
+  const privateQuery = 'PRIVATE-QUERY-NOT-FOR-DIAGNOSTICS';
+  for (const contents of [
+    JSON.stringify({ resolutionInputs: [] }), // Array, not a second request envelope.
+    JSON.stringify([{ kind: 'search', ordinal: 0, sourceRecordId: 'tt1234567', query: privateQuery, extra: true }]),
+    JSON.stringify([{ kind: 'manual', ordinal: 0, sourceRecordId: 'tt1234567', item: { uuid: 'AbC123', mediaType: 'movie', model: 'Movie', extra: true } }]),
+    Buffer.from([0xff]),
+  ]) {
+    await writeFile(choicesPath, contents);
+    const denied = spawnSync(binary, structuredArgs, { env, input: 'CSV-PRIVATE\n', encoding: 'utf8', timeout: 5000 });
+    assert.equal(denied.status, 1, denied.stderr || denied.stdout);
+    assert.equal(JSON.parse(denied.stdout).code, 'preview_resolution_inputs_invalid');
+    for (const privateValue of [privateQuery, choicesPath, 'CSV-PRIVATE']) {
+      assert(!`${denied.stdout}${denied.stderr}`.includes(privateValue));
+    }
+  }
+  await writeFile(choicesPath, '[]');
+  const invalidCsvEncoding = spawnSync(binary, structuredArgs, { env, input: Buffer.from([0xff]), encoding: 'utf8', timeout: 5000 });
+  assert.equal(invalidCsvEncoding.status, 1, invalidCsvEncoding.stderr || invalidCsvEncoding.stdout);
+  assert.equal(JSON.parse(invalidCsvEncoding.stdout).code, 'preview_input_encoding_invalid');
+  const missingChoices = spawnSync(binary, structuredArgs.map(value => value === choicesPath ? join(directory, 'missing-private.json') : value), {
+    env, input: 'CSV-PRIVATE\n', encoding: 'utf8', timeout: 5000,
+  });
+  assert.equal(missingChoices.status, 1, missingChoices.stderr || missingChoices.stdout);
+  assert.equal(JSON.parse(missingChoices.stdout).code, 'preview_resolution_inputs_invalid');
+  assert(!`${missingChoices.stdout}${missingChoices.stderr}`.includes('missing-private.json'));
   for (const command of [
     ['import', 'imdb-ratings', '-', '--profile-id', 'imdb_ratings', '--profile-version', '1'],
+    ['import', 'imdb-ratings', '-', '--profile-id', 'imdb_ratings', '--profile-version', '1', '--resolution-inputs', choicesPath],
     ['preview', 'status', 'job:smoke'],
     ['preview', 'results', 'job:smoke', '--attempt', '1', '--offset', '0', '--limit', '50'],
     ['preview', 'cancel', 'job:smoke', '--expected-attempt', '1'],
@@ -48,6 +80,7 @@ try {
   }
   for (const command of [
     ['import', 'imdb-ratings', '-', '--profile-id', 'imdb_ratings'],
+    ['import', 'imdb-ratings', '-', '--profile-id', 'imdb_ratings', '--profile-version', '1', '--resolution-inputs', '-'],
     ['import', 'imdb-ratings', '-', '--profile-id', 'imdb_ratings', '--profile-version', '0'],
     ['preview', 'results', 'job:smoke'],
     ['preview', 'results', 'job:smoke', '--attempt', '1', '--limit', '101'],

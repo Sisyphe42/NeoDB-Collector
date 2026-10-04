@@ -8,7 +8,9 @@ use axum::{
     routing::any,
 };
 use collector_core::access::PortFuture;
-use collector_domain::preview::{PreviewAdmissionFailure, PreviewMutationResult};
+use collector_domain::preview::{
+    PreviewAdmissionFailure, PreviewMutationResult, PreviewResolutionChoice,
+};
 use std::{
     sync::{
         Arc, Mutex,
@@ -53,6 +55,7 @@ enum Mode {
 struct ServerState {
     mode: Mode,
     seen: Mutex<Vec<Seen>>,
+    healths: AtomicUsize,
 }
 
 #[derive(Default)]
@@ -85,6 +88,7 @@ async fn handler(State(state): State<Arc<ServerState>>, request: Request) -> Res
     let method = request.method().clone();
     let target = request.uri().to_string();
     if request.uri().path() == "/api/v1/health" {
+        state.healths.fetch_add(1, Ordering::SeqCst);
         return json(
             StatusCode::OK,
             serde_json::json!({
@@ -248,6 +252,7 @@ async fn server(mode: Mode) -> (String, Arc<ServerState>, tokio::task::JoinHandl
     let state = Arc::new(ServerState {
         mode,
         seen: Mutex::new(Vec::new()),
+        healths: AtomicUsize::new(0),
     });
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}", listener.local_addr().unwrap());
@@ -279,6 +284,274 @@ fn import_reader_preserves_exact_bytes_and_enforces_sentinel_limit() {
     let missing = preview::read_import_file("definitely-missing-sensitive-name.csv").unwrap_err();
     assert_eq!(missing.code, "preview_input_invalid");
     assert!(!missing.message.contains("sensitive-name"));
+}
+
+#[test]
+fn structured_input_is_strict_bounded_and_preserves_bom_utf8() {
+    let invalid = [
+        br#"{}"#.as_slice(),
+        br#"[{"kind":"native","ordinal":0,"sourceRecordId":"tt1234567"}]"#,
+        br#"[{"kind":"search","ordinal":-1,"sourceRecordId":"tt1234567","query":"x"}]"#,
+        br#"[{"kind":"search","ordinal":1.5,"sourceRecordId":"tt1234567","query":"x"}]"#,
+        br#"[{"kind":"search","ordinal":4294967296,"sourceRecordId":"tt1234567","query":"x"}]"#,
+        br#"[{"kind":"search","ordinal":0,"ordinal":1,"sourceRecordId":"tt1234567","query":"x"}]"#,
+        br#"[{"kind":"search","ordinal":0,"sourceRecordId":"tt1234567","query":"x","extra":true}]"#,
+        br#"[{"kind":"manual","ordinal":0,"sourceRecordId":"tt1234567","item":{"uuid":"abc","mediaType":"movie","model":"Movie","extra":true}}]"#,
+        &[0xff, 0xfe],
+    ];
+    for bytes in invalid {
+        assert_eq!(
+            preview::read_resolution_inputs(bytes).err().unwrap().code,
+            "preview_resolution_inputs_invalid"
+        );
+    }
+
+    let mut exact_file = b"[]".to_vec();
+    exact_file.resize(preview::MAX_IMPORT_BYTES, b' ');
+    assert!(preview::read_resolution_inputs(exact_file.as_slice()).is_ok());
+    exact_file.push(b' ');
+    assert_eq!(
+        preview::read_resolution_inputs(exact_file.as_slice())
+            .err()
+            .unwrap()
+            .code,
+        "preview_resolution_inputs_too_large"
+    );
+
+    let choices: Vec<PreviewResolutionChoice> = serde_json::from_value(serde_json::json!([
+        {"kind":"search","ordinal":0,"sourceRecordId":"tt1234567","query":"中文 \"quoted\" \\ path"},
+        {"kind":"manual","ordinal":2,"sourceRecordId":"tt7654321","item":{"uuid":"ABC123","mediaType":"movie","model":"Movie"}}
+    ]))
+    .unwrap();
+    let csv = "\u{feff}Const,Your Rating,Title,Title Type\r\ntt1234567,8,中文,movie\r\n";
+    let encoded = preview::encode_resolution_request(csv.into(), choices).unwrap();
+    let value: serde_json::Value = serde_json::from_slice(&encoded).unwrap();
+    assert_eq!(value["csv"], csv);
+    assert_eq!(value["resolutionInputs"].as_array().unwrap().len(), 2);
+    let empty = preview::encode_resolution_request(String::new(), Vec::new()).unwrap();
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&empty).unwrap(),
+        serde_json::json!({"csv":"","resolutionInputs":[]})
+    );
+}
+
+#[test]
+fn encoded_request_enforces_actual_exact_limit_with_escaping() {
+    let escaped = "\"\\\n中文";
+    let base = preview::encode_resolution_request(escaped.into(), Vec::new()).unwrap();
+    let padding = preview::MAX_IMPORT_BYTES - base.len();
+    let exact_csv = format!("{escaped}{}", "x".repeat(padding));
+    assert_eq!(
+        preview::encode_resolution_request(exact_csv.clone(), Vec::new())
+            .unwrap()
+            .len(),
+        preview::MAX_IMPORT_BYTES
+    );
+    assert_eq!(
+        preview::encode_resolution_request(format!("{exact_csv}x"), Vec::new())
+            .unwrap_err()
+            .code,
+        "preview_request_too_large"
+    );
+}
+
+#[test]
+fn structured_choice_count_is_bounded_without_local_semantic_deduplication() {
+    let item = serde_json::json!({
+        "kind":"search","ordinal":0,"sourceRecordId":"tt1234567","query":"same"
+    });
+    let choices: Vec<PreviewResolutionChoice> =
+        serde_json::from_value(serde_json::Value::Array(vec![
+            item.clone();
+            preview::MAX_PREVIEW_RECORDS
+        ]))
+        .unwrap();
+    assert!(preview::encode_resolution_request(String::new(), choices).is_ok());
+    let choices: Vec<PreviewResolutionChoice> =
+        serde_json::from_value(serde_json::Value::Array(vec![
+            item;
+            preview::MAX_PREVIEW_RECORDS
+                + 1
+        ]))
+        .unwrap();
+    assert_eq!(
+        preview::encode_resolution_request(String::new(), choices)
+            .unwrap_err()
+            .code,
+        "preview_resolution_inputs_too_many"
+    );
+}
+
+#[tokio::test]
+async fn structured_local_refusal_precedes_health_credentials_and_post() {
+    let (base, state, task) = server(Mode::Normal).await;
+    let dir = tempfile::tempdir().unwrap();
+    let csv = dir.path().join("input.csv");
+    let choices = dir.path().join("choices.json");
+    std::fs::write(&csv, b"Const,Your Rating,Title,Title Type\n").unwrap();
+    std::fs::write(
+        &choices,
+        br#"[{"kind":"search","ordinal":"secret","sourceRecordId":"tt1234567","query":"private"}]"#,
+    )
+    .unwrap();
+    let secrets = Secrets::default();
+    let result = preview::PreviewClient::connect_with_resolution_request(
+        &base,
+        &secrets,
+        csv.to_str().unwrap(),
+        choices.to_str().unwrap(),
+    )
+    .await;
+    let error = match result {
+        Err(error) => error,
+        Ok(_) => panic!("invalid choices accepted"),
+    };
+    assert_eq!(error.code, "preview_resolution_inputs_invalid");
+    assert_eq!(state.healths.load(Ordering::SeqCst), 0);
+    assert_eq!(secrets.gets.load(Ordering::SeqCst), 0);
+    assert!(state.seen.lock().unwrap().is_empty());
+
+    for (csv_bytes, choice_bytes, choice_name, expected_code) in [
+        (
+            b"Const,Your Rating,Title,Title Type\n".to_vec(),
+            None,
+            "sensitive-missing.json",
+            "preview_resolution_inputs_invalid",
+        ),
+        (
+            vec![0xff, 0xfe],
+            Some(b"[]".to_vec()),
+            "choices.json",
+            "preview_input_encoding_invalid",
+        ),
+        (
+            b"Const,Your Rating,Title,Title Type\n".to_vec(),
+            Some(
+                serde_json::to_vec(&vec![
+                    serde_json::json!({"kind":"search","ordinal":0,"sourceRecordId":"tt1234567","query":"same"});
+                    preview::MAX_PREVIEW_RECORDS + 1
+                ])
+                .unwrap(),
+            ),
+            "choices.json",
+            "preview_resolution_inputs_too_many",
+        ),
+        (
+            vec![b'"'; 6 * 1024 * 1024],
+            Some(b"[]".to_vec()),
+            "choices.json",
+            "preview_request_too_large",
+        ),
+    ] {
+        std::fs::write(&csv, csv_bytes).unwrap();
+        let choice_path = dir.path().join(choice_name);
+        if let Some(choice_bytes) = choice_bytes {
+            std::fs::write(&choice_path, choice_bytes).unwrap();
+        }
+        let result = preview::PreviewClient::connect_with_resolution_request(
+            &base,
+            &secrets,
+            csv.to_str().unwrap(),
+            choice_path.to_str().unwrap(),
+        )
+        .await;
+        let error = match result {
+            Err(error) => error,
+            Ok(_) => panic!("invalid local input accepted"),
+        };
+        assert_eq!(error.code, expected_code);
+        assert!(!error.message.contains("sensitive"));
+        assert!(!error.message.contains("same"));
+        assert_eq!(state.healths.load(Ordering::SeqCst), 0);
+        assert_eq!(secrets.gets.load(Ordering::SeqCst), 0);
+        assert!(state.seen.lock().unwrap().is_empty());
+    }
+
+    let error = preview::PreviewClient::connect_with_resolution_request(
+        "https://example.com",
+        &secrets,
+        "sensitive-missing.csv",
+        "sensitive-missing.json",
+    )
+    .await
+    .err()
+    .unwrap();
+    assert_eq!(error.code, "core_url_invalid");
+    assert!(!error.message.contains("sensitive"));
+    task.abort();
+}
+
+#[tokio::test]
+async fn structured_import_posts_json_once_with_mixed_choices_and_exact_revision() {
+    let (base, state, task) = server(Mode::Normal).await;
+    let dir = tempfile::tempdir().unwrap();
+    let csv_path = dir.path().join("input.csv");
+    let choice_path = dir.path().join("choices.json");
+    let csv = "\u{feff}Const,Your Rating,Title,Title Type\r\ntt1234567,8,中文,movie\r\ntt0000001,7,Native,movie\r\ntt7654321,9,Manual,movie\r\n";
+    let choice_value = serde_json::json!([
+        {"kind":"search","ordinal":0,"sourceRecordId":"tt1234567","query":"中文 title"},
+        {"kind":"manual","ordinal":2,"sourceRecordId":"tt7654321","item":{"uuid":"ABC123","mediaType":"movie","model":"Movie"}}
+    ]);
+    std::fs::write(&csv_path, csv.as_bytes()).unwrap();
+    std::fs::write(&choice_path, serde_json::to_vec(&choice_value).unwrap()).unwrap();
+    let secrets = Secrets::default();
+    let (client, encoded) = preview::PreviewClient::connect_with_resolution_request(
+        &base,
+        &secrets,
+        csv_path.to_str().unwrap(),
+        choice_path.to_str().unwrap(),
+    )
+    .await
+    .unwrap();
+    let accepted = client
+        .import_imdb_ratings_with_resolution(encoded.clone(), "profile:1", 7)
+        .await
+        .unwrap();
+    assert_eq!(accepted.preview.attempt, 1);
+    {
+        let seen = state.seen.lock().unwrap();
+        assert_eq!(seen.len(), 1);
+        assert_eq!(seen[0].method, Method::POST);
+        assert_eq!(
+            seen[0].target,
+            "/api/v1/imports/imdb/ratings?profileId=profile%3A1&profileVersion=7"
+        );
+        assert_eq!(seen[0].content_type.as_deref(), Some("application/json"));
+        assert_eq!(seen[0].body, encoded);
+        let expected_authorization = format!("Bearer {}", "a".repeat(43));
+        assert_eq!(
+            seen[0].authorization.as_deref(),
+            Some(expected_authorization.as_str())
+        );
+        let payload: serde_json::Value = serde_json::from_slice(&seen[0].body).unwrap();
+        assert_eq!(payload["csv"], csv);
+        assert_eq!(payload["resolutionInputs"], choice_value);
+    }
+    assert_eq!(state.healths.load(Ordering::SeqCst), 1);
+    assert_eq!(secrets.gets.load(Ordering::SeqCst), 1);
+    task.abort();
+
+    let (base, state, task) = server(Mode::Admission).await;
+    let client = preview::PreviewClient::connect(&base, &Secrets::default())
+        .await
+        .unwrap();
+    let failure = client
+        .import_imdb_ratings_with_resolution(
+            preview::encode_resolution_request(String::new(), Vec::new()).unwrap(),
+            "profile:1",
+            7,
+        )
+        .await
+        .err()
+        .unwrap();
+    assert!(
+        matches!(failure, preview::PreviewFailure::Admission(PreviewAdmissionFailure { job_id, attempt: 1, error }) if job_id == "job:new" && error.message.contains("uncertain"))
+    );
+    let seen = state.seen.lock().unwrap();
+    assert_eq!(seen.len(), 1, "structured admission is never retried");
+    assert_eq!(seen[0].content_type.as_deref(), Some("application/json"));
+    drop(seen);
+    task.abort();
 }
 
 #[tokio::test]

@@ -3,6 +3,36 @@
 Status: approved for implementation by user continuation on 2026-09-18.
 Product scope is already approved in the parent and `prd.md`.
 
+## E5e: Populated legacy-schema CLI acceptance (2026-10-04)
+
+Reuse the concrete E5d lifecycle scenario, retaining all existing assertions;
+add explicit populated v5 and v6 variants rather than copy another full fixture.
+Only after original owners drain and SQLite closes, a test-only helper removes
+later resolution-input triggers/columns and ledger entries in the temporary DB.
+Assert genuine prior observation column sets, retained committed migration ledger/
+checksums, existing job/observation/result/account/profile/auth contents and
+foreign-key integrity. Merely deleting a ledger entry is not a legacy schema.
+Never call current repositories while the DB is deliberately at an old schema.
+
+Production Storage::open must upgrade before runtime startup/public inspection.
+Check current ledger, restored nullable columns/triggers and intact foreign keys;
+retain the E5d same-origin/original-client/partial-history/startup-no-I/O assertions.
+Explicit resume then obtains fresh original v1 comparisons and job-only deletion
+preserves unrelated state. Both prior variants use Native inputs; populated v6
+Search/manual-history compatibility remains separately evidenced by Storage
+tests, not newly claimed by these CLI scenarios. No production migration or
+downgrade behavior is introduced. Browser and shipped-process acceptance remain
+separate, and both task records stay active with capabilities/writes disabled.
+
+Test-only SQLx reuse is allowed in collector-cli dev-dependencies, using the exact
+existing workspace version/features (locked 0.8.6, MIT OR Apache-2.0). It is already
+the production Storage adapter dependency, so do not add packages, versions,
+features, a generic migration framework, production raw SQL or Core dependencies.
+Record only the CLI dependency-edge lockfile change; confirm resolved packages/
+features unchanged. Evidence is Cargo.toml/Cargo.lock, Storage's existing prior-
+schema tests and the pinned SQLx crate manifest; no external platform behavior is
+being changed or newly researched.
+
 ## E5d: Real-adapter restart/resume/delete acceptance (2026-10-04)
 
 Add a named test-only restart child of the CLI integration suite. Use the real

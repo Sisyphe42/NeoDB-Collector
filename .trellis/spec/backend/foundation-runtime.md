@@ -83,6 +83,14 @@ SQLite uses `{data_dir}/collector.db`; `0001_baseline.sql` establishes SQLx's mi
 - `crates/collector-cli/src/main.rs`: doctor checks report missing assets and an occupied port while testing real temporary storage.
 - `crates/collector-storage/src/lib.rs`: empty migration, prior-v1-v3 upgrade, repeat startup, operational tables only, real readiness, byte-preserving newer-DB rejection. Prior-schema fixtures remove all later tables in foreign-key order and every later migration-ledger entry before reopening. `src/preview_results/tests.rs` upgrades populated v4 fixtures with the committed v4 CHECK/FK definitions rather than merely deleting the v5 ledger entry.
 - `crates/collector-server/src/lib.rs`: real routes, degraded 503, unknown API 404, method 405, Host/Origin denial, no CORS, injected graceful shutdown releases the port.
+- `crates/collector-cli/src/client/preview_integration_tests/migration.rs`:
+  populated genuine v5/v6 Native fixtures upgrade through production Storage open
+  before runtime/public inspection, then reuse the complete authenticated CLI
+  restart/fresh-resume/delete chain. Compare committed prior-schema definitions,
+  retained migration history/checksums and operational rows, restored nullable
+  columns/triggers, current ledger and foreign-key integrity. These are synthetic
+  Rust-client acceptance tests, not shipped-process/browser or v6 Search/manual-
+  history evidence; see [CLI Preview](./cli-preview.md).
 - `packages/core-client-ts/src/index.test.ts`: runtime schema rejection, version mismatch, network errors and valid degraded responses.
 - `apps/webui/src/App.test.tsx`: loading, refresh, empty capabilities and all error states.
 - `tests/smoke.mjs`: real binary doctor/serve, ephemeral address, port conflict, live API and Chromium desktop/mobile UI, no page errors/storage, cleanup of its own temporary directory. Windows process cleanup is forceful; graceful server lifecycle is tested separately.

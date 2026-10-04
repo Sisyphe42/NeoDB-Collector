@@ -49,6 +49,7 @@ use std::{
 };
 use tokio::sync::{Notify, oneshot};
 
+mod migration;
 mod resolution;
 mod restart;
 

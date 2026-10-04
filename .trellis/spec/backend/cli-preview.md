@@ -222,6 +222,25 @@ Public DTOs must omit both secret values and internal references. This fixture
 restart is not a shipped-process, browser, migration, native-keychain or live-
 account acceptance claim.
 
+Populated legacy-schema acceptance is the test-only child
+`preview_integration_tests/migration.rs`, tests
+`cli_populated_v5_upgrade_preserves_restart_resume_delete_chain` and
+`cli_populated_v6_upgrade_preserves_restart_resume_delete_chain`. Reuse the full
+restart scenario rather than duplicate its client/auth/history/resume/delete
+assertions. After original owners drain and SQLite closes, remove later input
+triggers/columns and ledger entries only in the temporary fixture. Compare its
+schema SQL, column metadata, indexes and foreign keys with an in-memory reference
+built from committed Storage migrations; retain exact operational rows and prior
+ledger history/checksums. Removing only ledger entries is not old-schema evidence.
+Never call current repositories before production `Storage::open` upgrades it.
+Before recovery, require restored nullable input columns/triggers, current ledger,
+valid foreign keys and unchanged retained rows. Continue the same-origin/original-
+token history, zero-startup-I/O, fresh explicit resume and job-only deletion chain.
+These two variants use Native inputs only; v6 Search/manual-history compatibility
+is separate Storage-test evidence, not covered by these CLI scenarios. SQLx is a
+test-only CLI dependency using the existing workspace version/features; this does
+not expose raw SQL or downgrade behavior in production.
+
 ## 7. Wrong vs Correct
 
 Wrong: read collector.db, parse CSV, recalculate conflicts, silently retry.

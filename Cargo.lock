@@ -463,6 +463,7 @@ dependencies = [
  "serde",
  "serde-saphyr",
  "serde_json",
+ "sqlx",
  "tempfile",
  "tokio",
  "url",

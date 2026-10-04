@@ -16,6 +16,39 @@ than silently substituting a different model. This does not remove review gates.
 
 ## Activation gate
 
+E5e checkpoint (2026-10-04): Sol/medium owns a named migration-test child,
+parent registration and narrow E5d helper parameterization, CLI Cargo.toml's
+SQLx dev-dependency plus its lockfile edge only. Read E5e/E5d design, CLI client/
+preview, foundation, jobs/results/runtime, submission/inspection/management,
+comparison, state/pairing, mapping storage and repository-layout contracts.
+Reuse production Storage::open/real HTTP/client/NeoDbClient; test raw SQL touches
+only closed temporary fixtures to construct/assert genuine populated v5/v6.
+Preserve all E5a-d assertions and default E5d behavior. Main owns task/specs,
+dependency review, independent repetitions, full verification and commit. No
+production/API/new migration/dependency versions/features/capabilities/writes,
+live account/keychain, recursive delegation or agent commit. Cargo tests/fmt/
+Clippy are serial; stop Cargo before handing back. Report blockers, never expand.
+
+- [x] E5e: Populated v5/v6 upgrade through real CLI history/resume/delete chain.
+
+E5e verification (2026-10-04): Sol/medium added two Native-only migration cases
+reusing the complete E5d chain, preserving default None behavior and every prior
+assertion. Main reviewed canonical committed-schema SQL/column/index/CHECK/FK/
+trigger comparison, exact retained ledger history/checksums/success and operational
+rows, v7 restored NULL inputs/triggers/ledger, owner shutdown and production open
+before recovery. CLI SQLx dev-dependency reuses the existing workspace settings;
+lock diff is one edge only and main locked/offline metadata confirms unchanged
+SQLx packages/features. No production/API/new migration/capability/write change.
+
+Scoped E5e 2/2, CLI 48/48, fmt/Clippy passed. Main independently repeated all ten
+integration tests twice (20.55s/20.58s), then pnpm verify passed: 307 Rust unit
+tests, two compile-fail doctests, 85 TS/UI tests, workspace fmt/Clippy, contract
+drift, dependency boundaries, lint/typecheck, builds and actual local CLI/HTTP/
+auth/browser smoke. Product YAML evidence/path/decision/disabled-capability and
+diff checks passed. Native-only CLI migration evidence does not cover v6 Search/
+manual history, shipped process, browser-to-upstream, native keychain or live
+accounts. Child/parent stay active; connector IDs empty, writes/scheduling disabled.
+
 E5d checkpoint (2026-10-04): Sol/medium owns a named restart integration-test
 child and registration plus narrow shared CoreFixture composition changes. Read
 E5d design, CLI client/preview, runtime/runner/record/jobs/results, submission/

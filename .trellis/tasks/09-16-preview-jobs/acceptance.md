@@ -22,6 +22,53 @@ credential-store verification is implied. Local Windows checks are not three-OS 
   `tests/smoke.mjs` runs real host/auth/client boundaries. Neither alone proves
   the full CLI/WebUI-to-real-NeoDB-adapter preview path across restart.
 
+## E5e populated v5/v6 CLI migration evidence (2026-10-04)
+
+`crates/collector-cli/src/client/preview_integration_tests/migration.rs` adds
+`cli_populated_v5_upgrade_preserves_restart_resume_delete_chain` and
+`cli_populated_v6_upgrade_preserves_restart_resume_delete_chain`. Both reuse the
+entire E5d restart scenario via an optional prior-schema input; the original test
+passes None and retains its original assertions. There is no copied lifecycle
+fixture, new production migration, public API or raw-SQL production escape hatch.
+
+After original runtime/HTTP/storage owners drain and the held upstream handler
+acknowledges responded-or-dropped, a test-only SQLx connection transforms only the
+closed temporary DB. It removes v7 input triggers/manual column/ledger; v5 also
+removes v6 search column/ledger. A reference schema executes committed migrations
+in memory rather than duplicating definitions. Full preview schema SQL, column
+type/nullability/default/PK, indexes/index columns, CHECK/FK definitions and
+triggers match genuine v5/v6. Retained migration versions, description, success,
+checksum, installed time and execution time remain exact. Account/client hashes,
+endpoint, both profiles, Running job, two observations and one partial result
+are unchanged; removed input columns were explicitly NULL and foreign keys valid.
+No current repository is called against the deliberately old schema.
+
+Production Storage::open upgrades before recovery/publication. Tests assert the
+v7 schema/triggers/ledger identities, NULL restored input columns, unchanged
+retained ledger history/operational rows and valid foreign keys. The same actual
+Core origin and original paired token then read Interrupted partial history;
+startup/history inspection performs no upstream or NeoDB-secret read. Explicit
+resume obtains fresh original-v1 comparisons with later snapshots and changed
+marks, and job-only deletion preserves configuration, original authentication and
+credential values. All E5d request/auth/redaction/expiry/attempt assertions remain.
+
+SQLx is added only to CLI dev-dependencies through the existing workspace setting.
+Cargo.lock changes only the CLI dependency edge; no package/version changes.
+Main's locked/offline metadata check confirms all seven resolved SQLx package
+feature sets match the pre-change baseline. Both new cases use Native input only;
+populated v6 Search/manual-history compatibility remains separate Storage-test
+evidence, not an integrated CLI claim. This is synthetic-upstream Rust-client
+composition, not shipped-process/browser/live-account/native-keychain acceptance.
+Keep child/parent active, connector IDs empty and writes disabled.
+
+Scoped E5e 2/2, all CLI 48/48, format and scoped Clippy passed. Main independently
+repeated all ten integration cases twice (20.55s/20.58s), then pnpm verify passed:
+307 Rust unit tests, two compile-fail doctests, 85 TS/UI tests, workspace fmt/Clippy,
+contract drift, dependency boundaries, lint/typecheck, builds and actual local
+CLI/HTTP/auth/browser smoke. Product YAML/34 evidence IDs/11 evidence refs/8 path
+refs/unique-disjoint decisions/disabled capabilities and diff checks passed
+separately. These are local Windows checks, not hosted three-OS CI evidence.
+
 ## E5d real-adapter restart/resume/delete evidence (2026-10-04)
 
 `crates/collector-cli/src/client/preview_integration_tests/restart.rs::cli_restart_resume_and_delete_preserve_auth_and_unrelated_state`

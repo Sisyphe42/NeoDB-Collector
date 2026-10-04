@@ -292,7 +292,7 @@ fn secret_snapshot(secrets: &FixtureSecrets) -> Vec<(String, String)> {
     values
 }
 
-async fn run_restart_resume_delete() {
+pub(super) async fn run_restart_resume_delete(prior_schema: Option<super::migration::PriorSchema>) {
     let temp = tempfile::tempdir().unwrap();
     let upstream_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let upstream_base = format!("http://{}", upstream_listener.local_addr().unwrap());
@@ -528,7 +528,16 @@ async fn run_restart_resume_delete() {
     let _responded_or_dropped = state.wait_for_initial_completion().await;
     assert_eq!(state.requests.lock().unwrap().len(), 4);
     assert_restart_database_closed(&temp, &cli_token);
+    let migration_proof = match prior_schema {
+        Some(prior_schema) => {
+            Some(super::migration::downgrade_closed_fixture(&temp, prior_schema).await)
+        }
+        None => None,
+    };
     let closed_storage = Storage::open(temp.path()).await.unwrap();
+    if let Some(proof) = &migration_proof {
+        super::migration::assert_upgraded_fixture(&temp, proof).await;
+    }
     let pre_recovery = PreviewJobRepository::load(&closed_storage, accepted.preview.job_id.clone())
         .await
         .unwrap()
@@ -964,7 +973,7 @@ async fn run_restart_resume_delete() {
 
 #[tokio::test]
 async fn cli_restart_resume_and_delete_preserve_auth_and_unrelated_state() {
-    tokio::time::timeout(Duration::from_secs(20), run_restart_resume_delete())
+    tokio::time::timeout(Duration::from_secs(20), run_restart_resume_delete(None))
         .await
         .expect("E5d restart acceptance must complete within its outer bound");
 }

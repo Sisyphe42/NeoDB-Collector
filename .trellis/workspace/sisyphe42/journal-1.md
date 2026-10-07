@@ -764,3 +764,75 @@ Verified six native browser faults through real WebUI/session/Core/SQLite/NeoDB 
   explicit Search/Manual and Running restart/migration. Terminal-history reopen
   is not interrupted/resume or shipped-process acceptance.
 - Keep connector IDs empty and writes/scheduling disabled pending full acceptance.
+
+
+## Session 18: Native browser polling and cancellation acceptance
+
+**Date**: 2026-10-07
+**Task**: Native browser polling and cancellation acceptance
+**Branch**: `master`
+
+### Summary
+
+Verified actual native-browser 202 polling and explicit cancellation against synthetic upstream, bounded live-Core cancellation observation, terminal reopen and job-only deletion. Two independent repeats and full gate passed; capabilities remain disabled.
+
+### Main Changes
+
+- Two Sol/medium agents implemented separate test-only Rust host/Node driver
+  files; main planned/reviewed/integrated, repeated actual browser acceptance and
+  committed the checkpoint. E5c timed upstream and E5f/g composition are reused.
+- Two fresh one-row cases run actual built WebUI/generated client/session/CSRF/
+  Core/runtime/SQLite/NeoDbClient with synthetic upstream/fake secrets/clock.
+  Running empty history is not completion or proof of absent personal state.
+- Success uses unchanged >=15s native polling and retains one automatic equal
+  comparison with exact identity/profile/account/time/rating/fingerprint evidence.
+- Explicit cancel checks applied=true and authoritative Cancelled; resume stays
+  explicit and unsent. Keep Core alive through first response preparation +16s,
+  awaiting an unexpected request event before drain. Early shutdown cannot stand
+  in for cancellation proof. This empty history is not partial-row cancellation.
+- Exact traces: completion four GETs/one NeoDB-secret read, cancellation one
+  public GET/zero reads; zero NeoDB-secret writes. No Cookie/CLI Bearer/search/
+  refetch/retry/write or new upstream work during inspection/reopen/deletion.
+- Closed retained/post-delete DB/WAL and public DTOs exclude E5a/E5c raw markers
+  and tokens. Same-origin reopen without reseeding preserves full terminal
+  history/normalized observations/Native input and the original local session.
+- Explicit known-ID opening and confirmed job-only deletion preserve endpoint,
+  both disabled profiles, paired-client hash/metadata/auth and secret values.
+- Preserve happy/six-fault/EOF behavior; new EOF probe requires natural nonzero
+  exit and closed Core port. Retain serving errors and drain all owned servers.
+- Actual Origin/CSRF/no Authorization, schemas, browser storage/redaction/page
+  errors and pending/cancelled desktop/mobile overflow checks. Attach concurrent
+  polling Promise handlers immediately while successful-case screenshots run.
+- Owning Trellis backend/frontend contracts and task evidence updated without
+  production/API/schema/dependency/migration/capability changes or live accounts.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `90af090` | test: verify native browser polling and cancellation |
+
+### Testing
+
+- Scoped CLI: 48 passed, three ignored browser hosts; format/scoped Clippy and
+  Node static lint/typecheck/build checks passed.
+- Main independently repeated the full native driver twice, including original
+  happy/six-fault/EOF paths and new polling/cancellation/EOF; visually checked
+  all four new desktop/mobile screenshots. No overflow/storage/page errors.
+- pnpm verify passed: 307 Rust tests, three ignored hosts explicitly driven in
+  smoke, two compile-fail doctests, 85 TS/UI tests, fmt/workspace Clippy, contracts/
+  boundaries, lint/typecheck/build and mock/actual CLI/auth/native browser smoke.
+- Product YAML/evidence/decisions/disabled-capability checks, task context
+  validation and full/staged diff checks passed; dependency/product files unchanged.
+- No fixture/Cargo/Rust processes remain. Local Windows synthetic evidence is
+  not hosted three-OS CI, shipped-process, live-account or native-keychain proof.
+
+### Status
+
+[OK] **E5h checkpoint complete; child and parent remain active and unarchived.**
+
+### Next Steps
+
+- Next bounded slice: native browser explicit Search/Manual resolution, followed
+  by Running restart/migration. Terminal reopen is not interrupted/resume proof.
+- Keep connector IDs empty and writes/scheduling disabled pending full acceptance.

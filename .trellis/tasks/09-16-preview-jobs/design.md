@@ -3,6 +3,54 @@
 Status: approved for implementation by user continuation on 2026-09-18.
 Product scope is already approved in the parent and `prd.md`.
 
+## E5f: Native browser-to-adapter acceptance (2026-10-07)
+
+Add a test-only Rust host under the existing CLI integration module and a named
+Node browser smoke driver. The host reuses CoreFixture's real Storage, Access,
+preview runtime/runner/snapshot and NeoDbClient against the existing synthetic
+native upstream. Serve the actual built WebUI, compose actual OAuth status using
+fake secrets, bootstrap a real HttpOnly session and exercise actual same-origin
+CSRF mutations. No intercepted/fulfilled Core responses or fake catalog/mark ports.
+Preserve the original CLI fixture defaults and all E5a-e assertions.
+
+The Rust host is an explicitly ignored test, not a shipped command, environment
+backdoor or public fixture HTTP route. The Node driver resolves its executable
+from standard Cargo JSON artifacts and runs exactly that test. Use a small bounded
+stdin/stdout phase exchange (ready, partial inspection/release, retained inspection,
+finish), not a generic RPC or workflow framework. Only the ephemeral bootstrap
+fragment is delivered privately to the driver; never echo buffered host output,
+tokens, raw files or browser failure URLs. Unexpected EOF/protocol/phase failure
+must drain runtime/HTTP/storage and exit within a bound. The smoke gate runs this
+ignored test explicitly after the WebUI build; ordinary Rust tests need no browser
+or generated assets. No new dependency, feature, API/schema change. A real-browser
+failure exposed long generated job IDs overflowing the narrow task heading.
+Main owns the bounded `style.css` wrapping/flex correction and regression assertion;
+no production Core/Server/Storage/client behavior or timer change is allowed.
+
+Chromium explicitly uploads BOM/UTF-8 CSV against saved disabled v1 despite changed
+v2, then observes Running with a retained partial page while the final identity
+read is held. Release only after browser/host observation; no timing sleeps or
+production timer overrides. Assert actual receipt skip/dedup counts, Completed,
+automatic identity/provenance/fingerprints/times/full binding, equal/conflict and
+MissingShelf Unknown-rating decisions. Exercise real one-page ordinal pagination,
+reload/reopen as inspection-only without auto submission or credential/network
+reads, explicit confirmed job-only deletion and retained unrelated configuration/
+original paired authentication/secret values. Capture desktop/mobile screenshots
+without keys, check overflow/empty browser storage/no page errors, and inspect
+closed DB/optional WAL while history exists as well as after deletion for discarded
+raw markers/plaintext tokens. The retained-inspection host phase drains/closes the
+completed fixture, scans it, then reopens the same Core origin with original
+session/client/secrets and no reseeding. Browser reload/reopen follows that ACK.
+This completed-history reopen is not interrupted/running browser recovery proof.
+Node validates actual public DTOs against committed
+generated schemas, not a second wire definition. Upstream traces remain exact GET,
+catalog unauthenticated, personal Bearer only, no Cookie/search/retry/write.
+
+This checkpoint covers native browser happy-path/history/delete only. Browser
+failure, polling/cancel, explicit search/manual and restart/migration acceptance
+remain separately bounded future work; existing CLI evidence is not browser proof.
+Keep both tasks active, connector IDs empty and writes/scheduling disabled.
+
 ## E5e: Populated legacy-schema CLI acceptance (2026-10-04)
 
 Reuse the concrete E5d lifecycle scenario, retaining all existing assertions;

@@ -16,6 +16,65 @@ than silently substituting a different model. This does not remove review gates.
 
 ## Activation gate
 
+E5f checkpoint (2026-10-07): Sol/medium owns the named test-only browser host,
+parent registration/narrow concrete fixture composition, named Node browser driver
+and smoke registration only. Read E5f design and frontend preview/WebUI, foundation,
+repository layout, state/pairing/OAuth HTTP, submission/inspection/management,
+comparison/runtime and NeoDB catalog/mark contracts. Main owns task/specs, review,
+independent browser repetitions/visual QA/full gate and commits. No production/
+dependency/API/schema/capability/write/live account/keychain/recursive delegation
+or agent commit. Ignore host test in ordinary Rust suite; resolve/run it explicitly
+via Cargo artifacts after assets build in smoke. Retain every E5a-e assertion and
+default fixture behavior. Bound protocol/process/handler lifecycle, redact failure
+diagnostics and drain all owners on EOF/error. Cargo is serial; stop it at handoff.
+
+E5f review adjustment: actual 390px browser evidence exposed long generated job
+IDs overflowing the heading. Main additionally owns only the `style.css` wrap/
+flex fix and its browser regression check. Keep the full ID/status visible, with
+no hidden overflow, Core/API/client/timer change or weakened mobile assertion.
+
+- [x] E5f: Actual native browser-to-Core/NeoDB-adapter history and deletion.
+
+E5f verification (2026-10-07): two Sol/medium agents implemented separate Rust
+host/fixture and Node driver files. Main reviewed baseline preservation, full
+history equality, deletion cascades, exact upstream/secret traces, and cleanup.
+The ignored test host serves actual built WebUI/OAuth status; the Node driver uses
+real bootstrap/session/CSRF and generated schemas, with no fulfilled Core requests
+or substituted catalog/mark ports. Cargo artifact discovery avoids executable
+path guessing. Standard-thread/channel stdin avoids uncancellable Tokio blocking
+reads; an independent ready-then-EOF probe requires natural nonzero exit and a
+closed Core port, rejecting forced termination as evidence.
+
+Real BOM/Unicode CSV uses original disabled v1 despite v2 max=5; counts are 3
+observations, 1 skipped row/column and 1 duplicate. Browser observes Running with
+2 committed rows before releasing the final identity read, then Completed with
+equal/conflict/MissingShelf Unknown results and real 2+1 ordinal pages. Host drains
+and scans retained SQLite/optional WAL before same-origin reopen without reseeding;
+full public job/pages and normalized observations remain equal. Browser reload
+requires explicit known-ID opening, has no File/draft and cannot resume/cancel the
+Completed task. Confirmed deletion removes job/observations/results only; endpoint,
+both profiles, original paired-client hash/metadata/authentication and secret values
+remain exact. Upstream is exactly ten GETs with public catalog/no auth, personal
+NeoDB Bearer only, no Cookie/search/retry/write, three NeoDB-secret reads and no
+new upstream/secret work on history reopen/delete/shutdown.
+
+The first actual run exposed long-ID mobile overflow; main fixed only wrapping/
+flex CSS, preserving full ID/status and the regression assertion. Full Playwright
+allHeaders reads replaced its security-filtered headers view without weakening
+Origin/CSRF checks. Main independently repeated native browser/EOF twice after
+the fixes and inspected desktop/mobile screenshots. Final pnpm verify passed:
+307 Rust tests, one explicitly ignored host (run separately in smoke), two
+compile-fail doctests, 85 TS/UI tests, workspace fmt/Clippy, contracts/boundaries,
+lint/typecheck, builds, prior mock UI smoke and actual local CLI/auth/native browser
+smoke. Product YAML/34 evidence IDs/11 evidence refs/8 paths/unique-disjoint
+decisions/disabled capabilities and diff checks passed separately.
+
+No dependency, feature, API/schema/migration or Core/Server/Storage/client behavior
+change, shipped test backdoor, live account/native-keychain access or capability/
+write activation. Local Windows completed-history evidence does not cover browser
+failure/poll/cancel/search/manual or Running restart/migration. Keep child/parent
+active and unarchived; the next bounded slice is native browser failure acceptance.
+
 E5e checkpoint (2026-10-04): Sol/medium owns a named migration-test child,
 parent registration and narrow E5d helper parameterization, CLI Cargo.toml's
 SQLx dev-dependency plus its lockfile edge only. Read E5e/E5d design, CLI client/

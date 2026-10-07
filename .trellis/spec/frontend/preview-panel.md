@@ -47,6 +47,9 @@ generated contracts package; WebUI does not add a dependency or duplicate schema
   point-in-time only; changed/disconnected evidence stays historical.
   Canonical URLs are clickable only for HTTPS; malformed/unsafe URLs remain inert
   text. Schema-valid timestamps outside Date's range use a Unix-number fallback.
+  `apps/webui/src/style.css` must wrap long generated task IDs/history text without
+  hiding or truncating evidence. Shrink the task heading's flex child while keeping
+  status visible; test real-length IDs at a narrow viewport, not only short mocks.
 - E4d review can stage explicit search/manual choices for a NEW preview only.
   A completed/current-binding job must have a confirmed receipt associated with
   this mounted panel's retained File and exact profile revision. Match job/page/
@@ -170,6 +173,33 @@ not final backend CSV -> restart -> resume acceptance. Run full pnpm verify.
 The Node browser helper compiles the committed generated JSON schemas with the
 existing AJV/formats; browser standalone validators are bundled by Vite. Do not
 invent Node-specific payload definitions or alter the generator just for fixtures.
+
+`tests/preview-native-browser-smoke.mjs` separately owns native browser-to-adapter
+acceptance. Drive the actual built WebUI/shared client, authenticated Core HTTP,
+SQLite/runtime and production NeoDbClient against synthetic loopback upstream;
+do not fulfill/intercept Core responses or substitute catalog/mark ports. Resolve
+the explicitly ignored Rust host `preview_integration_tests/browser.rs` from
+standard Cargo JSON artifacts and run it only in smoke after building assets.
+Ordinary Rust compilation/ignored status is not successful browser evidence.
+The host's private bounded stdio phase exchange is test-only, never a shipped
+command, environment backdoor or public fixture HTTP endpoint. Redact buffered
+host output and browser failure URLs; the bootstrap fragment is short-lived.
+
+Assert real BOM/Unicode upload counts and immutable v1 despite changed disabled
+v2, gated Running partial evidence, Completed equal/conflict/MissingShelf Unknown
+comparisons, generated-schema validation and real ordinal pages. Completed-history
+drain/closed DB scan/same-origin reopen followed by browser reload must preserve
+the original session, require explicit job opening and perform no new upstream/
+NeoDB-secret work or upload. This is not interrupted/running browser recovery.
+Confirm job-only deletion, preserved unrelated state, exact request boundaries,
+public/closed DB-WAL redaction, desktop/mobile screenshots, no overflow/page errors
+or browser storage. Verify host EOF exit/cleanup separately.
+Collect full security headers with Playwright `request.allHeaders()` and await
+them before asserting Origin/CSRF/auth boundaries; `request.headers()` is filtered.
+Keep narrow-screen assertions against real generated task IDs rather than masking
+overflow or shortening fixture IDs to fit the layout.
+Native happy-path history/deletion does not prove browser failure/poll/cancel/search/manual or
+restart/migration paths, shipped collector behavior, live accounts or native secrets.
 
 ## 7. Wrong vs Correct
 

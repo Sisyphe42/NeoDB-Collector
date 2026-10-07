@@ -41,6 +41,7 @@ use serde_json::{Value, json};
 use std::{
     collections::HashMap,
     fs,
+    path::PathBuf,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -49,6 +50,7 @@ use std::{
 };
 use tokio::sync::{Notify, oneshot};
 
+mod browser;
 mod migration;
 mod resolution;
 mod restart;
@@ -288,6 +290,17 @@ struct CoreFixture {
 
 impl CoreFixture {
     async fn start(temp: &tempfile::TempDir, upstream_base: &str, client_name: &str) -> Self {
+        Self::start_with_assets(temp, upstream_base, client_name, None)
+            .await
+            .0
+    }
+
+    async fn start_with_assets(
+        temp: &tempfile::TempDir,
+        upstream_base: &str,
+        client_name: &str,
+        browser_assets: Option<PathBuf>,
+    ) -> (Self, Arc<AccessService>) {
         let storage = Storage::open(temp.path()).await.unwrap();
         storage
             .set_endpoint(Some(Endpoint {
@@ -309,8 +322,17 @@ impl CoreFixture {
         let secrets = Arc::new(FixtureSecrets::new());
         let clock = Arc::new(FixedClock(NOW));
         let core_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let (parts, access) =
-            Self::compose(temp, storage, secrets.clone(), clock, core_listener).await;
+        let include_oauth = browser_assets.is_some();
+        let assets = browser_assets.unwrap_or_else(|| temp.path().join("missing-assets"));
+        let (parts, access) = Self::compose_with_assets(
+            storage,
+            secrets.clone(),
+            clock,
+            core_listener,
+            assets,
+            include_oauth,
+        )
+        .await;
 
         let pairing = access
             .create_pairing(PairingRequest {
@@ -326,17 +348,20 @@ impl CoreFixture {
         let client = PreviewClient::connect(&report.core_url, secrets.as_ref())
             .await
             .unwrap();
-        Self {
-            storage: parts.storage,
-            secrets,
-            runtime: parts.runtime,
-            maintenance: parts.maintenance,
-            core_shutdown_tx: parts.core_shutdown_tx,
-            core_server: parts.core_server,
-            client,
-            report,
-            cli_token,
-        }
+        (
+            Self {
+                storage: parts.storage,
+                secrets,
+                runtime: parts.runtime,
+                maintenance: parts.maintenance,
+                core_shutdown_tx: parts.core_shutdown_tx,
+                core_server: parts.core_server,
+                client,
+                report,
+                cli_token,
+            },
+            access,
+        )
     }
 
     async fn reopen(
@@ -347,8 +372,30 @@ impl CoreFixture {
         report: super::PairReport,
         cli_token: String,
     ) -> Self {
+        Self::reopen_with_assets(temp, secrets, clock, core_listener, report, cli_token, None).await
+    }
+
+    async fn reopen_with_assets(
+        temp: &tempfile::TempDir,
+        secrets: Arc<FixtureSecrets>,
+        clock: Arc<dyn Clock>,
+        core_listener: tokio::net::TcpListener,
+        report: super::PairReport,
+        cli_token: String,
+        browser_assets: Option<PathBuf>,
+    ) -> Self {
         let storage = Storage::open(temp.path()).await.unwrap();
-        let (parts, _) = Self::compose(temp, storage, secrets.clone(), clock, core_listener).await;
+        let include_oauth = browser_assets.is_some();
+        let assets = browser_assets.unwrap_or_else(|| temp.path().join("missing-assets"));
+        let (parts, _) = Self::compose_with_assets(
+            storage,
+            secrets.clone(),
+            clock,
+            core_listener,
+            assets,
+            include_oauth,
+        )
+        .await;
         assert_eq!(parts.core_base, report.core_url);
         let client = PreviewClient::connect(&report.core_url, secrets.as_ref())
             .await
@@ -366,12 +413,13 @@ impl CoreFixture {
         }
     }
 
-    async fn compose(
-        temp: &tempfile::TempDir,
+    async fn compose_with_assets(
         storage: Storage,
         secrets: Arc<FixtureSecrets>,
         clock: Arc<dyn Clock>,
         core_listener: tokio::net::TcpListener,
+        assets: PathBuf,
+        include_oauth: bool,
     ) -> (CoreParts, Arc<AccessService>) {
         let neodb = Arc::new(NeoDbClient::new().unwrap());
         let snapshots = Arc::new(collector_core::preview::PreviewSnapshotService::new(
@@ -394,7 +442,7 @@ impl CoreFixture {
             runner,
             Arc::new(storage.clone()),
             clock.clone(),
-            neodb,
+            neodb.clone(),
             identity,
             PreviewRetention::default(),
         )
@@ -407,23 +455,32 @@ impl CoreFixture {
         let access = Arc::new(AccessService {
             repository: Arc::new(storage.clone()),
             tokens: Arc::new(SecureTokens),
-            clock,
+            clock: clock.clone(),
             audience: core_base.clone(),
         });
         let mut access_state = AccessState::new(access.clone());
+        if include_oauth {
+            access_state.oauth = Some(Arc::new(collector_core::oauth::OAuthService::new(
+                Arc::new(storage.clone()),
+                secrets.clone(),
+                Arc::new(SecureTokens),
+                clock.clone(),
+                neodb.clone(),
+                access.audience.clone(),
+            )));
+        }
         access_state.mappings = Some(Arc::new(storage.clone()));
         access_state.preview_jobs = Some(Arc::new(storage.clone()));
         access_state.preview_results = Some(Arc::new(storage.clone()));
         access_state.preview_management = Some(runtime.clone());
         access_state.preview_submission = Some(runtime.clone());
-        let missing_assets = temp.path().join("missing-assets");
         let (core_shutdown_tx, core_shutdown_rx) = oneshot::channel();
         let core_storage = storage.clone();
         let core_server = tokio::spawn(async move {
             collector_server::serve(
                 core_listener,
                 Arc::new(core_storage),
-                missing_assets,
+                assets,
                 access_state,
                 async move {
                     let _ = core_shutdown_rx.await;

@@ -19,8 +19,83 @@ credential-store verification is implied. Local Windows checks are not three-OS 
   final workspace verification is recorded below.
 - CLI tests use loopback fixtures/fake credentials. `tests/preview-ui-smoke.mjs`
   validates preview responses and browser actions against schema-validated mocks;
-  `tests/smoke.mjs` runs real host/auth/client boundaries. Neither alone proves
-  the full CLI/WebUI-to-real-NeoDB-adapter preview path across restart.
+  its preview evidence stays client-only. `tests/smoke.mjs` runs real host/auth
+  boundaries and separately registers E5f's native browser-to-adapter helper.
+  E5a-f below distinguish actual adapter, client, completed-history reopen and
+  interrupted/resume evidence; one client's acceptance is not another's proof.
+
+## E5f native browser-to-adapter evidence (2026-10-07)
+
+`tests/preview-native-browser-smoke.mjs` drives an explicitly ignored test-only
+host in `crates/collector-cli/src/client/preview_integration_tests/browser.rs`.
+It serves the actual built WebUI and production Core HTTP/Access/OAuth status,
+runtime/runner/snapshot/Storage/NeoDbClient composition. Only synthetic loopback
+upstream, fake secrets and a fixed clock are substituted. No Playwright route
+fulfillment or mocked Core/catalog/mark response participates in this chain.
+Original E5a-e fixture defaults and all assertions are preserved.
+
+The host executable comes from standard Cargo JSON artifacts. Its bounded private
+stdio phases coordinate Running evidence, release, retained history and deletion;
+the ephemeral bootstrap fragment is delivered to the driver, never echoed in
+diagnostics. Ordinary Rust tests compile but explicitly ignore the host; smoke
+runs it after the assets build. It is not a shipped CLI command, environment
+backdoor or public fixture control endpoint. A separate ready-then-EOF probe must
+exit naturally with a nonzero integer code, no signal/error/forced termination,
+and an unreachable Core port. Runtime/HTTP/storage/upstream owners are drained.
+
+The browser bootstraps a real HttpOnly/SameSite Strict session, removes the URL
+fragment, and uploads BOM/UTF-8 CSV including a Chinese title. Actual generated
+schemas validate receipt, job, result pages, mutation and mapping responses.
+Counts are three observations, one skipped row, one skipped column and one
+duplicate. Explicit profile v1 remains immutable despite saved disabled v2's
+rating clamp max=5. The held final identity request allows browser and host to
+observe Running with two committed rows before release. Completed comparisons
+then retain suggestions 8/7/6: equal 8 is skipped, known 5 conflicts with 7, and
+MissingShelf's rating remains Unknown/needs_review rather than absence or readiness.
+Assertions cover identity claims/URLs/model/granularity, source fingerprints,
+automatic provenance, times, endpoint/account/revision and real 2+1 ordinal pages.
+
+Before deletion the host drains/closes the Completed fixture and scans the DB/
+optional WAL while normalized history still exists. Production Storage::open
+reopens the same Core origin with original session/client/secrets and no reseed.
+Full public job/pages and normalized observations are unchanged. Browser reload
+has no retained File/profile/draft, requires explicit known-ID opening, and keeps
+Completed cancel/resume disabled. Reopening/reading never uploads, resumes or
+performs new upstream/NeoDB-secret work. This is Completed-history persistence,
+not interrupted/running browser recovery or shipped-process restart evidence.
+
+Confirmed browser deletion removes that job's observations/results; endpoint,
+both mapping versions, original paired-client hash/all metadata/authentication
+and secret values remain exact. The trace is exactly ten GETs: three public fetch/
+detail pairs, three authenticated mark reads and one identity read. Catalog has
+no auth, personal requests have only NeoDB Bearer, and no request has Cookie,
+CLI Bearer, search/refetch/retry/write. NeoDB-secret reads remain three and writes
+zero through reopen/delete/shutdown. Public DTOs/UI exclude credential references,
+tokens and raw markers; closed DB/WAL scans exclude discarded source/upstream
+markers and plaintext NeoDB/paired-CLI tokens before and after deletion.
+
+Only bootstrap/import/delete mutations occur in the browser; import/delete have
+actual same-origin/CSRF headers, and Core browser calls never carry Authorization.
+Playwright allHeaders is required because headers() filters security headers.
+The first native run exposed a long generated task ID overflowing the 390px
+heading. Main fixed only wrap/flex CSS rather than shortening IDs, hiding evidence
+or weakening overflow checks. Desktop/mobile screenshots were visually inspected;
+both viewport overflow checks, empty local/session storage and zero page errors pass.
+
+Scoped CLI validation passed 48 tests with the host explicitly ignored. Main
+independently repeated the actual browser/native chain and EOF probe twice after
+review fixes. Final pnpm verify passed 307 Rust tests, one ignored host explicitly
+run by smoke, two compile-fail doctests, 85 TS/UI tests, fmt/workspace Clippy,
+generated drift, dependency boundaries, lint/typecheck, builds, previous mock UI
+smoke and actual CLI/HTTP/session/pairing/revocation/native browser smoke. Product
+YAML/34 evidence IDs/11 evidence refs/8 paths/unique-disjoint decisions/disabled
+capabilities and diff checks passed separately. This is local Windows evidence,
+not hosted three-OS CI, real-account or native-keychain verification.
+
+No dependency/feature/API/schema/migration/Core/Server/Storage/client behavior
+change or source/personal write/capability activation. Native browser failures,
+poll/cancel, explicit Search/Manual and Running restart/migration remain bounded
+future acceptance work. Keep child/parent active and connector IDs empty.
 
 ## E5e populated v5/v6 CLI migration evidence (2026-10-04)
 

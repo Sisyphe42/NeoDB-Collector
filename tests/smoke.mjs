@@ -5,6 +5,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
+import { runPreviewNativeBrowserSmoke } from './preview-native-browser-smoke.mjs';
 import { runPreviewUiSmoke } from './preview-ui-smoke.mjs';
 
 const directory = await mkdtemp(join(tmpdir(), 'collector-smoke-'));
@@ -277,6 +278,7 @@ try {
   await page.getByText('未授权', { exact: true }).waitFor();
   assert.equal((await page.request.get(`${address}/api/v1/session`)).status(), 401);
   assert.deepEqual(errors, []);
+  await runPreviewNativeBrowserSmoke(browser);
   console.log('Actual CLI, HTTP, session/pairing/revocation and desktop/mobile browser smoke passed.');
 } finally {
   await browser?.close();

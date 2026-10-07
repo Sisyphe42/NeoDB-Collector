@@ -94,6 +94,19 @@ SQLite uses `{data_dir}/collector.db`; `0001_baseline.sql` establishes SQLx's mi
 - `packages/core-client-ts/src/index.test.ts`: runtime schema rejection, version mismatch, network errors and valid degraded responses.
 - `apps/webui/src/App.test.tsx`: loading, refresh, empty capabilities and all error states.
 - `tests/smoke.mjs`: real binary doctor/serve, ephemeral address, port conflict, live API and Chromium desktop/mobile UI, no page errors/storage, cleanup of its own temporary directory. Windows process cleanup is forceful; graceful server lifecycle is tested separately.
+- `tests/preview-native-browser-smoke.mjs` explicitly drives the ignored CLI test
+  host `src/client/preview_integration_tests/browser.rs::browser_native_preview_host`
+  after assets build. Real WebUI/session/CSRF/preview HTTP and production NeoDbClient
+  use synthetic upstream and fake secrets only. Native partial/completed pages,
+  immutable profiles, completed-history reopen and job-only deletion require actual
+  browser plus Storage evidence, closed DB/WAL redaction and original auth retention.
+  Host stdio EOF/error cleanup is bounded and separate from successful browser
+  evidence; no test command/secret adapter/control API ships in collector. See
+  [Historical Preview WebUI](../frontend/preview-panel.md) for evidence boundaries.
+  Its bounded standard-thread/channel stdin reader must not become a Tokio
+  `spawn_blocking(read_line)` task: a phase timeout cannot cancel that blocked read,
+  so dropping the test runtime could hang. EOF proof requires natural nonzero
+  process exit and an unreachable Core port, never successful force termination.
 - `pnpm verify` is the root full gate: Rust format/clippy/tests, non-mutating contract drift check, import boundaries, ESLint, TypeScript, Vitest, WebUI build, binary build, process/browser smoke, `git diff --check`. `.github/workflows/verify.yml` runs the same gate on Windows/macOS/Linux; a CI definition alone is not hosted evidence.
 - Toolchain/cache failures are environment issues, not permission to skip gates. Use a disposable Cargo cache when global cache contents are incomplete; never repair global user caches silently. `tools/verify.mjs` supports both native and JS pnpm launchers.
 

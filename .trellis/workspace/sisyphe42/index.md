@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 15
-- **Last Active**: 2026-10-04
+- **Total Sessions**: 16
+- **Last Active**: 2026-10-07
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~635 | Active |
+| `journal-1.md` | ~698 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 16 | 2026-10-07 | Native browser preview integration acceptance | `0665211` | `master` |
 | 15 | 2026-10-04 | CLI populated legacy-schema migration acceptance | `3506694` | `master` |
 | 14 | 2026-10-04 | CLI native preview restart acceptance | `cdcb2a2` | `master` |
 | 13 | 2026-10-04 | CLI polling and explicit resolution acceptance | `c7d9b7c` | `master` |

@@ -633,3 +633,66 @@ Verified genuine populated v5/v6 Native schema upgrades through production Stora
   v6 Search/manual history remains separate Storage-test evidence. Rust-client
   composition is not shipped-process/native-keychain/live-account acceptance.
 - Keep connector IDs empty and writes/scheduling disabled pending reviewed acceptance.
+
+
+## Session 16: Native browser preview integration acceptance
+
+**Date**: 2026-10-07
+**Task**: Native browser preview integration acceptance
+**Branch**: `master`
+
+### Summary
+
+Verified actual WebUI/session/CSRF/Core/SQLite/NeoDB-adapter native preview against synthetic upstream, completed-history reopen and job-only deletion. Fixed long-ID mobile wrapping; full gate and independent browser/EOF repetitions passed.
+
+### Main Changes
+
+- Two Sol/medium agents implemented bounded test-only Rust host and Node driver;
+  main planned, reviewed, strengthened assertions and verified the combined flow.
+- Actual built WebUI/shared client -> real session/CSRF/Core HTTP/runtime/SQLite ->
+  production NeoDbClient -> synthetic upstream, with fake secrets/clock only.
+  Preserve all original CLI fixture defaults and E5a-e assertions; no route mocks.
+- BOM/Unicode upload, immutable disabled v1 despite v2 clamp=5, real Running partial
+  evidence, Completed equal/conflict/Unknown comparisons and full ordinal pages.
+- Drain/scan retained DB/WAL, reopen same Core origin without reseeding, and compare
+  full public job/pages and normalized observations. Reload/open by ID is read-only.
+- Delete job/observations/results only; retain exact endpoint, both profiles,
+  paired-client hash/metadata/authentication and secret values. Exactly ten GETs,
+  three NeoDB-secret reads, no new upstream/secret work on history/delete/shutdown.
+- Explicit ignored host discovered through Cargo artifacts; bounded private stdio,
+  standard-thread/channel stdin and independent natural-exit EOF/closed-port proof.
+- Actual mobile overflow exposed long-ID heading layout; main fixed only CSS
+  wrapping/flex, retaining full evidence and overflow checks. Use Playwright full
+  allHeaders for security-header assertions. Persist both lessons in owning specs.
+- No dependency/feature/API/schema/migration/Core/Server/Storage/client behavior
+  change, shipped test backdoor, capability/write activation or live-account/keychain.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0665211` | test: verify native browser preview integration |
+
+### Testing
+
+- Scoped CLI 48 passed, one host explicitly ignored; scoped Clippy/build passed.
+- Main independently repeated actual native browser and EOF twice after review
+  fixes, and visually inspected desktop/mobile screenshots; no overflow/storage/
+  page errors. Force-killed processes cannot count as successful EOF evidence.
+- Main pnpm verify passed: 307 Rust tests plus one explicitly ignored host run in
+  smoke, two compile-fail doctests, 85 TS/UI tests, fmt/workspace Clippy, contracts/
+  boundaries, lint/typecheck, builds, mock UI and actual CLI/auth/native smoke.
+- Product YAML/34 evidence IDs/11 refs/8 paths/unique-disjoint decisions/disabled
+  capabilities, full and staged diff checks passed. No fixture processes remain.
+- Local Windows synthetic-upstream evidence, not three-OS CI or live-account proof.
+
+### Status
+
+[OK] **E5f checkpoint complete; child and parent remain active and unarchived.**
+
+### Next Steps
+
+- Next bounded slice: native browser failure acceptance, followed by poll/cancel,
+  explicit Search/Manual and Running restart/migration cases. Completed-history
+  reopen is not interrupted/resume or shipped-process/native-keychain evidence.
+- Keep connector IDs empty and writes/scheduling disabled pending full acceptance.

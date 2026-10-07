@@ -8,6 +8,8 @@ use std::{
     sync::mpsc,
 };
 
+mod failure;
+
 const HOST_PREFIX: &str = "E5F:";
 
 fn send(value: Value) -> Result<(), String> {
@@ -91,13 +93,24 @@ fn job_id(value: &Value) -> Result<String, String> {
 }
 
 fn scan_closed_database(temp: &tempfile::TempDir, cli_token: &str) -> Result<(), String> {
+    scan_closed_database_with_markers(temp, cli_token, &[])
+}
+
+fn scan_closed_database_with_markers(
+    temp: &tempfile::TempDir,
+    cli_token: &str,
+    extra_markers: &[&str],
+) -> Result<(), String> {
     for name in ["collector.db", "collector.db-wal"] {
         let path = temp.path().join(name);
         if name.ends_with("-wal") && !path.exists() {
             continue;
         }
         let bytes = fs::read(&path).map_err(|_| format!("could not scan {name}"))?;
-        for forbidden in [RAW_COLUMN_MARKER, UPSTREAM_MARKER, NEODB_TOKEN, cli_token] {
+        for forbidden in [RAW_COLUMN_MARKER, UPSTREAM_MARKER, NEODB_TOKEN, cli_token]
+            .into_iter()
+            .chain(extra_markers.iter().copied())
+        {
             if bytes
                 .windows(forbidden.len())
                 .any(|window| window == forbidden.as_bytes())

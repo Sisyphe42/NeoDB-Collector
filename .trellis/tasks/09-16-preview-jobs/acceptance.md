@@ -21,8 +21,78 @@ credential-store verification is implied. Local Windows checks are not three-OS 
   validates preview responses and browser actions against schema-validated mocks;
   its preview evidence stays client-only. `tests/smoke.mjs` runs real host/auth
   boundaries and separately registers E5f's native browser-to-adapter helper.
-  E5a-f below distinguish actual adapter, client, completed-history reopen and
+  E5a-g below distinguish actual adapter, client, terminal-history reopen and
   interrupted/resume evidence; one client's acceptance is not another's proof.
+
+## E5g native browser failure evidence (2026-10-07)
+
+The existing native browser driver now separately runs
+`preview_integration_tests/browser/failure.rs::browser_native_failure_host`.
+Six ordered cases each use a fresh temporary DB, Core origin and synthetic
+upstream/foreign-redirect trap. The actual built WebUI/shared generated client,
+bootstrap/session/CSRF, Core HTTP/runtime/SQLite and production NeoDbClient remain
+in the chain; only fake secrets, clock and loopback upstream are substituted.
+No route fulfillment, mocked Core responses or production control route is added.
+
+Fetch 422/429 complete with the first equal comparison plus an ordinal-one
+Unsupported/RateLimited row. Foreign redirect, mark 401, Item-not-found 404 and
+held mark timeout fail with only the committed first comparison; ordinal-one
+inspection is an exact empty historical page, not evidence of absent personal
+state or readiness. Upstream 401 leaves the independent local WebUI session
+authorized. Failed resume is offered explicitly but never requested. The public
+job DTO exposes lifecycle only: no invented upstream error code is asserted.
+
+MarkHang observes Running/one committed row, then the real unchanged ten-second
+transport timeout through normal UI polling. Initial result publication may lag
+Running; the driver reuses the existing bounded UI-poll convergence helper rather
+than assuming immediate publication. After Failed evidence, the host releases
+and awaits the actual held handler's response-or-drop and verifies no late revival.
+Both ordinal pages, immutable v1/profile/account/time/identity/rating evidence and
+source fingerprints are validated; normalized observation fingerprints match
+stored/public result ordinals. Closed retained DB/optional WAL are scanned before
+same-origin reopen without reseeding. Full public job/pages and normalized
+observations remain equal; browser reload requires explicit known-ID opening and
+has no retained File/profile/draft.
+
+Confirmed deletion removes job/observations/results only. Endpoint, both disabled
+mapping versions, original paired-client hash/all metadata/authentication and
+secret values remain exact. Fetch faults issue four GETs/one NeoDB-secret read;
+mark faults issue six GETs/two reads. Catalog has no auth; personal reads have
+only NeoDB Bearer; no Cookie, CLI Bearer, search/refetch/retry/write occurs. The
+foreign trap sees zero requests. Inspection/reopen/delete/shutdown add no upstream
+or NeoDB-secret work, and secret writes stay zero. Retained and post-delete closed
+DB/WAL scans exclude both E5a/E5b raw source/upstream markers and plaintext tokens.
+
+Only bootstrap/import/delete browser mutations occur, with real Origin/CSRF and
+no Authorization headers. Generated schemas validate actual DTOs; allHeaders is
+awaited for security assertions. Terminal/failed desktop/mobile screenshots show
+retained first-row evidence; viewport overflow, storage/redaction and page-error
+checks pass. The first actual run caught an exact-text locator mismatch against
+the renderer's combined `结果：不支持` paragraph. The test was corrected to target
+the second result card's full canonical text; no UI behavior changed.
+
+The original E5f happy path and separate EOF probe remain intact. A second EOF
+probe targets the failure host's first ready case and requires natural nonzero
+integer exit, no signal/error/forced termination and an unreachable Core port.
+All listeners bind before spawn; serving errors are retained and both server
+joins are awaited even after another check fails. Post-scan errors cannot bypass
+owner cleanup. Ignored-host compilation alone is not browser acceptance.
+
+Scoped CLI validation passed 48 tests with two hosts explicitly ignored, plus
+format/scoped Clippy. Main independently repeated the full native driver twice
+after fixes and visually inspected all three representative screenshots. Final
+pnpm verify passed 307 Rust tests, two ignored hosts explicitly run in smoke, two
+compile-fail doctests, 85 TS/UI tests, fmt/workspace Clippy, generated drift,
+dependency boundaries, lint/typecheck/build and prior mock UI/actual CLI/auth/
+native browser smoke. Product YAML/34 evidence IDs/11 refs/8 paths/unique-disjoint
+decisions/disabled capabilities, task context validation and diff checks passed.
+
+No dependency/feature/API/schema/migration/Core/Server/Storage/client behavior
+change, source/personal write or capability activation. This is six local Windows
+synthetic browser faults and terminal-history reopen, not exhaustive faults,
+pending-catalog polling/cancel, explicit Search/Manual, Running restart/migration,
+shipped-process, native-keychain, live-account or hosted three-OS CI evidence.
+Keep child/parent active and connector IDs empty.
 
 ## E5f native browser-to-adapter evidence (2026-10-07)
 

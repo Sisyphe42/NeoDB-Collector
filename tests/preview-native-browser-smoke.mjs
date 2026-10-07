@@ -8,6 +8,7 @@ import Ajv2020 from 'ajv/dist/2020.js';
 import { chromium } from '@playwright/test';
 
 const HOST_TEST = 'client::preview_integration_tests::browser::browser_native_preview_host';
+const FAILURE_HOST_TEST = 'client::preview_integration_tests::browser::failure::browser_native_failure_host';
 const HOST_PREFIX = 'E5F:';
 const PROCESS_TIMEOUT_MS = 180_000;
 const PHASE_TIMEOUT_MS = 30_000;
@@ -18,6 +19,8 @@ const FORBIDDEN_PUBLIC_VALUES = [
   'neodb-fixture-token-e5a',
   'DISCARDED_RAW_COLUMN_E5A',
   'DISCARDED_UPSTREAM_PAYLOAD_E5A',
+  'DISCARDED_RAW_FAILURE_E5B',
+  'DISCARDED_UPSTREAM_FAILURE_E5B',
 ];
 const CSV = '\uFEFFConst,Your Rating,Title Type,Title,Raw Column\r\n'
   + 'tt1111111,8,movie,Equal,DISCARDED_RAW_COLUMN_E5A\r\n'
@@ -25,6 +28,17 @@ const CSV = '\uFEFFConst,Your Rating,Title Type,Title,Raw Column\r\n'
   + 'tt3333333,6,movie,Missing,DISCARDED_RAW_COLUMN_E5A\r\n'
   + 'tt3333333,6,movie,Duplicate,DISCARDED_RAW_COLUMN_E5A\r\n'
   + 'tt4444444,9,tvEpisode,Skipped,DISCARDED_RAW_COLUMN_E5A\r\n';
+const FAILURE_CSV = '\uFEFFConst,Your Rating,Title Type,Title,Raw Column\r\n'
+  + 'tt1111111,8,movie,Equal,DISCARDED_RAW_FAILURE_E5B\r\n'
+  + 'tt2222222,7,movie,Fault,DISCARDED_RAW_FAILURE_E5B\r\n';
+const FAILURE_CASES = [
+  'fetch_422',
+  'fetch_429',
+  'fetch_foreign_redirect',
+  'mark_401',
+  'mark_404_item',
+  'mark_hang',
+];
 
 const ajv = new Ajv2020({ strict: true });
 for (const format of ['uint32', 'int64', 'double']) ajv.addFormat(format, true);
@@ -90,8 +104,8 @@ function createLineReader(stream, onLine) {
   stream.resume();
 }
 
-function startHost(executable) {
-  const child = spawn(executable, ['--ignored', '--exact', HOST_TEST, '--nocapture'], {
+function startHost(executable, testName = HOST_TEST) {
+  const child = spawn(executable, ['--ignored', '--exact', testName, '--nocapture'], {
     stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true,
   });
@@ -193,6 +207,40 @@ async function responseJson(response, schema) {
   return value;
 }
 
+function assertComparedResultItem(item, job, spec) {
+  assert.equal(item.ordinal, spec.ordinal);
+  assert.equal(item.attempt, 1);
+  assert.equal(item.committedAt, 1_800_000_000);
+  assert.equal(item.sourceConnectorId, 'imdb:ratings_csv');
+  assert.equal(item.sourceRecordId, spec.sourceId);
+  assert.match(item.sourceFingerprint, /^imdb:ratings_csv:[0-9a-f]{64}$/);
+  assert.equal(item.profileId, 'imdb_ratings');
+  assert.equal(item.profileVersion, 1);
+  assert.equal(item.baseUrl, job.baseUrl);
+  assert.equal(item.account, 'alice');
+  assert.equal(item.historical, true);
+  assert.equal(item.executable, false);
+  assert.equal(item.outcome.kind, 'compared');
+  assert.equal(item.outcome.provenance, 'automatic');
+  assert.equal(item.outcome.observedAt, 1_800_000_000);
+  assert.equal(item.outcome.item.uuid, spec.uuid);
+  assert.equal(item.outcome.item.canonicalUrl, `${job.baseUrl}/movie/${spec.uuid}`);
+  assert.equal(item.outcome.item.detailUrl, `${job.baseUrl}/api/movie/${spec.uuid}`);
+  assert.equal(item.outcome.item.mediaType, 'movie');
+  assert.equal(item.outcome.item.model, 'Movie');
+  assert.equal(item.outcome.item.parentUuid, null);
+  assert.deepEqual(item.outcome.item.externalIds, [{ scheme: 'imdb:title', value: spec.sourceId }]);
+  assert.equal(item.outcome.comparison.profileId, 'imdb_ratings');
+  assert.equal(item.outcome.comparison.profileVersion, 1);
+  const rating = item.outcome.comparison.fields.find(field => field.ruleId === 'rating');
+  assert(rating);
+  assert.equal(rating.field, 'rating_grade');
+  assert.equal(rating.suggestion, spec.rating);
+  assert.deepEqual(rating.sink, spec.sink);
+  assert.equal(rating.status, spec.status);
+  assert.equal(rating.reason, spec.reason);
+}
+
 function assertResultPage(page, job, offset, expected) {
   validate('PreviewResultPage', page);
   assertPublic(page);
@@ -204,39 +252,7 @@ function assertResultPage(page, job, offset, expected) {
   assert.equal(page.executable, false);
   assert.equal(page.items.length, expected.length);
   for (let index = 0; index < page.items.length; index += 1) {
-    const item = page.items[index];
-    const spec = expected[index];
-    assert.equal(item.ordinal, spec.ordinal);
-    assert.equal(item.attempt, 1);
-    assert.equal(item.committedAt, 1_800_000_000);
-    assert.equal(item.sourceConnectorId, 'imdb:ratings_csv');
-    assert.equal(item.sourceRecordId, spec.sourceId);
-    assert.match(item.sourceFingerprint, /^imdb:ratings_csv:[0-9a-f]{64}$/);
-    assert.equal(item.profileId, 'imdb_ratings');
-    assert.equal(item.profileVersion, 1);
-    assert.equal(item.baseUrl, job.baseUrl);
-    assert.equal(item.account, 'alice');
-    assert.equal(item.historical, true);
-    assert.equal(item.executable, false);
-    assert.equal(item.outcome.kind, 'compared');
-    assert.equal(item.outcome.provenance, 'automatic');
-    assert.equal(item.outcome.observedAt, 1_800_000_000);
-    assert.equal(item.outcome.item.uuid, spec.uuid);
-    assert.equal(item.outcome.item.canonicalUrl, `${job.baseUrl}/movie/${spec.uuid}`);
-    assert.equal(item.outcome.item.detailUrl, `${job.baseUrl}/api/movie/${spec.uuid}`);
-    assert.equal(item.outcome.item.mediaType, 'movie');
-    assert.equal(item.outcome.item.model, 'Movie');
-    assert.equal(item.outcome.item.parentUuid, null);
-    assert.deepEqual(item.outcome.item.externalIds, [{ scheme: 'imdb:title', value: spec.sourceId }]);
-    assert.equal(item.outcome.comparison.profileId, 'imdb_ratings');
-    assert.equal(item.outcome.comparison.profileVersion, 1);
-    const rating = item.outcome.comparison.fields.find(field => field.ruleId === 'rating');
-    assert(rating);
-    assert.equal(rating.field, 'rating_grade');
-    assert.equal(rating.suggestion, spec.rating);
-    assert.deepEqual(rating.sink, spec.sink);
-    assert.equal(rating.status, spec.status);
-    assert.equal(rating.reason, spec.reason);
+    assertComparedResultItem(page.items[index], job, expected[index]);
   }
 }
 
@@ -530,10 +546,373 @@ async function runHappyPath(browser, executable) {
   }
 }
 
-async function runEofProbe(executable) {
-  const host = startHost(executable);
+function assertFailureJob(job, expectedStatus) {
+  validate('PreviewJobView', job);
+  assertPublic(job);
+  assert.equal(job.status, expectedStatus);
+  assert.deepEqual({
+    attempt: job.attempt,
+    observations: job.observationCount,
+    profile: `${job.profileId}:${job.profileVersion}`,
+    account: job.account,
+    binding: job.bindingState,
+    created: job.createdAt,
+    updated: job.updatedAt,
+    expires: job.expiresAt,
+    historical: job.historical,
+    executable: job.executable,
+  }, {
+    attempt: 1,
+    observations: 2,
+    profile: 'imdb_ratings:1',
+    account: 'alice',
+    binding: 'current',
+    created: 1_800_000_000,
+    updated: 1_800_000_000,
+    expires: 1_802_592_000,
+    historical: true,
+    executable: false,
+  });
+}
+
+function assertFailureOutcomeItem(item, job, ordinal, sourceId) {
+  assert.equal(item.ordinal, ordinal);
+  assert.equal(item.attempt, 1);
+  assert.equal(item.committedAt, 1_800_000_000);
+  assert.equal(item.sourceConnectorId, 'imdb:ratings_csv');
+  assert.equal(item.sourceRecordId, sourceId);
+  assert.match(item.sourceFingerprint, /^imdb:ratings_csv:[0-9a-f]{64}$/);
+  assert.equal(item.profileId, 'imdb_ratings');
+  assert.equal(item.profileVersion, 1);
+  assert.equal(item.baseUrl, job.baseUrl);
+  assert.equal(item.account, 'alice');
+  assert.equal(item.historical, true);
+  assert.equal(item.executable, false);
+}
+
+function assertFailureTerminalPage(resultPage, job, failureCase) {
+  validate('PreviewResultPage', resultPage);
+  assertPublic(resultPage);
+  assert.equal(resultPage.jobId, job.id);
+  assert.equal(resultPage.attempt, 1);
+  assert.equal(resultPage.offset, 0);
+  assert.equal(resultPage.limit, 2);
+  assert.equal(resultPage.historical, true);
+  assert.equal(resultPage.executable, false);
+  const completes = failureCase === 'fetch_422' || failureCase === 'fetch_429';
+  assert.equal(resultPage.items.length, completes ? 2 : 1);
+  const first = resultPage.items[0];
+  assertComparedResultItem(first, job, {
+    ordinal: 0,
+    sourceId: 'tt1111111',
+    uuid: 'Movie1111111',
+    rating: 8,
+    sink: { kind: 'known', value: 8 },
+    status: 'skipped',
+    reason: 'already_equal',
+  });
+  if (completes) {
+    const second = resultPage.items[1];
+    assertFailureOutcomeItem(second, job, 1, 'tt2222222');
+    assert.equal(second.outcome.kind, failureCase === 'fetch_422' ? 'unsupported' : 'rate_limited');
+  }
+}
+
+async function runFailureCase(browser, host, failureCase, bootstrapKeys) {
+  let context;
+  let bootstrapKey;
   try {
     const ready = await host.receive('ready');
+    assert.equal(ready.case, failureCase);
+    assert.equal(typeof ready.bootstrapUrl, 'string');
+    const bootstrapUrl = new URL(ready.bootstrapUrl);
+    const origin = bootstrapUrl.origin;
+    bootstrapKey = new URLSearchParams(bootstrapUrl.hash.slice(1)).get('key');
+    assert(bootstrapKey);
+    bootstrapKeys.push(bootstrapKey);
+
+    context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const page = await context.newPage();
+    const pageErrors = [];
+    const requests = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
+    page.on('request', request => {
+      const record = coreRequestRecord(request, origin);
+      if (record) requests.push(record);
+    });
+
+    await page.goto(bootstrapUrl.href);
+    await page.getByRole('heading', { name: '本地服务已连接' }).waitFor();
+    await page.getByText('已授权', { exact: true }).waitFor();
+    assert.equal(new URL(page.url()).hash, '');
+    assert.equal(await page.evaluate(() => document.cookie), '');
+    const cookies = await context.cookies(origin);
+    assert(cookies.some(cookie => cookie.name === 'collector_session'
+      && cookie.httpOnly && cookie.sameSite === 'Strict'));
+    await page.getByText(/alice · http:\/\/127\.0\.0\.1:/).waitFor();
+
+    const panel = page.getByRole('region', { name: '历史预览' });
+    await panel.getByLabel('保存的配置 ID', { exact: true }).fill('imdb_ratings');
+    await panel.getByLabel('保存的配置版本', { exact: true }).fill('1');
+    await panel.getByLabel('CSV 文件（UTF-8，最大 10 MiB）').setInputFiles({
+      name: `ratings-${failureCase}.csv`, mimeType: 'text/csv', buffer: Buffer.from(FAILURE_CSV),
+    });
+    const preUpload = performance.now();
+    const uploadResponse = await clickForResponse(
+      page,
+      panel.getByRole('button', { name: '提交只读预览', exact: true }),
+      (url, method) => method === 'POST' && url.pathname === '/api/v1/imports/imdb/ratings',
+    );
+    assert.equal(uploadResponse.status(), 202);
+    const receipt = await responseJson(uploadResponse, 'PreviewImportAccepted');
+    assert.deepEqual({
+      observations: receipt.observationCount,
+      skippedRows: receipt.skippedRowCount,
+      skippedColumns: receipt.skippedColumnCount,
+      duplicates: receipt.duplicateRowCount,
+      attempt: receipt.preview.attempt,
+      executable: receipt.preview.executable,
+    }, {
+      observations: 2, skippedRows: 0, skippedColumns: 1, duplicates: 0,
+      attempt: 1, executable: false,
+    });
+    const jobId = receipt.preview.jobId;
+    await panel.getByRole('heading', { name: `任务 ${jobId}`, exact: true }).waitFor();
+
+    if (failureCase === 'mark_hang') {
+      await panel.getByText('running', { exact: true }).waitFor();
+      const runningResponse = await clickForResponse(
+        page,
+        panel.getByRole('button', { name: '读取状态', exact: true }),
+        url => url.pathname === `/api/v1/previews/${jobId}`,
+      );
+      const runningJob = await responseJson(runningResponse, 'PreviewJobView');
+      assertFailureJob(runningJob, 'running');
+      await panel.getByLabel('起始记录序号').fill('0');
+      await panel.getByLabel('单页数量').fill('2');
+      const partialResponse = await clickForResponse(
+        page,
+        panel.getByRole('button', { name: '读取该尝试的一页结果', exact: true }),
+        url => url.pathname === `/api/v1/previews/${jobId}/results`
+          && url.searchParams.get('offset') === '0',
+      );
+      const initialPartialPage = await responseJson(partialResponse, 'PreviewResultPage');
+      const partialPage = await waitForPolledPage(page, jobId, 0, initialPartialPage, 1);
+      assertFailureTerminalPage(partialPage, runningJob, failureCase);
+      host.send({ phase: 'partial', jobId });
+      const held = await host.receive('held');
+      assert.equal(held.case, failureCase);
+    }
+
+    const expectedStatus = ['fetch_422', 'fetch_429'].includes(failureCase) ? 'completed' : 'failed';
+    await panel.getByText(expectedStatus, { exact: true }).waitFor({ timeout: 20_000 });
+    if (failureCase === 'mark_hang') {
+      assert(performance.now() - preUpload >= 9_000, 'real ten-second native timeout did not drive mark_hang');
+    }
+    const terminalResponse = await clickForResponse(
+      page,
+      panel.getByRole('button', { name: '读取状态', exact: true }),
+      url => url.pathname === `/api/v1/previews/${jobId}`,
+    );
+    const terminalJob = await responseJson(terminalResponse, 'PreviewJobView');
+    assertFailureJob(terminalJob, expectedStatus);
+    await page.getByText('已授权', { exact: true }).waitFor();
+    assert.equal(await page.getByText(/本地授权已失效/).count(), 0);
+    const resumeButton = panel.getByRole('button', { name: '显式恢复尝试 1', exact: true });
+    if (expectedStatus === 'failed') assert(await resumeButton.isEnabled());
+    else assert(await resumeButton.isDisabled());
+
+    await panel.getByLabel('起始记录序号').fill('0');
+    await panel.getByLabel('单页数量').fill('2');
+    const terminalPageResponse = await clickForResponse(
+      page,
+      panel.getByRole('button', { name: '读取该尝试的一页结果', exact: true }),
+      url => url.pathname === `/api/v1/previews/${jobId}/results`
+        && url.searchParams.get('offset') === '0',
+    );
+    const terminalPage = await responseJson(terminalPageResponse, 'PreviewResultPage');
+    assertFailureTerminalPage(terminalPage, terminalJob, failureCase);
+    await panel.getByLabel('起始记录序号').fill('1');
+    const ordinalOneResponse = await clickForResponse(
+      page,
+      panel.getByRole('button', { name: '读取该尝试的一页结果', exact: true }),
+      url => url.pathname === `/api/v1/previews/${jobId}/results`
+        && url.searchParams.get('offset') === '1',
+    );
+    const ordinalOnePage = await responseJson(ordinalOneResponse, 'PreviewResultPage');
+    if (expectedStatus === 'failed') {
+      assert.deepEqual({
+        jobId: ordinalOnePage.jobId,
+        attempt: ordinalOnePage.attempt,
+        offset: ordinalOnePage.offset,
+        limit: ordinalOnePage.limit,
+        items: ordinalOnePage.items,
+        historical: ordinalOnePage.historical,
+        executable: ordinalOnePage.executable,
+      }, { jobId, attempt: 1, offset: 1, limit: 2, items: [], historical: true, executable: false });
+    } else {
+      assert.equal(ordinalOnePage.jobId, jobId);
+      assert.equal(ordinalOnePage.attempt, 1);
+      assert.equal(ordinalOnePage.offset, 1);
+      assert.equal(ordinalOnePage.limit, 2);
+      assert.equal(ordinalOnePage.historical, true);
+      assert.equal(ordinalOnePage.executable, false);
+      assert.equal(ordinalOnePage.items.length, 1);
+      assertFailureOutcomeItem(ordinalOnePage.items[0], terminalJob, 1, 'tt2222222');
+      assert.equal(ordinalOnePage.items[0].outcome.kind,
+        failureCase === 'fetch_422' ? 'unsupported' : 'rate_limited');
+    }
+
+    const results = panel.getByRole('region', { name: '历史结果页' });
+    await panel.getByLabel('起始记录序号').fill('0');
+    const visibleOutcomeResponse = await clickForResponse(
+      page,
+      panel.getByRole('button', { name: '读取该尝试的一页结果', exact: true }),
+      url => url.pathname === `/api/v1/previews/${jobId}/results`
+        && url.searchParams.get('offset') === '0',
+    );
+    assert.deepEqual(await responseJson(visibleOutcomeResponse, 'PreviewResultPage'), terminalPage);
+    await results.locator('.preview-result').first().waitFor();
+    if (expectedStatus === 'completed') {
+      const secondResult = results.locator('.preview-result').nth(1);
+      await secondResult.waitFor();
+      await secondResult.getByText(
+        failureCase === 'fetch_422' ? '结果：不支持' : '结果：目录服务限流',
+        { exact: true },
+      ).waitFor();
+    }
+
+    const visibleText = await page.locator('body').innerText();
+    for (const forbidden of [...FORBIDDEN_PUBLIC_VALUES, bootstrapKey]) assert(!visibleText.includes(forbidden));
+    await page.setViewportSize({ width: 1280, height: 900 });
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    if (failureCase === 'fetch_422') {
+      await page.screenshot({ path: 'test-results/preview-native-failure-terminal.png', fullPage: true });
+    }
+    if (failureCase === 'mark_401') {
+      await page.screenshot({ path: 'test-results/preview-native-failure-desktop.png', fullPage: true });
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    if (failureCase === 'mark_404_item') {
+      await page.screenshot({ path: 'test-results/preview-native-failure-mobile.png', fullPage: true });
+    }
+    assert.equal(await page.evaluate(() => localStorage.length), 0);
+    assert.equal(await page.evaluate(() => sessionStorage.length), 0);
+    assert.equal(await page.getByText(/#key=/).count(), 0);
+
+    host.send({ phase: 'retained', jobId });
+    const reopened = await host.receive('reopened');
+    assert.equal(reopened.case, failureCase);
+    await page.reload();
+    await page.getByText('已授权', { exact: true }).waitFor();
+    assert.equal(new URL(page.url()).hash, '');
+    assert.equal(await panel.getByLabel('已有任务 ID', { exact: true }).inputValue(), '');
+    assert.equal(await panel.getByLabel('保存的配置 ID', { exact: true }).inputValue(), '');
+    assert.equal(await panel.getByLabel('CSV 文件（UTF-8，最大 10 MiB）').inputValue(), '');
+    assert.equal(await panel.getByLabel('解析选择草稿').count(), 0);
+    await panel.getByLabel('已有任务 ID', { exact: true }).fill(jobId);
+    const reopenedResponse = await clickForResponse(
+      page,
+      panel.getByRole('button', { name: '打开任务', exact: true }),
+      url => url.pathname === `/api/v1/previews/${jobId}`,
+    );
+    const reopenedJob = await responseJson(reopenedResponse, 'PreviewJobView');
+    assert.deepEqual(reopenedJob, terminalJob);
+    if (expectedStatus === 'failed') assert(await panel.getByRole('button', { name: '显式恢复尝试 1', exact: true }).isEnabled());
+    await panel.getByLabel('起始记录序号').fill('0');
+    await panel.getByLabel('单页数量').fill('2');
+    const reopenedPageResponse = await clickForResponse(
+      page,
+      panel.getByRole('button', { name: '读取该尝试的一页结果', exact: true }),
+      url => url.pathname === `/api/v1/previews/${jobId}/results`
+        && url.searchParams.get('offset') === '0',
+    );
+    assert.deepEqual(await responseJson(reopenedPageResponse, 'PreviewResultPage'), terminalPage);
+    await panel.getByLabel('起始记录序号').fill('1');
+    const reopenedOrdinalOneResponse = await clickForResponse(
+      page,
+      panel.getByRole('button', { name: '读取该尝试的一页结果', exact: true }),
+      url => url.pathname === `/api/v1/previews/${jobId}/results`
+        && url.searchParams.get('offset') === '1',
+    );
+    assert.deepEqual(await responseJson(reopenedOrdinalOneResponse, 'PreviewResultPage'), ordinalOnePage);
+
+    page.once('dialog', dialog => dialog.accept());
+    const deleteResponse = await clickForResponse(
+      page,
+      panel.getByRole('button', { name: '删除运行历史', exact: true }),
+      (url, method) => method === 'DELETE' && url.pathname === `/api/v1/previews/${jobId}`,
+    );
+    assert.deepEqual(await responseJson(deleteResponse, 'PreviewMutationResult'), { applied: true });
+    await panel.getByText('服务器确认运行历史已删除；公共目录条目不受影响。', { exact: true }).waitFor();
+    const missing = await page.evaluate(async id => {
+      const response = await fetch(`/api/v1/previews/${encodeURIComponent(id)}`);
+      return { status: response.status, body: await response.json() };
+    }, jobId);
+    assert.equal(missing.status, 404);
+    assert.equal(missing.body.code, 'preview_job_not_found');
+    assertPublic(missing.body);
+
+    const mutations = requests.filter(request => ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method));
+    assert.deepEqual(mutations.map(request => `${request.method} ${request.path}`), [
+      'POST /api/v1/session/bootstrap',
+      'POST /api/v1/imports/imdb/ratings?profileId=imdb_ratings&profileVersion=1',
+      `DELETE /api/v1/previews/${jobId}`,
+    ]);
+    const headers = await Promise.all(requests.map(request => request.headers));
+    for (const value of headers) {
+      assert(value, 'browser request headers could not be read');
+      assert.equal(value.authorization, undefined);
+    }
+    const mutationHeaders = await Promise.all(mutations.map(request => request.headers));
+    assert.equal(mutationHeaders[0].origin, origin);
+    assert.equal(mutationHeaders[0]['x-csrf-token'], undefined);
+    assert.equal(mutationHeaders[1].origin, origin);
+    assert(mutationHeaders[1]['x-csrf-token']);
+    assert.equal(mutationHeaders[2].origin, origin);
+    assert.equal(mutationHeaders[2]['x-csrf-token'], mutationHeaders[1]['x-csrf-token']);
+    assert.equal(requests.filter(request => request.path.endsWith('/resume')
+      || request.path.endsWith('/cancel')).length, 0);
+    assert.deepEqual(pageErrors, []);
+
+    host.send({ phase: 'finish', jobId });
+    const done = await host.receive('done');
+    assert.equal(done.case, failureCase);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : `native failure case ${failureCase} failed`;
+    const safe = bootstrapKeys.reduce((value, key) => value.replaceAll(key, '[redacted]'), message);
+    // eslint-disable-next-line preserve-caught-error
+    throw new Error(safe.replace(/#key=[^\s"']+/g, '#key=[redacted]'));
+  } finally {
+    await context?.close();
+  }
+}
+
+async function runFailurePath(browser, executable) {
+  const host = startHost(executable, FAILURE_HOST_TEST);
+  const bootstrapKeys = [];
+  try {
+    for (const failureCase of FAILURE_CASES) {
+      await runFailureCase(browser, host, failureCase, bootstrapKeys);
+    }
+    await host.receive('all_done');
+    const result = await waitForExit(host.child, host.exit);
+    assert.equal(result.error, undefined, 'native failure host process failed to start');
+    assert.equal(result.forced, false, 'native failure host exceeded its natural exit bound');
+    assert.equal(result.signal, null, 'native failure host terminated by signal');
+    assert.equal(result.code, 0, 'native failure host did not exit successfully');
+  } catch (error) {
+    if (host.child.exitCode === null && host.child.signalCode === null) await host.closeInputAndDrain();
+    throw error;
+  }
+}
+
+async function runEofProbe(executable, testName = HOST_TEST) {
+  const host = startHost(executable, testName);
+  try {
+    const ready = await host.receive('ready');
+    if (testName === FAILURE_HOST_TEST) assert.equal(ready.case, FAILURE_CASES[0]);
     const origin = new URL(ready.bootstrapUrl).origin;
     const result = await host.closeInputAndDrain();
     assert.equal(result.error, undefined, 'EOF probe host process failed to start');
@@ -559,7 +938,9 @@ export async function runPreviewNativeBrowserSmoke(existingBrowser) {
   try {
     await runHappyPath(browser, executable);
     await runEofProbe(executable);
-    console.log('Actual native browser/Core/SQLite/NeoDB-adapter preview acceptance passed.');
+    await runFailurePath(browser, executable);
+    await runEofProbe(executable, FAILURE_HOST_TEST);
+    console.log('Actual native browser/Core/SQLite/NeoDB-adapter preview acceptance passed, including failure retention.');
   } finally {
     if (!existingBrowser) await browser.close();
   }

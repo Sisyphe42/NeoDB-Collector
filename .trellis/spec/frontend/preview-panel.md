@@ -165,11 +165,13 @@ automatic status reconciliation before recording call-count baselines. The page
 can render before action finalization restarts inspection; finding a row alone
 does not prove those reads are drained. Use async React `act`/observable completion,
 not arbitrary sleeps, larger timeouts or a weakened no-request assertion.
-`tests/smoke.mjs` exercises actual local host/session/mapping and browser UI;
-preview-specific browser responses use clearly isolated mocks, not real NeoDB or
-OS credentials. Capture preview desktop/mobile screenshots and check overflow,
-keyboard-safe controls and empty browser storage. This is UI/client evidence,
-not final backend CSV -> restart -> resume acceptance. Run full pnpm verify.
+`tests/smoke.mjs` exercises actual local host/session/mapping and browser UI.
+`tests/preview-ui-smoke.mjs` owns the clearly isolated mocked preview responses;
+its evidence is UI/client-only, not backend CSV -> restart -> resume acceptance.
+The separate native browser helper below uses real adapters/synthetic upstream,
+never real NeoDB accounts or OS credentials. Capture preview desktop/mobile
+screenshots and check overflow, keyboard-safe controls and empty browser storage.
+Run full pnpm verify.
 The Node browser helper compiles the committed generated JSON schemas with the
 existing AJV/formats; browser standalone validators are bundled by Vite. Do not
 invent Node-specific payload definitions or alter the generator just for fixtures.
@@ -198,8 +200,28 @@ Collect full security headers with Playwright `request.allHeaders()` and await
 them before asserting Origin/CSRF/auth boundaries; `request.headers()` is filtered.
 Keep narrow-screen assertions against real generated task IDs rather than masking
 overflow or shortening fixture IDs to fit the layout.
-Native happy-path history/deletion does not prove browser failure/poll/cancel/search/manual or
-restart/migration paths, shipped collector behavior, live accounts or native secrets.
+Native happy-path history/deletion alone does not prove browser faults or
+poll/cancel/search/manual/restart/migration, shipped collector behavior, live
+accounts or native secrets.
+
+The same Node helper separately drives
+`preview_integration_tests/browser/failure.rs::browser_native_failure_host`.
+Keep the six E5g cases bounded and independent: fetch 422/429 complete with
+Unsupported/RateLimited historical rows; unsafe foreign redirect, mark 401,
+Item-not-found 404 and held mark timeout fail with only the first committed
+comparison. Do not invent a public upstream error code absent from PreviewJobView
+or convert an empty failed-row page into empty/Unknown personal-state evidence.
+Upstream NeoDB 401 must not expire the independent local WebUI session; Failed
+resume stays explicit and no resume/retry/search occurs in these cases.
+
+Only the held mark case observes Running/partial history before awaiting the
+unchanged real ten-second transport timeout. Release/drain its handler after
+terminal evidence and assert no late revival. Compare full job/pages after
+terminal-history close/scan/same-origin reopen, then confirm job-only deletion
+while retaining auth/config/secret state. Schema/trace/redaction, desktop/mobile,
+empty browser storage and independent natural-exit EOF checks remain required.
+Six synthetic browser faults are not exhaustive fault, pending-catalog polling/
+cancellation, explicit Search/Manual or interrupted/restart/migration evidence.
 
 ## 7. Wrong vs Correct
 

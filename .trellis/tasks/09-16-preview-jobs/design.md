@@ -3,6 +3,50 @@
 Status: approved for implementation by user continuation on 2026-09-18.
 Product scope is already approved in the parent and `prd.md`.
 
+## E5g: Native browser failure acceptance (2026-10-07)
+
+Extend the E5f test-only browser harness with a named ignored failure host child,
+reusing its bounded stdio reader, assets/CoreFixture, baseline/reopen/redaction
+helpers and the existing E5b Fault/FailureUpstreamState/handler/trap machinery.
+Do not copy a second Core composer or add a generic fixture RPC/framework.
+Six fixed fresh-fixture cases run sequentially: Fetch422, Fetch429,
+FetchForeignRedirect, Mark401, Mark404Item and MarkHang. The first observation
+always commits an equal comparison before the second encounters the fault.
+Existing E5a-f behavior/defaults/assertions and the happy-path EOF probe stay intact.
+
+Protocol: host ready includes a static case name and private bootstrap URL;
+MarkHang alone receives partial(jobId), verifies Running/one committed row and
+the held real request, then acknowledges held without releasing it. Browser
+observes the real ten-second adapter timeout, not a shortened timer. Browser
+sends retained(jobId) after actual terminal/page inspection. Host verifies history,
+releases/drains any timed-out handler and checks no late result revival, closes/
+scans retained DB-WAL, reopens the same Core origin without reseeding and compares
+full public job/pages and normalized observations. It acknowledges reopened;
+browser reloads, explicitly opens the known job and deletes with confirmation;
+finish(jobId) verifies job-only deletion and preserved unrelated/auth/secret state,
+then drains all owners/scans and emits done(case). After all cases, all_done.
+EOF/error must also drain upstream/trap/Core/storage; forced termination is failure.
+
+Use real WebUI/shared client/session/CSRF and generated schemas, no intercepted
+Core responses or substituted catalog/mark ports. 422/429 are Completed with
+Unsupported/RateLimited historical rows, not failed jobs or fabricated comparisons.
+Redirect/auth/item-unavailable/timeout cases are Failed with only the committed
+first comparison; ordinal-one inspection is empty, not proof of absence/readiness.
+Upstream NeoDB 401 does not expire the independent local WebUI session. Failed
+resume can be explicitly offered but is never sent automatically in this slice.
+Assert exact request paths/auth/no-cookie, zero trap requests, no search/refetch/
+retry/write, exact secret-read counts, immutable v1 despite v2, full history before/
+after reopen, no late revival, original session/client and job-only deletion.
+Capture key-free terminal/error desktop/mobile screenshots and test no overflow,
+page errors or browser storage. Keep diagnostic/output redaction and scan both
+existing E5a and E5b discarded markers plus plaintext NeoDB/CLI tokens.
+
+No production, dependency, feature, API/schema/migration, capability or write
+change. Only synthetic loopback fixtures/fake secrets/clock; no real account/OS
+store. This is six native fault cases and terminal-history reopen, not exhaustive
+browser faults, pending catalog polling/cancel, explicit Search/Manual, Running
+restart/migration or shipped-process/live-platform acceptance. Keep tasks active.
+
 ## E5f: Native browser-to-adapter acceptance (2026-10-07)
 
 Add a test-only Rust host under the existing CLI integration module and a named

@@ -16,6 +16,57 @@ than silently substituting a different model. This does not remove review gates.
 
 ## Activation gate
 
+E5g checkpoint (2026-10-07): Sol/medium Rust agent owns only
+`preview_integration_tests/browser/failure.rs` and narrow parent browser.rs
+registration/helper reuse; Sol/medium Node agent owns only the existing native
+browser driver, preserving all E5f checks and its smoke registration. Main owns
+task/spec changes, review, independent repetitions/visual QA/full gate and commits.
+Read E5g design and referenced E5f frontend preview/WebUI, backend foundation/
+repository/state/OAuth/submission/inspection/management/runtime/catalog/mark/
+comparison contracts. Reuse six E5b faults and current fixture, no copied Core
+composer, production/dependency/API/schema/migration/capability/write changes,
+live accounts/keychain, recursive delegation or agent commits. Rust agent alone
+owns Cargo until handoff; Node static checks/build only, then main runs real smoke.
+
+- [x] E5g: Native browser fault outcomes, retained evidence and job-only deletion.
+
+E5g verification (2026-10-07): two Sol/medium agents implemented disjoint Rust
+host and Node driver files; main reviewed/integrated the exact lifecycle, ordinal
+pages, fingerprints, retained-state baselines, authentication/I/O boundaries and
+all-owner cleanup. Six fresh synthetic cases passed through actual built WebUI,
+session/CSRF/Core/runtime/SQLite/NeoDbClient with no intercepted Core responses.
+Fetch 422/429 retain Unsupported/RateLimited outcomes; redirect/mark 401/Item 404/
+real ten-second timeout retain only the first comparison with Failed lifecycle.
+MarkHang uses ordinary UI polling, drains the released handler and cannot revive
+history. Upstream 401 does not invalidate the local session. Full job/pages and
+normalized observations stay equal across terminal close/scan/same-origin reopen;
+confirmed job-only deletion retains exact auth/config/secrets. Traces are four
+GETs/one secret read for fetch faults and six GETs/two reads for mark faults, no
+trap hit/Cookie/CLI Bearer/search/retry/write or additional I/O on inspection/
+reopen/delete/shutdown. Both E5a/E5b markers and tokens are absent from closed
+retained/post-delete DB/WAL and public evidence.
+
+The first actual run caught a locator using a child text rather than the renderer's
+combined outcome paragraph. Corrected only the scoped test locator, preserving
+the semantic assertion. Running may precede result publication; reuse bounded
+real UI-poll convergence instead of an immediate-row assumption. All listeners
+bind before spawning; serving errors and both joins are retained even if another
+check fails. Existing E5f assertions and its independent EOF probe are preserved;
+the failure host adds a separate natural-exit EOF/closed-port probe, no force-kill
+success. Main repeated the full native driver twice after fixes and inspected
+terminal/failed desktop/mobile screenshots; overflow/storage/page-error checks
+passed. Final pnpm verify passed: 307 Rust tests, two explicitly ignored hosts
+run separately in smoke, two compile-fail doctests, 85 TS/UI tests, fmt/workspace
+Clippy, contracts/boundaries, lint/typecheck/build and mocked/actual CLI/auth/native
+browser smoke. Product YAML/34 evidence IDs/11 refs/8 paths/unique-disjoint
+decisions/disabled capabilities, task context validation and diff checks passed.
+
+No production/dependency/feature/API/schema/migration/capability/write change,
+real account/keychain or hosted three-OS CI proof. Six native faults and terminal
+history are not exhaustive faults, pending-catalog poll/cancel, explicit Search/
+Manual or Running restart/migration. Keep child/parent active and unarchived;
+next bounded slice is native browser pending-catalog polling/cancellation.
+
 E5f checkpoint (2026-10-07): Sol/medium owns the named test-only browser host,
 parent registration/narrow concrete fixture composition, named Node browser driver
 and smoke registration only. Read E5f design and frontend preview/WebUI, foundation,

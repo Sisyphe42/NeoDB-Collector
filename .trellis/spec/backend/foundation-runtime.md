@@ -107,6 +107,16 @@ SQLite uses `{data_dir}/collector.db`; `0001_baseline.sql` establishes SQLx's mi
   `spawn_blocking(read_line)` task: a phase timeout cannot cancel that blocked read,
   so dropping the test runtime could hang. EOF proof requires natural nonzero
   process exit and an unreachable Core port, never successful force termination.
+  `src/client/preview_integration_tests/browser/failure.rs` adds a separate ignored
+  native-fault host reusing E5b faults/handlers and E5f composition/protocol helpers.
+  Browser must inspect actual terminal/partial results and confirm deletion; host
+  asserts exact request/credential boundaries, zero redirect-trap requests, no
+  late timeout-result revival, full terminal-history reopen equality and unrelated
+  state retention. Explicit failure-host smoke/EOF execution, not its ignored
+  compilation, supplies browser evidence. This does not prove Running recovery.
+  Bind all fixture listeners before spawning tasks; retain serve errors and await
+  every server join even when another check/join fails. Compute post-scan errors
+  as values before shutdown, not early `?` returns that bypass remaining owners.
 - `pnpm verify` is the root full gate: Rust format/clippy/tests, non-mutating contract drift check, import boundaries, ESLint, TypeScript, Vitest, WebUI build, binary build, process/browser smoke, `git diff --check`. `.github/workflows/verify.yml` runs the same gate on Windows/macOS/Linux; a CI definition alone is not hosted evidence.
 - Toolchain/cache failures are environment issues, not permission to skip gates. Use a disposable Cargo cache when global cache contents are incomplete; never repair global user caches silently. `tools/verify.mjs` supports both native and JS pnpm launchers.
 

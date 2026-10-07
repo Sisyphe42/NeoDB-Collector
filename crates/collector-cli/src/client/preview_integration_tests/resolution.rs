@@ -1,8 +1,8 @@
 use super::*;
 use collector_core::preview_jobs::PreviewResolutionInput;
 
-const POLL_ID: &str = "tt4444444";
-const POLL_UUID: &str = "Movie4444444";
+pub(super) const POLL_ID: &str = "tt4444444";
+pub(super) const POLL_UUID: &str = "Movie4444444";
 const SEARCH_ID: &str = "tt5555555";
 const SEARCH_UUID: &str = "Movie5555555";
 const NATIVE_ID: &str = "tt6666666";
@@ -10,8 +10,8 @@ const NATIVE_UUID: &str = "Movie6666666";
 const LIMITED_ID: &str = "tt7777777";
 const MANUAL_CONFLICT_ID: &str = "tt8888888";
 const MANUAL_CONFLICT_UUID: &str = "Movie8888888";
-const RESOLUTION_RAW_MARKER: &str = "DISCARDED_RAW_RESOLUTION_E5C";
-const RESOLUTION_UPSTREAM_MARKER: &str = "DISCARDED_UPSTREAM_RESOLUTION_E5C";
+pub(super) const RESOLUTION_RAW_MARKER: &str = "DISCARDED_RAW_RESOLUTION_E5C";
+pub(super) const RESOLUTION_UPSTREAM_MARKER: &str = "DISCARDED_UPSTREAM_RESOLUTION_E5C";
 
 fn assert_public_redacted<T: serde::Serialize>(value: &T, extra_markers: &[&str]) {
     let public = serde_json::to_string(value).unwrap();
@@ -144,13 +144,13 @@ fn assert_equal_comparison(
 }
 
 #[derive(Clone)]
-struct TimedRequest {
-    seen: SeenRequest,
-    received_at: Instant,
-    response_prepared_at: Instant,
+pub(super) struct TimedRequest {
+    pub(super) seen: SeenRequest,
+    pub(super) received_at: Instant,
+    pub(super) response_prepared_at: Instant,
 }
 
-struct PollState {
+pub(super) struct PollState {
     base: String,
     requests: Mutex<Vec<TimedRequest>>,
     first_fetch_seen: AtomicBool,
@@ -159,11 +159,23 @@ struct PollState {
 }
 
 impl PollState {
-    async fn wait_for_first_fetch(&self) {
+    pub(super) fn new(base: String) -> Self {
+        Self {
+            base,
+            requests: Mutex::new(Vec::new()),
+            first_fetch_seen: AtomicBool::new(false),
+            first_fetch: Notify::new(),
+            fetches: AtomicUsize::new(0),
+        }
+    }
+
+    pub(super) async fn wait_for_first_fetch(&self) {
         tokio::time::timeout(Duration::from_secs(3), async {
             loop {
                 let notified = self.first_fetch.notified();
-                if self.first_fetch_seen.load(Ordering::SeqCst) {
+                if self.first_fetch_seen.load(Ordering::SeqCst)
+                    && !self.requests.lock().unwrap().is_empty()
+                {
                     break;
                 }
                 notified.await;
@@ -171,6 +183,28 @@ impl PollState {
         })
         .await
         .expect("the first native fetch must arrive");
+    }
+
+    pub(super) fn requests(&self) -> Vec<TimedRequest> {
+        self.requests.lock().unwrap().clone()
+    }
+
+    pub(super) async fn request_count_exceeds_until(
+        &self,
+        count: usize,
+        deadline: Instant,
+    ) -> bool {
+        tokio::time::timeout_at(deadline.into(), async {
+            loop {
+                let notified = self.first_fetch.notified();
+                if self.requests.lock().unwrap().len() > count {
+                    break;
+                }
+                notified.await;
+            }
+        })
+        .await
+        .is_ok()
     }
 
     fn record(&self, request: &Request<Body>, received_at: Instant, response_prepared_at: Instant) {
@@ -188,6 +222,7 @@ impl PollState {
             received_at,
             response_prepared_at,
         });
+        self.first_fetch.notify_waiters();
     }
 }
 
@@ -205,7 +240,10 @@ fn poll_item(base: &str) -> Value {
     })
 }
 
-async fn polling_upstream(State(state): State<Arc<PollState>>, request: Request<Body>) -> Response {
+pub(super) async fn polling_upstream(
+    State(state): State<Arc<PollState>>,
+    request: Request<Body>,
+) -> Response {
     let received_at = Instant::now();
     let path = request.uri().path().to_owned();
     let response = if path == "/api/catalog/fetch" {
@@ -262,13 +300,7 @@ async fn run_polling_success() {
     let temp = tempfile::tempdir().unwrap();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}", listener.local_addr().unwrap());
-    let state = Arc::new(PollState {
-        base: base.clone(),
-        requests: Mutex::new(Vec::new()),
-        first_fetch_seen: AtomicBool::new(false),
-        first_fetch: Notify::new(),
-        fetches: AtomicUsize::new(0),
-    });
+    let state = Arc::new(PollState::new(base.clone()));
     let app = Router::new()
         .fallback(polling_upstream)
         .with_state(state.clone());
@@ -354,7 +386,7 @@ async fn run_polling_success() {
     ));
     assert_eq!(rating.reason, "already_equal");
 
-    let requests = state.requests.lock().unwrap().clone();
+    let requests = state.requests();
     assert_eq!(requests.len(), 4);
     assert!(
         requests[1]
@@ -410,7 +442,7 @@ async fn run_polling_success() {
     assert_fixture_preserved(&fixture, &base, 1).await;
     let cli_token = fixture.cli_token.clone();
     fixture.shutdown().await;
-    let drained_requests = state.requests.lock().unwrap().clone();
+    let drained_requests = state.requests();
     assert_eq!(drained_requests.len(), 4);
     assert_eq!(
         drained_requests
@@ -436,13 +468,7 @@ async fn run_polling_cancel() {
     let temp = tempfile::tempdir().unwrap();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}", listener.local_addr().unwrap());
-    let state = Arc::new(PollState {
-        base: base.clone(),
-        requests: Mutex::new(Vec::new()),
-        first_fetch_seen: AtomicBool::new(false),
-        first_fetch: Notify::new(),
-        fetches: AtomicUsize::new(0),
-    });
+    let state = Arc::new(PollState::new(base.clone()));
     let app = Router::new()
         .fallback(polling_upstream)
         .with_state(state.clone());
@@ -521,7 +547,7 @@ async fn run_polling_cancel() {
     assert_fixture_preserved(&fixture, &base, 0).await;
     let cli_token = fixture.cli_token.clone();
     fixture.shutdown().await;
-    let requests = state.requests.lock().unwrap().clone();
+    let requests = state.requests();
     assert_eq!(requests.len(), 1);
     assert_eq!(
         requests[0].seen.uri,

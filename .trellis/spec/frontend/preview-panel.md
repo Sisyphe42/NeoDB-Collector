@@ -223,6 +223,29 @@ empty browser storage and independent natural-exit EOF checks remain required.
 Six synthetic browser faults are not exhaustive fault, pending-catalog polling/
 cancellation, explicit Search/Manual or interrupted/restart/migration evidence.
 
+`preview_integration_tests/browser/polling.rs::browser_native_polling_host` adds
+two independent E5h native cases using the existing E5c timed upstream. Actual
+Running/empty history must remain Running, not completion/absence. One case
+completes only after the unchanged >=15-second response-to-next-fetch interval;
+the other promptly uses the displayed attempt's explicit cancel once, then checks
+truthful applied=true and authoritative Cancelled with empty historical pages.
+UI GET polling is separate from upstream native-fetch polling. Do not shorten
+either production cadence, add mutation retries, or infer remote rollback.
+The cancellation host keeps Core alive through first response preparation +16s
+and observes the next-request event under that deadline before shutdown. Exactly
+one request at timeout is bounded negative evidence; early shutdown or an
+arbitrary settlement sleep must not stand in for cancellation proof.
+
+Assert exact cancel JSON/Origin/CSRF, zero Authorization, no automatic resume,
+full terminal job/pages after close/scan/same-origin reopen, known-ID opening and
+job-only deletion with preserved original auth/config/secrets. Both cases need
+public/closed DB-WAL redaction and an independent natural-exit EOF probe. Capture
+pending evidence in the successful case; cancel promptly after pending ACK rather
+than spending its poll interval taking screenshots. Cancelled desktop/mobile
+screenshots, empty browser storage, no overflow/page errors remain required.
+This one-row cancellation case proves empty retained history, not partial-row
+cancellation, Search/Manual or Running restart/migration acceptance.
+
 ## 7. Wrong vs Correct
 
 Wrong: infer completed from `items.length === 0`, auto-resume on remount, or

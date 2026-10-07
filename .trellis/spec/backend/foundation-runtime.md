@@ -117,6 +117,16 @@ SQLite uses `{data_dir}/collector.db`; `0001_baseline.sql` establishes SQLx's mi
   Bind all fixture listeners before spawning tasks; retain serve errors and await
   every server join even when another check/join fails. Compute post-scan errors
   as values before shutdown, not early `?` returns that bypass remaining owners.
+  `src/client/preview_integration_tests/browser/polling.rs` drives two native
+  pending cases with the reused E5c timed upstream: real >=15-second poll spacing
+  and explicit displayed-attempt cancellation without a follow-up fetch or secret
+  read. Distinguish UI inspection polling from upstream fetches. First observe
+  cancellation with Core alive through first response preparation +16s, awaiting
+  an unexpected request event under that deadline; shutdown is not cancellation
+  proof. Then drain ownership before final no-further-I/O assertions. Keep empty
+  Cancelled history non-executable, compare full terminal evidence across reopen
+  and preserve unrelated state on deletion. Existing happy/fault/EOF assertions
+  remain separate and unchanged.
 - `pnpm verify` is the root full gate: Rust format/clippy/tests, non-mutating contract drift check, import boundaries, ESLint, TypeScript, Vitest, WebUI build, binary build, process/browser smoke, `git diff --check`. `.github/workflows/verify.yml` runs the same gate on Windows/macOS/Linux; a CI definition alone is not hosted evidence.
 - Toolchain/cache failures are environment issues, not permission to skip gates. Use a disposable Cargo cache when global cache contents are incomplete; never repair global user caches silently. `tools/verify.mjs` supports both native and JS pnpm launchers.
 

@@ -16,6 +16,54 @@ than silently substituting a different model. This does not remove review gates.
 
 ## Activation gate
 
+E5h checkpoint (2026-10-07): Sol/medium Rust agent owns only new
+`preview_integration_tests/browser/polling.rs`, browser.rs registration and narrow
+test-only visibility/constructor/snapshot/event-waiter/prepared-notification reuse
+in resolution.rs for its existing PollState/timed handler.
+Sol/medium Node agent owns only existing native browser driver, preserving all
+E5f/g paths/EOF/assertions and smoke registration. Main owns task/spec/evidence,
+review, independent browser repeats/visual QA/full gate and commits. Read E5h/E5c
+design, frontend preview/WebUI, backend foundation/repository/state/OAuth/history/
+submission/management/runtime/catalog/resolver/mark/comparison contracts. Reuse
+actual composition and existing Node helpers/schema validators; no production,
+dependency/API/schema/migration/capability/write, live accounts/keychain, recursive
+delegation or agent commits. Rust agent alone owns serial Cargo until handoff;
+Node static checks/build only, main owns actual browser/full gate after handoff.
+Cancellation keeps Core alive through first response preparation +16s, observing
+the next-request event under that deadline before owner drain; shutdown must not
+substitute for proof that explicit cancellation suppressed the next native poll.
+
+- [x] E5h: Native browser 202 polling and explicit cancellation/retained history.
+
+E5h verification (2026-10-07): two Sol/medium agents implemented disjoint Rust
+host/Node driver files; main reviewed the integrated lifecycle, identity/profile/
+fingerprint, authentication/I/O and cleanup assertions. Two independent actual
+native-driver repeats passed, preserving original happy/six-fault/EOF cases and
+adding fresh one-row poll_complete/poll_cancel plus a new natural-exit EOF probe.
+Completion uses unchanged >=15s native polling; cancellation keeps Core alive
+through first response preparation +16s with an unexpected-request event waiter,
+not immediate shutdown or arbitrary settlement sleep. Exact traces are four
+GETs/one NeoDB-secret read versus one public GET/zero reads, zero NeoDB-secret
+writes and no search/refetch/retry/source or personal write. Full terminal job/pages/normalized
+observations/Native input survive same-origin reopen without reseeding; explicit
+known-ID inspection/deletion preserves original endpoint/profiles/auth/secrets.
+Closed retained/post-delete DB/WAL and public DTOs exclude E5a/E5c markers/tokens.
+Main visually checked pending/cancelled desktop/mobile screenshots; overflow,
+storage/page-error and actual Origin/CSRF/no Authorization checks passed. Promise
+handlers attach immediately while screenshots and normal UI polling run together.
+Scoped CLI 48 tests/three ignored hosts, format/scoped Clippy and Node static
+checks passed. Final pnpm verify passed 307 Rust tests, three ignored browser
+hosts explicitly driven by smoke, two compile-fail doctests, 85 TS/UI tests,
+fmt/workspace Clippy, generated drift/boundaries, lint/typecheck/build and prior
+mock/actual CLI/auth/native browser smoke. Product YAML/evidence/decisions/
+disabled capabilities and task context validation passed; dependency/product
+files remain unchanged and full diff checks passed. No production/API/schema/
+migration/capability change. Local Windows synthetic terminal-history evidence
+is not partial-row cancellation, Search/Manual, Running restart/migration,
+shipped-process, native-keychain, live-account or hosted three-OS CI acceptance.
+Keep child/parent active and connector IDs empty; next native browser slice is
+explicit Search/Manual resolution, followed by Running restart/migration.
+
 E5g checkpoint (2026-10-07): Sol/medium Rust agent owns only
 `preview_integration_tests/browser/failure.rs` and narrow parent browser.rs
 registration/helper reuse; Sol/medium Node agent owns only the existing native

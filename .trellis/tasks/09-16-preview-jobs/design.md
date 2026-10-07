@@ -3,6 +3,60 @@
 Status: approved for implementation by user continuation on 2026-09-18.
 Product scope is already approved in the parent and `prd.md`.
 
+## E5h: Native browser pending polling/cancellation (2026-10-07)
+
+Extend the existing named native browser harness with a test-only ignored
+`browser/polling.rs::browser_native_polling_host`. Reuse the E5c concrete
+PollState/timed upstream and E5f/g CoreFixture/protocol/baseline/reopen/scanner;
+narrow test-only visibility, constructor/snapshot/event-waiter accessors and
+post-preparation notification in resolution.rs are allowed for reuse, not a copied
+poll server/Core composer or a generic fixture framework. Preserve every
+existing E5a-g assertion/default. Two fresh cases run in order: `poll_complete`,
+`poll_cancel`, each a one-observation BOM CSV selecting saved disabled v1 despite
+changed disabled v2. Real built WebUI/client/session/CSRF/Core/runtime/SQLite/
+NeoDbClient, synthetic loopback upstream/fake secrets/clock only.
+
+Protocol retains the E5F marker/private bounded stdio: ready(case,bootstrapUrl);
+browser upload and Running/empty ordinal-page inspection; pending(jobId) makes
+host observe first actual 202 response preparation, Running/empty history and
+zero NeoDB-secret reads, then acknowledge pending(case). No request/response
+interception, shortened timers or sleep-based settlement. `poll_complete` follows
+normal UI polling to Completed after the real >=15s response-to-next-request
+interval; inspect one automatic equal comparison, exact identity/profile/time/
+fingerprint evidence and empty ordinal-one page. `poll_cancel` explicitly sends
+the real displayed-attempt cancellation, validates truthful applied=true then
+authoritative Cancelled and exact empty pages; resume remains explicit, unsent.
+
+retained(jobId) verifies terminal evidence and unrelated-state equality. For
+poll_cancel keep Core/runtime alive through first response preparation +16s and
+await the next-request event under that fixed observation deadline; an extra
+request fails, timeout with exactly one request is the expected negative result.
+The unchanged >=15s interval plus 1s observation margin is not a shortened
+production timer or sleep-based worker-settlement claim. Only then drain
+the owned runtime/HTTP/storage, scan closed retained DB/optional WAL and reopen
+the same Core origin without reseeding. No follow-up poll/detail/mark/secret access
+on cancellation or restart; full job/pages/normalized observations remain equal.
+Browser reload explicitly opens the known ID, no retained File/profile/draft;
+confirmed DELETE/404 then finish(jobId) verifies job/observation/result removal
+only, original endpoint/profiles/paired hash+metadata/auth/secrets preservation,
+drains all owners/scans and acknowledges done(case); finally all_done. Independent
+ready->EOF must fail naturally, no signal/force termination, Core port unreachable.
+
+Success trace: two identical public fetch GETs >=15s after first response
+preparation, detail GET, one NeoDB-Bearer mark GET/one secret read. Cancellation
+trace: one public fetch GET/zero secret reads; no later request/late comparison.
+No Cookie/CLI Bearer/search/force-refetch/error retry/write, no additional
+upstream/secret work on inspection/reopen/delete/shutdown. Only bootstrap/import/
+delete browser mutations plus exactly one cancel in poll_cancel with
+{expectedAttempt:1}; verify
+real Origin/CSRF/no Authorization, generated schemas and public/DB-WAL marker/token
+redaction. Capture key-free pending/cancelled desktop/mobile evidence, no overflow,
+page errors or browser storage. Empty Running/Cancelled history is not completion,
+absent personal state or readiness. No production/dependency/API/schema/migration/
+capability/write change, live account/OS-store or shipped-process acceptance.
+Terminal reopen is not Running recovery; Search/Manual and Running restart/
+migration remain future browser acceptance. Keep child/parent active.
+
 ## E5g: Native browser failure acceptance (2026-10-07)
 
 Extend the E5f test-only browser harness with a named ignored failure host child,

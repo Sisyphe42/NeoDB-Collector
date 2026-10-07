@@ -21,8 +21,73 @@ credential-store verification is implied. Local Windows checks are not three-OS 
   validates preview responses and browser actions against schema-validated mocks;
   its preview evidence stays client-only. `tests/smoke.mjs` runs real host/auth
   boundaries and separately registers E5f's native browser-to-adapter helper.
-  E5a-g below distinguish actual adapter, client, terminal-history reopen and
+  E5a-h below distinguish actual adapter, client, terminal-history reopen and
   interrupted/resume evidence; one client's acceptance is not another's proof.
+
+## E5h native browser pending polling/cancellation evidence (2026-10-07)
+
+The existing native browser driver separately runs the ignored
+`preview_integration_tests/browser/polling.rs::browser_native_polling_host`.
+Two ordered fresh one-row cases reuse E5c's concrete timed upstream, not a copied
+Core composer or generic fixture RPC. Built WebUI/shared generated client,
+bootstrap/session/CSRF, Core HTTP/runtime/SQLite and production NeoDbClient stay
+in the chain; upstream, clock and secrets are synthetic. No Core-response
+interception, production test hooks or native account/keychain access.
+
+After an actual first 202 response is prepared, the browser inspects Running and
+exact empty historical pages; emptiness is not completion or absent personal
+state. Successful completion uses ordinary UI polling and the unchanged native
+>=15-second response-preparation-to-next-fetch interval. It retains one automatic
+equal comparison: IMDb identity/URLs/external ID, immutable disabled v1 despite
+changed v2, account/time, rating 8/Known 8/skipped already_equal and stored/public
+fingerprint linkage. Offset-one remains an exact empty page.
+
+The independent cancellation case promptly sends exactly one displayed-attempt
+POST with {expectedAttempt:1}, checks applied=true then authoritative Cancelled
+and empty pages. Resume remains explicitly available but unsent. Core stays alive
+through first response preparation +16 seconds; an event-driven unexpected-next-
+request waiter must time out with exactly one fetch and zero NeoDB-secret reads.
+This bounded window extends beyond the unchanged 15-second poll interval; early
+shutdown does not substitute for explicit-cancellation proof. Only then drain
+owners and scan retained closed DB/optional WAL. This one-row empty cancellation
+history is not partial-row cancellation or a remote-catalog rollback guarantee.
+
+Same-origin reopen without reseeding preserves full job/pages, normalized
+observations and Native resolution input. Browser reload retains the original
+session but no File/profile/draft, requires known-ID opening and verifies full
+DTO equality. Confirmed deletion removes job/observations/results only; exact
+endpoint, both disabled profiles, paired-client hash/all metadata/auth and secret
+values stay unchanged. Completion issues four GETs/one secret read, cancellation
+one public GET/zero reads; only the personal mark GET has NeoDB Bearer. No Cookie,
+CLI Bearer, search/refetch/retry/write or further upstream/secret work during
+inspection/reopen/delete/shutdown. NeoDB-secret writes are zero. Retained and post-delete
+closed DB/WAL scans exclude E5a/E5c raw source/upstream markers and plaintext tokens.
+
+Browser mutations are bootstrap/import/delete plus cancel only in its own case.
+Real allHeaders evidence verifies Origin/CSRF/no Authorization and no automatic
+resume or extra import. Generated schemas validate actual DTOs. Pending screenshots
+are captured in the completion case so cancellation is not delayed by screenshot
+work. Pending/cancelled desktop/mobile screenshots, no horizontal overflow, empty
+browser storage, public redaction and zero page errors are checked. The original
+happy/fault paths and their EOF probes remain unchanged; the new independent
+ready->EOF probe requires natural nonzero exit without signal/forced termination
+and an unreachable Core port. Serving errors and all owner joins are retained.
+
+Scoped CLI validation passed 48 tests with three browser hosts explicitly
+ignored, format/scoped Clippy and Node static checks. Main independently repeated
+the full native driver twice and visually checked all four new screenshots.
+Final pnpm verify passed 307 Rust tests, three ignored hosts explicitly driven in
+smoke, two compile-fail doctests, 85 TS/UI tests, fmt/workspace Clippy, generated
+drift, dependency boundaries, lint/typecheck/build and prior mock UI/actual CLI/
+auth/native browser smoke. Product YAML/evidence/decisions/disabled-capability
+checks, task context validation and diff checks passed; dependency/product files
+remain unchanged.
+
+No production/dependency/API/schema/migration/capability changes or personal/source
+writes. This is local Windows synthetic native-browser terminal-history evidence,
+not Search/Manual, Running restart/migration, shipped-process, native-keychain,
+live-account or hosted three-OS CI acceptance. Keep child/parent active and
+connector IDs empty.
 
 ## E5g native browser failure evidence (2026-10-07)
 

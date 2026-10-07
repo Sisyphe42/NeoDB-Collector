@@ -9,6 +9,7 @@ import { chromium } from '@playwright/test';
 
 const HOST_TEST = 'client::preview_integration_tests::browser::browser_native_preview_host';
 const FAILURE_HOST_TEST = 'client::preview_integration_tests::browser::failure::browser_native_failure_host';
+const POLLING_HOST_TEST = 'client::preview_integration_tests::browser::polling::browser_native_polling_host';
 const HOST_PREFIX = 'E5F:';
 const PROCESS_TIMEOUT_MS = 180_000;
 const PHASE_TIMEOUT_MS = 30_000;
@@ -21,6 +22,8 @@ const FORBIDDEN_PUBLIC_VALUES = [
   'DISCARDED_UPSTREAM_PAYLOAD_E5A',
   'DISCARDED_RAW_FAILURE_E5B',
   'DISCARDED_UPSTREAM_FAILURE_E5B',
+  'DISCARDED_RAW_RESOLUTION_E5C',
+  'DISCARDED_UPSTREAM_RESOLUTION_E5C',
 ];
 const CSV = '\uFEFFConst,Your Rating,Title Type,Title,Raw Column\r\n'
   + 'tt1111111,8,movie,Equal,DISCARDED_RAW_COLUMN_E5A\r\n'
@@ -31,6 +34,8 @@ const CSV = '\uFEFFConst,Your Rating,Title Type,Title,Raw Column\r\n'
 const FAILURE_CSV = '\uFEFFConst,Your Rating,Title Type,Title,Raw Column\r\n'
   + 'tt1111111,8,movie,Equal,DISCARDED_RAW_FAILURE_E5B\r\n'
   + 'tt2222222,7,movie,Fault,DISCARDED_RAW_FAILURE_E5B\r\n';
+const POLLING_CSV = '\uFEFFConst,Your Rating,Title Type,Title,Raw Column\r\n'
+  + 'tt4444444,8,movie,Polling,DISCARDED_RAW_RESOLUTION_E5C\r\n';
 const FAILURE_CASES = [
   'fetch_422',
   'fetch_429',
@@ -39,6 +44,7 @@ const FAILURE_CASES = [
   'mark_404_item',
   'mark_hang',
 ];
+const POLLING_CASES = ['poll_complete', 'poll_cancel'];
 
 const ajv = new Ajv2020({ strict: true });
 for (const format of ['uint32', 'int64', 'double']) ajv.addFormat(format, true);
@@ -262,9 +268,9 @@ async function clickForResponse(page, button, predicate) {
   return response;
 }
 
-async function waitForPolledPage(page, jobId, offset, initialPage, count) {
+async function waitForPolledPage(page, jobId, offset, initialPage, count, maxReads = 3) {
   let current = initialPage;
-  for (let read = 0; read < 3 && current.items.length !== count; read += 1) {
+  for (let read = 0; read < maxReads && current.items.length !== count; read += 1) {
     const response = await page.waitForResponse(candidate => {
       const url = new URL(candidate.url());
       return url.pathname === `/api/v1/previews/${jobId}/results`
@@ -546,7 +552,7 @@ async function runHappyPath(browser, executable) {
   }
 }
 
-function assertFailureJob(job, expectedStatus) {
+function assertFailureJob(job, expectedStatus, observationCount = 2) {
   validate('PreviewJobView', job);
   assertPublic(job);
   assert.equal(job.status, expectedStatus);
@@ -563,7 +569,7 @@ function assertFailureJob(job, expectedStatus) {
     executable: job.executable,
   }, {
     attempt: 1,
-    observations: 2,
+    observations: observationCount,
     profile: 'imdb_ratings:1',
     account: 'alice',
     binding: 'current',
@@ -908,11 +914,304 @@ async function runFailurePath(browser, executable) {
   }
 }
 
+function assertEmptyPollingPage(resultPage, job, offset) {
+  validate('PreviewResultPage', resultPage);
+  assertPublic(resultPage);
+  assert.deepEqual({
+    jobId: resultPage.jobId,
+    attempt: resultPage.attempt,
+    offset: resultPage.offset,
+    limit: resultPage.limit,
+    items: resultPage.items,
+    historical: resultPage.historical,
+    executable: resultPage.executable,
+  }, {
+    jobId: job.id,
+    attempt: 1,
+    offset,
+    limit: 2,
+    items: [],
+    historical: true,
+    executable: false,
+  });
+}
+
+async function readPollingPage(page, panel, jobId, offset) {
+  await panel.getByLabel('起始记录序号').fill(String(offset));
+  await panel.getByLabel('单页数量').fill('2');
+  const response = await clickForResponse(
+    page,
+    panel.getByRole('button', { name: '读取该尝试的一页结果', exact: true }),
+    url => url.pathname === `/api/v1/previews/${jobId}/results`
+      && url.searchParams.get('offset') === String(offset)
+      && url.searchParams.get('limit') === '2',
+  );
+  return responseJson(response, 'PreviewResultPage');
+}
+
+async function runPollingCase(browser, host, pollingCase, bootstrapKeys) {
+  let context;
+  let bootstrapKey;
+  try {
+    const ready = await host.receive('ready');
+    assert.equal(ready.case, pollingCase);
+    assert.equal(typeof ready.bootstrapUrl, 'string');
+    const bootstrapUrl = new URL(ready.bootstrapUrl);
+    const origin = bootstrapUrl.origin;
+    bootstrapKey = new URLSearchParams(bootstrapUrl.hash.slice(1)).get('key');
+    assert(bootstrapKey);
+    bootstrapKeys.push(bootstrapKey);
+
+    context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const page = await context.newPage();
+    const pageErrors = [];
+    const requests = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
+    page.on('request', request => {
+      const record = coreRequestRecord(request, origin);
+      if (record) requests.push(record);
+    });
+
+    await page.goto(bootstrapUrl.href);
+    await page.getByRole('heading', { name: '本地服务已连接' }).waitFor();
+    await page.getByText('已授权', { exact: true }).waitFor();
+    assert.equal(new URL(page.url()).hash, '');
+    assert.equal(await page.evaluate(() => document.cookie), '');
+    const cookies = await context.cookies(origin);
+    assert(cookies.some(cookie => cookie.name === 'collector_session'
+      && cookie.httpOnly && cookie.sameSite === 'Strict'));
+    await page.getByText(/alice · http:\/\/127\.0\.0\.1:/).waitFor();
+
+    const panel = page.getByRole('region', { name: '历史预览' });
+    await panel.getByText(/预览可能让 NeoDB 创建公共目录条目，但不会写入 NeoDB 个人标记/).waitFor();
+    await panel.getByLabel('保存的配置 ID', { exact: true }).fill('imdb_ratings');
+    await panel.getByLabel('保存的配置版本', { exact: true }).fill('1');
+    await panel.getByLabel('CSV 文件（UTF-8，最大 10 MiB）').setInputFiles({
+      name: `ratings-${pollingCase}.csv`, mimeType: 'text/csv', buffer: Buffer.from(POLLING_CSV),
+    });
+    const uploadStartedAt = performance.now();
+    const uploadResponse = await clickForResponse(
+      page,
+      panel.getByRole('button', { name: '提交只读预览', exact: true }),
+      (url, method) => method === 'POST' && url.pathname === '/api/v1/imports/imdb/ratings',
+    );
+    assert.equal(uploadResponse.status(), 202);
+    const receipt = await responseJson(uploadResponse, 'PreviewImportAccepted');
+    assert.deepEqual({
+      observations: receipt.observationCount,
+      skippedRows: receipt.skippedRowCount,
+      skippedColumns: receipt.skippedColumnCount,
+      duplicates: receipt.duplicateRowCount,
+      attempt: receipt.preview.attempt,
+      executable: receipt.preview.executable,
+    }, {
+      observations: 1, skippedRows: 0, skippedColumns: 1, duplicates: 0,
+      attempt: 1, executable: false,
+    });
+    const jobId = receipt.preview.jobId;
+    await panel.getByRole('heading', { name: `任务 ${jobId}`, exact: true }).waitFor();
+    await panel.getByText('running', { exact: true }).waitFor();
+
+    const runningResponse = await clickForResponse(
+      page,
+      panel.getByRole('button', { name: '读取状态', exact: true }),
+      url => url.pathname === `/api/v1/previews/${jobId}`,
+    );
+    const runningJob = await responseJson(runningResponse, 'PreviewJobView');
+    assert.equal(runningJob.id, jobId);
+    assertFailureJob(runningJob, 'running', 1);
+    assert(await panel.getByRole('button', { name: '取消尝试 1', exact: true }).isEnabled());
+    assert(await panel.getByRole('button', { name: '显式恢复尝试 1', exact: true }).isDisabled());
+    const pendingPage = await readPollingPage(page, panel, jobId, 0);
+    assertEmptyPollingPage(pendingPage, runningJob, 0);
+    await panel.getByText('本页为空；这不表示任务完成，也不表示后续没有稀疏结果。', { exact: true }).waitFor();
+
+    host.send({ phase: 'pending', jobId });
+    const pending = await host.receive('pending');
+    assert.equal(pending.case, pollingCase);
+
+    let polledTerminalPage;
+    if (pollingCase === 'poll_complete') {
+      [polledTerminalPage] = await Promise.all([
+        waitForPolledPage(page, jobId, 0, pendingPage, 1, 6),
+        (async () => {
+          const pendingText = await page.locator('body').innerText();
+          for (const forbidden of [...FORBIDDEN_PUBLIC_VALUES, bootstrapKey]) assert(!pendingText.includes(forbidden));
+          await page.screenshot({ path: 'test-results/preview-native-polling-pending-desktop.png', fullPage: true });
+          assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+          await page.setViewportSize({ width: 390, height: 844 });
+          await page.screenshot({ path: 'test-results/preview-native-polling-pending-mobile.png', fullPage: true });
+          assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+          await page.setViewportSize({ width: 1280, height: 900 });
+          await panel.getByText('completed', { exact: true }).waitFor({ timeout: 25_000 });
+          assert(performance.now() - uploadStartedAt >= 15_000,
+            'browser observed completion before the native pending interval elapsed');
+        })(),
+      ]);
+    } else {
+      const cancelButton = panel.getByRole('button', { name: '取消尝试 1', exact: true });
+      const cancelResponse = await clickForResponse(
+        page,
+        cancelButton,
+        (url, method) => method === 'POST' && url.pathname === `/api/v1/previews/${jobId}/cancel`,
+      );
+      assert.deepEqual(cancelResponse.request().postDataJSON(), { expectedAttempt: 1 });
+      assert.deepEqual(await responseJson(cancelResponse, 'PreviewMutationResult'), { applied: true });
+      await panel.getByText('服务器确认取消已应用；部分历史证据仍保留。', { exact: true }).waitFor();
+      await panel.getByText('cancelled', { exact: true }).waitFor({ timeout: 10_000 });
+    }
+
+    const terminalResponse = await clickForResponse(
+      page,
+      panel.getByRole('button', { name: '读取状态', exact: true }),
+      url => url.pathname === `/api/v1/previews/${jobId}`,
+    );
+    const expectedStatus = pollingCase === 'poll_complete' ? 'completed' : 'cancelled';
+    const terminalJob = await responseJson(terminalResponse, 'PreviewJobView');
+    assert.equal(terminalJob.id, jobId);
+    assert.equal(terminalJob.baseUrl, runningJob.baseUrl);
+    assertFailureJob(terminalJob, expectedStatus, 1);
+    const terminalFirstPage = polledTerminalPage ?? await readPollingPage(page, panel, jobId, 0);
+    if (pollingCase === 'poll_complete') {
+      assertResultPage(terminalFirstPage, terminalJob, 0, [{
+        ordinal: 0,
+        sourceId: 'tt4444444',
+        uuid: 'Movie4444444',
+        rating: 8,
+        sink: { kind: 'known', value: 8 },
+        status: 'skipped',
+        reason: 'already_equal',
+      }]);
+      const result = panel.getByRole('region', { name: '历史结果页' }).locator('.preview-result').first();
+      await result.getByText(/结果：已比较 · 证据来源：自动 · 快照时间：/).waitFor();
+      assert(await panel.getByRole('button', { name: '取消尝试 1', exact: true }).isDisabled());
+      assert(await panel.getByRole('button', { name: '显式恢复尝试 1', exact: true }).isDisabled());
+    } else {
+      assertEmptyPollingPage(terminalFirstPage, terminalJob, 0);
+      assert(await panel.getByRole('button', { name: '显式恢复尝试 1', exact: true }).isEnabled());
+    }
+    const terminalOrdinalOnePage = await readPollingPage(page, panel, jobId, 1);
+    assertEmptyPollingPage(terminalOrdinalOnePage, terminalJob, 1);
+
+    const visibleText = await page.locator('body').innerText();
+    for (const forbidden of [...FORBIDDEN_PUBLIC_VALUES, bootstrapKey]) assert(!visibleText.includes(forbidden));
+    if (pollingCase === 'poll_cancel') {
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.screenshot({ path: 'test-results/preview-native-polling-cancelled-desktop.png', fullPage: true });
+      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.screenshot({ path: 'test-results/preview-native-polling-cancelled-mobile.png', fullPage: true });
+      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    }
+    assert.equal(await page.evaluate(() => localStorage.length), 0);
+    assert.equal(await page.evaluate(() => sessionStorage.length), 0);
+    assert.equal(await page.getByText(/#key=/).count(), 0);
+    assert.equal(await page.getByLabel('一次性链接 · 10 分钟内有效').count(), 0);
+
+    host.send({ phase: 'retained', jobId });
+    const reopened = await host.receive('reopened');
+    assert.equal(reopened.case, pollingCase);
+    await page.reload();
+    await page.getByText('已授权', { exact: true }).waitFor();
+    assert.equal(new URL(page.url()).hash, '');
+    assert.equal(await panel.getByLabel('已有任务 ID', { exact: true }).inputValue(), '');
+    assert.equal(await panel.getByLabel('保存的配置 ID', { exact: true }).inputValue(), '');
+    assert.equal(await panel.getByLabel('CSV 文件（UTF-8，最大 10 MiB）').inputValue(), '');
+    assert.equal(await panel.getByLabel('解析选择草稿').count(), 0);
+    await panel.getByLabel('已有任务 ID', { exact: true }).fill(jobId);
+    const reopenedResponse = await clickForResponse(
+      page,
+      panel.getByRole('button', { name: '打开任务', exact: true }),
+      url => url.pathname === `/api/v1/previews/${jobId}`,
+    );
+    assert.deepEqual(await responseJson(reopenedResponse, 'PreviewJobView'), terminalJob);
+    if (pollingCase === 'poll_cancel') {
+      assert(await panel.getByRole('button', { name: '显式恢复尝试 1', exact: true }).isEnabled());
+    }
+    assert.deepEqual(await readPollingPage(page, panel, jobId, 0), terminalFirstPage);
+    assert.deepEqual(await readPollingPage(page, panel, jobId, 1), terminalOrdinalOnePage);
+
+    page.once('dialog', dialog => dialog.accept());
+    const deleteResponse = await clickForResponse(
+      page,
+      panel.getByRole('button', { name: '删除运行历史', exact: true }),
+      (url, method) => method === 'DELETE' && url.pathname === `/api/v1/previews/${jobId}`,
+    );
+    assert.deepEqual(await responseJson(deleteResponse, 'PreviewMutationResult'), { applied: true });
+    await panel.getByText('服务器确认运行历史已删除；公共目录条目不受影响。', { exact: true }).waitFor();
+    const missing = await page.evaluate(async id => {
+      const response = await fetch(`/api/v1/previews/${encodeURIComponent(id)}`);
+      return { status: response.status, body: await response.json() };
+    }, jobId);
+    assert.equal(missing.status, 404);
+    assert.equal(missing.body.code, 'preview_job_not_found');
+    assertPublic(missing.body);
+
+    const mutations = requests.filter(request => ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method));
+    const expectedMutations = [
+      'POST /api/v1/session/bootstrap',
+      'POST /api/v1/imports/imdb/ratings?profileId=imdb_ratings&profileVersion=1',
+      ...(pollingCase === 'poll_cancel' ? [`POST /api/v1/previews/${jobId}/cancel`] : []),
+      `DELETE /api/v1/previews/${jobId}`,
+    ];
+    assert.deepEqual(mutations.map(request => `${request.method} ${request.path}`), expectedMutations);
+    const headers = await Promise.all(requests.map(request => request.headers));
+    for (const value of headers) {
+      assert(value, 'browser request headers could not be read');
+      assert.equal(value.authorization, undefined);
+    }
+    const mutationHeaders = await Promise.all(mutations.map(request => request.headers));
+    assert.equal(mutationHeaders[0].origin, origin);
+    assert.equal(mutationHeaders[0]['x-csrf-token'], undefined);
+    for (const value of mutationHeaders.slice(1)) {
+      assert.equal(value.origin, origin);
+      assert(value['x-csrf-token']);
+      assert.equal(value['x-csrf-token'], mutationHeaders[1]['x-csrf-token']);
+    }
+    assert.equal(requests.filter(request => request.path.endsWith('/resume')).length, 0);
+    assert.equal(requests.filter(request => request.path.includes('resolution')).length, 0);
+    assert.equal(requests.filter(request => request.method === 'POST'
+      && request.path.startsWith('/api/v1/imports/imdb/ratings?')).length, 1);
+    assert.deepEqual(pageErrors, []);
+
+    host.send({ phase: 'finish', jobId });
+    const done = await host.receive('done');
+    assert.equal(done.case, pollingCase);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : `native polling case ${pollingCase} failed`;
+    const safe = bootstrapKeys.reduce((value, key) => value.replaceAll(key, '[redacted]'), message);
+    // eslint-disable-next-line preserve-caught-error
+    throw new Error(safe.replace(/#key=[^\s"']+/g, '#key=[redacted]'));
+  } finally {
+    await context?.close();
+  }
+}
+
+async function runPollingPath(browser, executable) {
+  const host = startHost(executable, POLLING_HOST_TEST);
+  const bootstrapKeys = [];
+  try {
+    for (const pollingCase of POLLING_CASES) {
+      await runPollingCase(browser, host, pollingCase, bootstrapKeys);
+    }
+    await host.receive('all_done');
+    const result = await waitForExit(host.child, host.exit);
+    assert.equal(result.error, undefined, 'native polling host process failed to start');
+    assert.equal(result.forced, false, 'native polling host exceeded its natural exit bound');
+    assert.equal(result.signal, null, 'native polling host terminated by signal');
+    assert.equal(result.code, 0, 'native polling host did not exit successfully');
+  } catch (error) {
+    if (host.child.exitCode === null && host.child.signalCode === null) await host.closeInputAndDrain();
+    throw error;
+  }
+}
+
 async function runEofProbe(executable, testName = HOST_TEST) {
   const host = startHost(executable, testName);
   try {
     const ready = await host.receive('ready');
     if (testName === FAILURE_HOST_TEST) assert.equal(ready.case, FAILURE_CASES[0]);
+    if (testName === POLLING_HOST_TEST) assert.equal(ready.case, POLLING_CASES[0]);
     const origin = new URL(ready.bootstrapUrl).origin;
     const result = await host.closeInputAndDrain();
     assert.equal(result.error, undefined, 'EOF probe host process failed to start');
@@ -940,7 +1239,9 @@ export async function runPreviewNativeBrowserSmoke(existingBrowser) {
     await runEofProbe(executable);
     await runFailurePath(browser, executable);
     await runEofProbe(executable, FAILURE_HOST_TEST);
-    console.log('Actual native browser/Core/SQLite/NeoDB-adapter preview acceptance passed, including failure retention.');
+    await runPollingPath(browser, executable);
+    await runEofProbe(executable, POLLING_HOST_TEST);
+    console.log('Actual native browser/Core/SQLite/NeoDB-adapter preview acceptance passed, including failure and polling retention.');
   } finally {
     if (!existingBrowser) await browser.close();
   }

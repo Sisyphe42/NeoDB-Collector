@@ -696,3 +696,71 @@ Verified actual WebUI/session/CSRF/Core/SQLite/NeoDB-adapter native preview agai
   explicit Search/Manual and Running restart/migration cases. Completed-history
   reopen is not interrupted/resume or shipped-process/native-keychain evidence.
 - Keep connector IDs empty and writes/scheduling disabled pending full acceptance.
+
+
+## Session 17: Native browser preview failure acceptance
+
+**Date**: 2026-10-07
+**Task**: Native browser preview failure acceptance
+**Branch**: `master`
+
+### Summary
+
+Verified six native browser faults through real WebUI/session/Core/SQLite/NeoDB adapters against synthetic upstream, terminal history reopen and job-only deletion. Independent repeats and full gate passed; capabilities remain disabled.
+
+### Main Changes
+
+- Two Sol/medium agents owned separate test-only Rust host and Node driver files;
+  main planned/reviewed/integrated, ran independent browser acceptance and committed.
+- Six fresh native cases: fetch 422/429, foreign redirect, mark 401, Item 404 and
+  held mark timeout. Actual WebUI/generated client/session/CSRF/Core/runtime/
+  SQLite/NeoDbClient composition, synthetic loopback upstream/fake secrets/clock.
+- 422/429 retain Unsupported/RateLimited outcomes; other faults retain only the
+  first comparison with Failed lifecycle. Empty ordinal-one pages are not absence
+  or readiness. Upstream 401 preserves the local session; resume remains explicit.
+- Real ten-second timeout via normal UI polling; release/drain the held handler
+  and prove no late result revival. Reuse bounded partial-publication convergence.
+- Full job/pages and normalized observations remain exact after retained DB/WAL
+  scan and same-origin reopen without reseeding. Explicit ID opening is read-only;
+  confirmed job-only deletion retains endpoint/profiles/client/auth/secret values.
+- Exact four/six GET traces and one/two NeoDB-secret reads; no trap requests,
+  Cookie/CLI Bearer/search/refetch/retry/write or new I/O through reopen/deletion.
+  Closed retained/post-delete DB/WAL and public evidence exclude raw markers/tokens.
+- Preserve all E5f assertions and EOF probe; add independent failure-host EOF
+  natural nonzero exit/closed-port proof. Bind listeners before spawning, retain
+  serve errors and join both servers even when another check fails.
+- First actual run caught outcome text locator mismatch; fix only scoped test
+  to match the renderer's full paragraph. No UI or production behavior changed.
+- Update owning backend/frontend specs and task evidence, not product direction.
+  No dependency/API/schema/migration/capability/write or live-account/keychain use.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `12011d2` | test: verify native browser preview failure boundaries |
+
+### Testing
+
+- Scoped CLI: 48 passed, two ignored browser hosts; format/scoped Clippy passed.
+- Main independently repeated the full native driver twice after fixes, including
+  original happy/EOF plus all six faults/new EOF; inspected terminal/failed
+  desktop/mobile screenshots. Overflow/storage/page-error checks passed.
+- pnpm verify passed: 307 Rust tests, two explicitly ignored hosts run in smoke,
+  two compile-fail doctests, 85 TS/UI tests, fmt/workspace Clippy, contracts/
+  boundaries, lint/typecheck/build and mock/actual CLI/auth/native browser smoke.
+- Product YAML/34 evidence IDs/11 refs/8 paths/unique-disjoint decisions/disabled
+  capabilities, task context validation and full/staged diff checks passed.
+- No fixture/Cargo/Rust processes remain. Local Windows synthetic evidence is
+  not hosted three-OS CI, shipped-process, live-account or native-keychain proof.
+
+### Status
+
+[OK] **E5g checkpoint complete; child and parent remain active and unarchived.**
+
+### Next Steps
+
+- Next bounded slice: native browser pending-catalog polling/cancellation, then
+  explicit Search/Manual and Running restart/migration. Terminal-history reopen
+  is not interrupted/resume or shipped-process acceptance.
+- Keep connector IDs empty and writes/scheduling disabled pending full acceptance.

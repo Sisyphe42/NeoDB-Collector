@@ -2,7 +2,7 @@
 
 ## 1. Scope / Trigger Conditions
 
-This contract applies whenever Core persists state across restarts or authorizes a local client. The local-access slice is implemented: WebUI bootstrap/session/CSRF, pairing, client listing/revocation and the OS credential adapter. The [OAuth lifecycle](./oauth-lifecycle.md) and restrictive transport are composed through the [OAuth HTTP/WebUI](./oauth-http.md) boundary by CLI startup. [CLI pairing and authenticated status](./cli-client.md), [CLI import/preview](./cli-preview.md) and [preview WebUI](../frontend/preview-panel.md) are implemented; final end-to-end acceptance remains pending. No media-platform writes are enabled. SQLite exists only for operational metadata, not a media-history warehouse.
+This contract applies whenever Core persists state across restarts or authorizes a local client. The local-access slice is implemented: WebUI bootstrap/session/CSRF, pairing, client listing/revocation and the OS credential adapter. The [OAuth lifecycle](./oauth-lifecycle.md) and restrictive transport are composed through the [OAuth HTTP/WebUI](./oauth-http.md) boundary by CLI startup. [CLI pairing and authenticated status](./cli-client.md), [CLI import/preview](./cli-preview.md) and [preview WebUI](../frontend/preview-panel.md) are implemented; integrated preview is accepted in the [synthetic scope](./foundation-runtime.md#accepted-synthetic-preview-scope-2026-10-09). No media-platform writes are enabled. SQLite exists only for operational metadata, not a media-history warehouse.
 
 Owners: `crates/collector-core/src/access.rs` (ports/policy), `collector-domain/src/access.rs` (DTOs), `collector-storage/src/access.rs` and `credentials.rs` (adapters), `collector-server/src/access.rs` (HTTP boundary).
 

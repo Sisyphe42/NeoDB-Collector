@@ -9,12 +9,12 @@ in `src/preview_submission_tests.rs`. The thin generated-contract TS client
 exposes these operations; [CLI commands](./cli-preview.md) are delivered in E3a,
 and [upload/resume screens](../frontend/preview-panel.md) in E3b. E3c verifies
 routed CSV -> real runner/SQLite -> close/reopen -> explicit fresh resume ->
-delete with fake upstream ports. Broader client/NeoDB-adapter end-to-end acceptance
-remains pending. E4c adds structured search/manual inputs to the same submission
+delete with fake upstream ports. Integrated CLI/WebUI/NeoDB-adapter synthetic
+acceptance is recorded in [foundation evidence](./foundation-runtime.md#accepted-synthetic-preview-scope-2026-10-09).
+E4c adds structured search/manual inputs to the same submission
 route and thin client; the [WebUI](../frontend/preview-panel.md) stages explicit
 choices against its confirmed local File/job association and submits a new preview.
 [CLI](./cli-preview.md) accepts explicit file-based choices on that same route.
-Broader integrated acceptance remains pending.
 No source write, personal NeoDB write, migration or automatic resume is added.
 Native catalog fetch during an accepted preview may create a public catalog item.
 

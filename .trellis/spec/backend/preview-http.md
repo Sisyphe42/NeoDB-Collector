@@ -7,7 +7,8 @@ Domain `src/preview.rs`, Server `src/preview_http.rs` and its tests, and the thi
 shared TS client. CLI serve composes the existing Storage job/result ports.
 Cancel/delete are owned by [Preview Management HTTP](./preview-management-http.md).
 [Submission/resume](./preview-submission-http.md) and [client screens](../frontend/preview-panel.md)
-are delivered separately; runnable IMDb capability awaits final end-to-end acceptance.
+are delivered separately and synthetically accepted; connector advertising remains
+separately gated (see [foundation evidence](./foundation-runtime.md#accepted-synthetic-preview-scope-2026-10-09)).
 No credential/network read or personal-state write
 is performed by inspection, and no migration or new dependency is required.
 
@@ -63,7 +64,7 @@ is performed by inspection, and no migration or new dependency is required.
   is bounded independently by the repository's 64 KiB per-result cap.
 - Optional inspection ports absent => 503, not a fake empty job/page. Production
   CLI wires Storage. Capabilities advertise only the two delivered GET routes;
-  connectorIds remains empty until the end-to-end submission path is delivered.
+  connectorIds remains empty pending a separate reviewed advertising change.
   Explicit cancel/delete have a separate mutation contract; no inspection enables work.
 
 ## 4. Validation & Error Matrix

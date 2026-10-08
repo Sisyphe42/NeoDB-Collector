@@ -7,7 +7,8 @@ E3a delivers thin commands in `collector-cli/src/main.rs` and
 command parsing tests. Reuse pairing's origin/health/credential helpers and Domain
 wire types. E4e adds explicit file-based structured resolution inputs to the same
 command. [WebUI screens](../frontend/preview-panel.md) are delivered separately;
-broader real-client/simulated-NeoDB-adapter acceptance remains pending.
+integrated Rust-client/built-WebUI/simulated-NeoDB-adapter acceptance is recorded in
+[foundation evidence](./foundation-runtime.md#accepted-synthetic-preview-scope-2026-10-09).
 No source/personal-state writes, direct DB access, alternate parser/planner,
 API change or dependency is added.
 

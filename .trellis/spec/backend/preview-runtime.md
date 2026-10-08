@@ -234,8 +234,10 @@ This is backend integration evidence, not CLI/browser-to-real-NeoDB-client
 end-to-end or live-account evidence. [Structured submission](./preview-submission-http.md)
 now exposes immutable search/manual inputs through the import API/thin client;
 the [WebUI](../frontend/preview-panel.md) stages explicit choices and submits a new
-preview; [CLI](./cli-preview.md) accepts explicit file-based choices. Broader
-acceptance remains pending.
+preview; [CLI](./cli-preview.md) accepts explicit file-based choices. Later integrated
+synthetic acceptance is recorded in
+[foundation evidence](./foundation-runtime.md#accepted-synthetic-preview-scope-2026-10-09);
+it does not broaden the backend-only test evidence above.
 
 ## 7. Wrong vs Correct
 

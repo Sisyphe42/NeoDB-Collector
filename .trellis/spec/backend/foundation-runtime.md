@@ -2,7 +2,7 @@
 
 ## 1. Scope / Trigger
 
-Applies to configuration, startup/doctor, SQLite baseline, health/capabilities/schema, generated contracts and status WebUI. Implemented sessions/pairing and read-only OAuth are specified in [Operational State and Pairing](./state-and-pairing.md). Preview startup/retention, [historical inspection API](./preview-http.md), [cancel/delete API](./preview-management-http.md), [CSV submission/resume API](./preview-submission-http.md), [CLI commands](./cli-preview.md) and [WebUI screens](../frontend/preview-panel.md) are implemented; final preview end-to-end acceptance, synchronization, scheduling, desktop and external integrations remain deferred.
+Applies to configuration, startup/doctor, SQLite baseline, health/capabilities/schema, generated contracts and status WebUI. Implemented sessions/pairing and read-only OAuth are specified in [Operational State and Pairing](./state-and-pairing.md). Preview startup/retention, [historical inspection API](./preview-http.md), [cancel/delete API](./preview-management-http.md), [CSV submission/resume API](./preview-submission-http.md), [CLI commands](./cli-preview.md) and [WebUI screens](../frontend/preview-panel.md) are implemented and accepted against synthetic upstream. Synchronization, scheduling, desktop and external integrations remain deferred.
 
 Source owners: `crates/collector-domain`, `collector-core`, `collector-storage`, `collector-server`, `collector-cli`; `packages/contracts-ts`, `core-client-ts`; `apps/webui`.
 
@@ -41,7 +41,7 @@ SQLite uses `{data_dir}/collector.db`; `0001_baseline.sql` establishes SQLx's mi
   and maintenance failure gracefully stop HTTP. Normal/error paths signal/drain
   runtime before pool close/lease release; see [Owned Preview Runtime](./preview-runtime.md).
 - `doctor` creates the data directory and opens/migrates the DB; it is not a read-only operation. It never acquires the serve lease, interrupts preview jobs or launches maintenance. Checks are config, directory accessibility, database write/migration readiness, port availability and assets readability. Invalid config stops subsequent checks. JSON is a deterministic report `{ok, checks: [{name,status,code,message}]}`; success exits 0, failed checks exit 1. Running Core makes the same-port diagnostic fail by design.
-- Rust DTOs in `collector-domain` own wire fields. `HealthDocument` is camelCase with `status`, `coreVersion`, `apiVersion`, `schemaVersion`, `storage`. Capability `connectorIds` stays empty until complete connector client/end-to-end delivery is accepted; independently delivered APIs are advertised by route keys. Media types stay strings, not Core enums.
+- Rust DTOs in `collector-domain` own wire fields. `HealthDocument` is camelCase with `status`, `coreVersion`, `apiVersion`, `schemaVersion`, `storage`. Capability `connectorIds` stays empty; accepted preview delivery does not implicitly activate advertising or writes. Advertising requires a separate reviewed product/spec change; independently delivered APIs are advertised by route keys. Media types stay strings, not Core enums.
 - `tools/contracts.mjs` generates OpenAPI/JSON Schema/TS types and AJV standalone validators. Check mode compares bytes in memory and never rewrites artifacts. Rust schema integers include explicit bounds; AJV treats `uint32` as an annotation while integer/minimum/maximum enforce it. Keep TS within the shared peer range of openapi-typescript and typescript-eslint.
 - `packages/core-client-ts` consumes generated types and validates actual responses, checks API/schema compatibility, uses a bounded request timeout, and preserves health documents on HTTP 503. UI never reaches Rust internals.
 - Browser status has loading, connected, unreachable, incompatible, invalid-response and degraded states. Refresh cancels obsolete requests. No secret or status is persisted in browser storage.
@@ -74,6 +74,25 @@ SQLite uses `{data_dir}/collector.db`; `0001_baseline.sql` establishes SQLx's mi
 - Bad: showing “connected” from a hard-coded fixture, creating sync tables early, accepting an arbitrary LAN bind, or rewriting generated contracts during a check.
 
 ## 6. Tests Required
+
+### Accepted synthetic preview scope (2026-10-09)
+
+The IMDb read-only preview milestone is accepted through real Core HTTP/runtime/
+SQLite/production NeoDbClient composition, the Rust CLI client and built WebUI.
+`crates/collector-cli/src/client/preview_integration_tests.rs` and its resolution,
+restart and migration modules supply CLI adapter evidence; `tests/smoke.mjs`
+invokes `tests/preview-native-browser-smoke.mjs` for happy/fault/poll/cancel/explicit
+Search/Manual/current-schema restart/populated-v5-v6 migration browser chains and
+six independent natural-exit EOF probes. Component tests remain the authority
+for TV granularity, configuration precedence and startup/periodic retention.
+The final gate is `pnpm verify`, not compilation of ignored fixture hosts alone.
+
+This uses synthetic upstream/clock/secrets. It does not establish live-account,
+native credential-store, shipped-process preview/restart or hosted three-OS
+execution. Those are distinct future validation scopes, not missing criteria of
+the approved synthetic milestone. Historical slice-specific limitations below
+apply only to their named tests; later tests do not retroactively broaden them.
+Connector advertising, personal-state execution and scheduling remain disabled.
 
 - `crates/collector-cli/src/config.rs`: precedence, YAML-relative paths, explicit overrides, invalid keys/schema/IP/port/retention; absent preview defaults 30.
 - `crates/collector-cli/src/serve_lease.rs`: separate handles exclude each other,

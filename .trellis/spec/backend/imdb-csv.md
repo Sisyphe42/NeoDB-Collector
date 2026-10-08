@@ -6,8 +6,9 @@ Implemented in collector-connectors/src/imdb.rs with csv 1.4.0 and SHA-256.
 Domain Observation/ObservedItem/ScalarValue live in collector-domain/src/observation.rs.
 The pure adapter is reused by [Preview Submission HTTP](./preview-submission-http.md)
 for normalized operational job storage. [CLI import](./cli-preview.md) and
-[client screens](../frontend/preview-panel.md) are delivered; an enabled registry
-entry, final end-to-end acceptance and public general observation intake remain pending.
+[client screens](../frontend/preview-panel.md) are delivered and synthetically
+accepted; see [foundation evidence](./foundation-runtime.md#accepted-synthetic-preview-scope-2026-10-09).
+An enabled registry entry and public general observation intake remain deferred.
 
 ## 2. Signatures
 

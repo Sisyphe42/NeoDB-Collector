@@ -8,8 +8,9 @@ one explicitly invoked existing attempt, not an automatic background scheduler.
 Server [owned runtime](./preview-runtime.md) provides internal admission/cancellation;
 startup/recovery and retention configuration are wired through Server/CLI;
 public API/thin clients, [CLI commands](./cli-preview.md) and
-[screens](../frontend/preview-panel.md) are implemented; final end-to-end acceptance
-remains pending. No new dependency or public capability. E4a's compatible search
+[screens](../frontend/preview-panel.md) are implemented and synthetically accepted;
+see [foundation evidence](./foundation-runtime.md#accepted-synthetic-preview-scope-2026-10-09).
+No new dependency or public capability. E4a's compatible search
 input migration and E4b manual inputs are owned by [preview jobs](./preview-jobs.md).
 Tests live in `src/preview_runner/tests.rs`.
 

@@ -6,7 +6,8 @@ E2a under `09-16-preview-jobs` exposes explicit local cancellation/deletion thro
 the existing single CLI-owned runtime. Owners are Domain `src/preview.rs`, Server
 `src/preview_http.rs`, `src/preview_runtime.rs` and `src/preview_management_tests.rs`.
 [Submission/resume](./preview-submission-http.md) and [preview screens](../frontend/preview-panel.md)
-are delivered separately; runnable connector capabilities await final end-to-end acceptance. This changes operational
+are delivered separately and synthetically accepted; connector advertising remains
+separately gated (see [foundation evidence](./foundation-runtime.md#accepted-synthetic-preview-scope-2026-10-09)). This changes operational
 state only, never source or NeoDB personal state.
 
 ## 2. Signatures

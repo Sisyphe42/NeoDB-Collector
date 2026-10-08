@@ -44,7 +44,8 @@ inputs create a new preview job. The [preview panel](./preview-panel.md) stages
 explicit source-bound choices only for its own confirmed local File/job association
 and resubmits them as a new preview. Its ordinary raw CSV path remains compatible;
 [CLI](../backend/cli-preview.md) accepts explicit file-based resolution inputs;
-broader client/upstream acceptance remains pending.
+integrated synthetic client/upstream acceptance is recorded in
+[foundation evidence](../backend/foundation-runtime.md#accepted-synthetic-preview-scope-2026-10-09).
 
 ## 3. Behavioral Contracts
 

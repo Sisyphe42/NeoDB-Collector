@@ -17,7 +17,8 @@ startup composition, public API/thin clients and screens are implemented;
 [Structured submission](./preview-submission-http.md) exposes explicit search/manual
 inputs through the import API/thin client. The [WebUI](../frontend/preview-panel.md)
 stages explicit choices and submits a new preview; [CLI](./cli-preview.md) accepts
-explicit file-based choices. Broader integrated acceptance remains pending.
+explicit file-based choices. Integrated synthetic acceptance is recorded in
+[foundation evidence](./foundation-runtime.md#accepted-synthetic-preview-scope-2026-10-09).
 The [owned runtime](./preview-runtime.md) adds bounded explicit admission and
 cancel/delete/shutdown/startup/retention and shared authenticated dispatch.
 

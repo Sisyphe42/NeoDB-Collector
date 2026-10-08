@@ -197,19 +197,25 @@ service:
   configurable_port: true
   single_port: true
   implementation_status:
-    milestone: preview_auth
+    milestone: imdb_read_only_preview
     implemented_hosts: [cli_with_webui]
     implemented_commands: [serve, doctor, pair, status, import_imdb_ratings, preview_status, preview_results, preview_cancel, preview_resume, preview_delete]
     implemented_routes: [webui, health, capabilities, schema, session_bootstrap, session, pairings, pairing_exchange, clients, client_identity, neodb_settings, neodb_oauth, neodb_oauth_callback, mapping_validate, mapping_get, mapping_save, mapping_default, mapping_convert, preview_get, preview_results, preview_cancel, preview_delete, imdb_ratings_import, preview_resume]
     connector_ids: []
     writes_enabled: false
-    database: migration_ledger_hashed_access_credentials_singleton_endpoint_metadata
+    database: migration_ledger_hashed_access_credentials_singleton_endpoint_mapping_revisions_normalized_preview_history
     config: yaml_v1_cli_over_env_over_file_over_defaults
     exposure: loopback_only
     authentication: webui_session_csrf_and_transactional_client_pairing
     implemented_ui: [local_access, neodb_oauth, mapping_editor, historical_preview, preview_resolution_selection]
     preview_ui_contract: .trellis/spec/frontend/preview-panel.md
-    pending: [general_imports, preview_end_to_end_acceptance]
+    pending: [general_imports]
+    preview_acceptance:
+      verified_at: 2026-10-09
+      scope: integrated_cli_and_built_webui_with_production_adapters_and_synthetic_upstream
+      contract: .trellis/spec/backend/foundation-runtime.md
+      external_verification: live_accounts_native_credentials_shipped_preview_process_and_hosted_three_os_not_established
+      capability_activation: separate_review_required
     code_contract: .trellis/spec/backend/foundation-runtime.md
   routes:
     webui: /
@@ -279,9 +285,8 @@ service:
 
 storage:
   preview_retention:
-    status: approved_for_imdb_preview_milestone
-    implementation: internal_job_results_owned_submit_resume_and_runtime_retention
-    pending: [preview_end_to_end_acceptance]
+    status: implemented_and_synthetically_verified_for_imdb_preview
+    implementation: persisted_job_results_owned_submit_resume_startup_and_periodic_retention_with_public_job_deletion
     management_contract: .trellis/spec/backend/preview-management-http.md
     default_days: 30
     configurable: true
@@ -341,8 +346,8 @@ core_pipeline:
     - existing_manual_mapping
   fuzzy_match_action: needs_review
   neodb_native_fetch:
-    status: internal_transport_native_manual_and_search_resolvers_implemented
-    pending_implementation: [manual_mapping_persistence, preview_job_and_client_integration]
+    status: integrated_native_manual_and_search_preview_implemented_and_synthetically_verified
+    pending_implementation: [manual_mapping_persistence]
     approved_at: 2026-09-17
     operation: GET_/api/catalog/fetch
     purpose: resolve_supported_external_item_url_using_neodb_native_catalog
@@ -357,7 +362,7 @@ core_pipeline:
     cancellation: stop_local_polling_cannot_undo_remote_catalog_creation
     evidence: [neodb_native_fetch_api, neodb_native_fetch_web, neodb_catalog_item_schema, neodb_catalog_movie_schema, neodb_catalog_tv_schema]
   neodb_catalog_search:
-    status: internal_transport_and_review_only_fallback_implemented
+    status: integrated_explicit_review_only_fallback_implemented_and_synthetically_verified
     reviewed_at: 2026-09-21
     operation: GET_/api/catalog/search
     fallback_trigger: native_unsupported_only
@@ -368,11 +373,11 @@ core_pipeline:
     evidence: [neodb_catalog_search_api, neodb_catalog_item_schema]
   current_conflict_default: keep_existing_sink_value_and_needs_review
   preview_record:
-    implementation: internal_resolution_snapshot_comparison_producer
+    implementation: integrated_resolution_snapshot_comparison_producer
     resolution_modes: [native, native_with_search, explicit_manual]
     whole_record_deadline_seconds: 120
     publication: historical_non_executable_evidence
-    job_result_persistence: internal_guarded_repository_only
+    job_result_persistence: guarded_repository_with_authenticated_historical_inspection
     job_attempt_runner: internal_sequential_native_with_explicit_search_and_manual_inputs
     job_search_queries: immutable_explicit_per_observation_never_inferred_from_title
     job_manual_selections: immutable_compact_per_observation_reference_fresh_detail_every_attempt
@@ -386,8 +391,8 @@ core_pipeline:
     code_contract: .trellis/spec/backend/preview-records.md
   neodb_mark_read:
     reviewed_at: 2026-09-22
-    implementation: internal_transport_and_account_bound_comparison
-    account_bound_snapshots_and_comparison: internal_only
+    implementation: integrated_transport_and_account_bound_preview_comparison
+    account_bound_snapshots_and_comparison: composed_in_public_preview_jobs
     snapshot_binding: endpoint_account_and_unique_credential_reference
     unknown_sink_field: needs_review_never_inferred_empty
     public_preview_jobs: historical_read_only_inspection

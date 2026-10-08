@@ -11,7 +11,8 @@ explicit per-record search opt-ins and compact manual choices for the existing
 runner. [Structured submission](./preview-submission-http.md) exposes explicit
 inputs through the existing import API and thin client. The [WebUI](../frontend/preview-panel.md)
 stages explicit choices and submits a new preview; [CLI](./cli-preview.md) accepts
-explicit file-based choices. Broader acceptance remains pending. There is no
+explicit file-based choices. Integrated synthetic acceptance is recorded in
+[foundation evidence](./foundation-runtime.md#accepted-synthetic-preview-scope-2026-10-09). There is no
 standalone catalog-search HTTP route.
 
 ## 2. Signatures

@@ -1,6 +1,6 @@
 # Backend Contracts
 
-The runnable foundation, local session/pairing, NeoDB OAuth HTTP/UI and CLI pairing/status are implemented. Sync, source connectors and distribution clients remain planned. Product authority is `../product/collector-spec.yaml`; individual contracts distinguish implemented behavior from later requirements.
+The runnable foundation, local session/pairing, NeoDB OAuth and IMDb read-only preview through CLI/WebUI are implemented; integrated preview acceptance uses synthetic upstream (see [Runnable Foundation](./foundation-runtime.md#accepted-synthetic-preview-scope-2026-10-09)). Personal-state sync, additional source connectors and distribution clients remain planned. Product authority is `../product/collector-spec.yaml`; individual contracts distinguish implemented behavior from later requirements.
 
 | Contract | Owns |
 |---|---|
@@ -12,10 +12,10 @@ The runnable foundation, local session/pairing, NeoDB OAuth HTTP/UI and CLI pair
 | [Bounded Catalog Search](./catalog-search.md) | Unsupported-only first-page fallback and review-only candidates |
 | [NeoDB Personal Mark Reads](./neodb-mark-read.md) | Restrictive authenticated single-item reads and narrow missing-shelf semantics |
 | [Preview Snapshots and Comparison](./preview-comparison.md) | Account-bound snapshots, unknown/empty distinction and pure non-executable field comparison |
-| [Single-record Preview](./preview-records.md) | Internal resolution/snapshot/comparison producer with explicit provenance and whole-record cancellation/deadline; public delivery pending |
+| [Single-record Preview](./preview-records.md) | Internal resolution/snapshot/comparison producer composed in public jobs; no standalone record route |
 | [Persistent Preview Jobs](./preview-jobs.md) | Bounded normalized inputs, transactional lifecycle/attempt guards and retention policy; authenticated read/submission/resume APIs |
 | [Persistent Preview Results](./preview-results.md) | Guarded normalized historical evidence, current-attempt read API pages and exhaustive conditional completion |
-| [Single-attempt Preview Execution](./preview-runner.md) | Internal sequential claim/produce/persist/complete orchestration; public API pending |
+| [Single-attempt Preview Execution](./preview-runner.md) | Internal sequential claim/produce/persist/complete orchestration dispatched by the shared public preview runtime |
 | [Owned Preview Runtime](./preview-runtime.md) | Bounded owned submit/resume/execute, explicit cancel/delete, startup recovery, retention and shutdown; shared authenticated dispatch |
 | [Historical Preview HTTP](./preview-http.md) | Authenticated job/result inspection, strict attempt/ordinal pagination and historical evidence; thin generated clients |
 | [Preview Management HTTP](./preview-management-http.md) | Explicit cancel/delete through the owned runtime and thin clients |

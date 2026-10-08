@@ -17,6 +17,20 @@ than silently substituting a different model. This does not remove review gates.
 
 ## Activation gate
 
+Final acceptance audit (2026-10-09): root and two read-only Sol 6.1/medium agents
+reconciled every child/parent criterion against current source/tests and E5a-k.
+No new implementation, live-account or distribution scope is required. Final
+verification and the current acceptance matrix supersede historical slice-local
+instructions to keep these tasks active. Archive only after the full gate passes;
+connector advertising, personal writes and scheduling remain separately gated.
+
+The fresh root pnpm verify passed 309 Rust tests, two doctests, 85 TS/UI tests,
+all six explicitly driven native browser hosts/default EOF probes and every
+fmt/Clippy/contracts/boundaries/lint/typecheck/build/smoke/diff gate. YAML/evidence/
+decision/link checks and both task context validations passed. This docs-only
+checkpoint completes the child and integrated parent acceptance; archive both
+without changing production code, dependencies, API/schema or capabilities.
+
 E5k checkpoint (2026-10-09): Sol 6.1/medium Rust agent owns only existing test
 browser/restart.rs and migration.rs: parameterize the E5j chain for populated
 v5/v6, register a separate ignored migration host, and expose fallible shared

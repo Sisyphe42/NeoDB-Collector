@@ -1,9 +1,51 @@
 # Preview acceptance evidence
 
-Status: in progress. This is task-level evidence, not a new product contract.
+Status: accepted in the approved synthetic scope (2026-10-09). This is task-level
+evidence, not a new product contract.
 Checkboxes in `prd.md` require delivered behavior, not merely internal primitives.
 All fixtures are synthetic. No live NeoDB/native-fetch, real account or native
 credential-store verification is implied. Local Windows checks are not three-OS CI.
+
+## Final criterion audit (2026-10-09)
+
+Root reviewed current source/tests and two independent read-only backend/client
+audits against child and parent PRDs. No additional implementation gap remains
+in their approved synthetic scope. This audit supersedes the historical October 3
+"Still missing" matrix and slice-local "keep active/next" instructions below;
+older evidence counts and limits remain historical, not retroactively expanded.
+
+| PRD criterion | Delivered evidence |
+|---|---|
+| Native identity/TV granularity, bounded polling, restrictive redirects, explicit Search/Manual | Core `catalog_resolver/tests.rs`, connector `neodb/catalog/tests.rs`; CLI E5b/c and browser E5g/h/i with actual adapters. Search singleton remains review-only; manual detail is freshly verified. |
+| Equal skipped, conflict preserves sink, failure not absence, missing shelf blocks readiness | Core `preview/tests.rs`; CLI E5a/b and browser E5f/g compare Known/Empty/Unknown and retain only already committed rows on failure. |
+| Poll/cancel, interrupted startup, explicit fresh resume | Server `preview_runtime/tests.rs`; CLI E5c/d and browser E5h/j, preserving original revision/expiry while rereading all ordinals and rejecting old attempts. |
+| Normalized persistence and genuine legacy upgrade | Storage `preview_jobs/tests.rs` / `preview_results/tests.rs`; CLI E5a/e and browser E5f/k inspect stored/public evidence, closed DB-WAL redaction, real populated v5/v6 upgrade before runtime recovery. |
+| Default/configurable 30-day retention, startup/60s cleanup, job-only deletion | CLI `config.rs` default/precedence/refusal tests; Core retention tests; runtime startup/periodic cleanup tests; Storage atomic deletion/expiry preservation; CLI E5d/e and browser E5i/j/k retain profiles, endpoint, paired auth and secrets. |
+| CLI/WebUI pagination/progress/diffs, auth/fault/restart/migration integration | Server authenticated HTTP tests and WebUI component tests; CLI E5a-e and actual built-WebUI E5f-k driven by default smoke, including six independent EOF probes. |
+
+Crate paths above are under `crates/collector-{core,connectors,storage,server,cli}/src`
+as named; client integration modules live in CLI `client/preview_integration_tests/`.
+The final full gate is recorded below before archival. No live API/account,
+native-keychain, shipped-process preview or hosted three-OS proof is claimed.
+Those are not extra acceptance requirements. `connectorIds=[]`, personal writes
+and scheduling remain unchanged; acceptance is not capability activation.
+
+### Final verification
+
+Root's fresh `pnpm verify` passed on 2026-10-09: 309 Rust tests, two compile-fail
+doctests and 85 TS/UI tests; fmt/workspace Clippy, non-mutating generated-contract
+drift, dependency boundaries, lint/typecheck, WebUI/CLI builds, mock and actual
+CLI/auth/browser smoke and `git diff --check`. All six ordinarily ignored native
+browser hosts were explicitly driven by default smoke, including populated v5/v6
+cases and six independent EOF probes. No live service or native keychain used.
+
+Separate checks passed product YAML parsing, 34 unique evidence IDs/11 references,
+nine existing spec-path references, 23 unique resolved/open decisions, 129 Markdown
+link targets, both inline task context validations and disabled-capability guards.
+The only changes in this checkpoint are spec/task acceptance reconciliation;
+production code, tests, generated contracts, dependencies and capability values
+are unchanged. The earlier E5k repeated-run/visual proof remains dated evidence,
+not a claim that this documentation-only audit repeated screenshot inspection.
 
 ## Evidence boundaries
 
@@ -671,7 +713,10 @@ This is the Rust CLI client's real-adapter native happy path, not shipped-proces
 native-keychain, browser-to-upstream, integrated negative, restart/migration or
 live-account evidence. Keep both tasks active, connector IDs empty and writes off.
 
-## Criterion audit (2026-10-03, before E3c verification)
+## Historical criterion audit (2026-10-03, before E3c verification)
+
+Superseded by the final 2026-10-09 audit above. The following pending statements
+describe what was missing at that date, not current implementation gaps.
 
 | PRD area | Concrete existing evidence | Still missing |
 |---|---|---|

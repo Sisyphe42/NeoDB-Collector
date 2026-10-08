@@ -21,8 +21,71 @@ credential-store verification is implied. Local Windows checks are not three-OS 
   validates preview responses and browser actions against schema-validated mocks;
   its preview evidence stays client-only. `tests/smoke.mjs` runs real host/auth
   boundaries and separately registers E5f's native browser-to-adapter helper.
-  E5a-h below distinguish actual adapter, client, terminal-history reopen and
+  E5a-i below distinguish actual adapter, client, terminal-history reopen and
   interrupted/resume evidence; one client's acceptance is not another's proof.
+
+## E5i native browser Search/Manual lineage evidence (2026-10-08)
+
+The existing driver explicitly runs the new ignored
+`preview_integration_tests/browser/resolution.rs::browser_native_resolution_host`.
+Two ordered fresh cases reuse the E5c ResolutionState/handler; only the fixture's
+fresh SEARCH_UUID detail identity differs. Built WebUI/generated client,
+session/CSRF/Core HTTP/runtime/SQLite and production NeoDbClient remain concrete;
+upstream, clock and secrets are synthetic. Existing happy/six-fault/polling/
+cancellation paths and all three original EOF probes remain intact.
+
+Each case creates three distinct immutable jobs from the same one-row BOM/Unicode
+CSV and saved disabled v1 despite changed v2: raw Native Unsupported, explicit
+Search yielding an exact-ID singleton (review-only), then explicit compact Manual
+selection. Keyboard staging performs no mutation/upstream/secret work; generating
+a new preview is a separate action. Actual structured requests preserve original
+padded query and CSV bytes, while Core stores and searches the trimmed query.
+The first run exposed an incorrect test expectation of trimmed wire input; only
+that assertion was corrected, not production behavior. New-job heading waits
+prevent the old Completed render from being mistaken for a new job's completion.
+
+Missing fresh IMDb identity permits Manual comparison: full fresh item metadata,
+manual provenance, snapshot/account/profile/fingerprint linkage, rating 8/Known8/
+skipped already_equal, and the complete disabled shelf-rule decision. Contradictory
+fresh tt9999999 remains NeedsReview item_identity_conflict with no mark or NeoDB
+secret read, despite the old search candidate claiming exact tt5555555. Public
+and stored outcomes retain full identity evidence. Prior jobs/pages/normalized
+observations/Native-Search-Manual inputs remain unchanged at every stage.
+
+Exact traces are five GETs/one NeoDB-secret read for missing identity, four GETs/
+zero reads for conflicting identity. Only the personal mark GET has NeoDB Bearer;
+no Cookie/CLI Bearer/retry/refetch/search expansion/write. NeoDB-secret writes are
+zero. Inspection, same-origin reopen, deletion and owner shutdown cause no new
+upstream/secret work. Drain and mandatory closed DB/optional WAL scans before
+reopen and after deletion exclude E5a/E5c raw markers and plaintext tokens.
+
+Same-origin reopen without reseeding preserves all three full histories and the
+original session. Browser reload has no File/profile/draft; explicit known-ID
+inspection cannot stage resolution. Three confirmed deletes each return applied
+true and subsequent GET404, removing jobs/observations/results only. Endpoint,
+both disabled profiles, paired-client hash/all metadata/auth and secret values
+remain unchanged. Real headers assert Origin/CSRF/no Authorization; generated
+schemas validate receipts, choices, requests and DTOs. Candidate/manual desktop/
+mobile screenshots (eight total), overflow, empty browser storage and page errors
+are checked. An independent ready->EOF probe requires natural nonzero process
+exit without signal/forced termination and an unreachable Core port. Every owner
+is drained/joined and serving errors retained on success and failure.
+
+Scoped CLI tests passed 48 tests with four ignored browser hosts; fmt/scoped
+Clippy and Node static lint/typecheck/build checks passed. Main independently
+repeated the corrected full native driver twice and visually checked all eight
+new screenshots. Final pnpm verify passed 307 Rust tests, four ignored browser
+hosts explicitly driven in smoke, two compile-fail doctests, 85 TS/UI tests,
+fmt/workspace Clippy, generated drift, dependency boundaries, lint/typecheck/build
+and mock/actual CLI/auth/native browser smoke. Product YAML/evidence/decisions/
+disabled-capability checks, task context validation and diff checks passed;
+dependency/product files remain unchanged.
+
+No production/dependency/API/schema/migration/capability changes or personal/source
+writes. Local Windows synthetic browser terminal-history evidence is not Running
+restart/migration, partial-row cancellation, shipped-process, native-keychain,
+live-account or hosted three-OS CI acceptance. Keep child/parent active and
+connector IDs empty.
 
 ## E5h native browser pending polling/cancellation evidence (2026-10-07)
 

@@ -127,6 +127,15 @@ SQLite uses `{data_dir}/collector.db`; `0001_baseline.sql` establishes SQLx's mi
   Cancelled history non-executable, compare full terminal evidence across reopen
   and preserve unrelated state on deletion. Existing happy/fault/EOF assertions
   remain separate and unchanged.
+  `src/client/preview_integration_tests/browser/resolution.rs` reuses the concrete
+  E5c ResolutionState/handler with a fixture-local immutable fresh-detail identity
+  variation. Each native-browser Search/Manual lineage keeps three distinct jobs,
+  explicit per-source inputs and old history unchanged. Exact-ID singleton search
+  remains review-only; only a fresh explicit manual detail may compare, and
+  contradictory detail performs no mark/NeoDB-secret read. Verify stage gates,
+  full terminal-history reopen and deletion of all lineage jobs with retained
+  auth/config/secrets, closed DB-WAL redaction and natural-exit EOF. No alternate
+  Core composer, fake catalog ports, production control route or generic test RPC.
 - `pnpm verify` is the root full gate: Rust format/clippy/tests, non-mutating contract drift check, import boundaries, ESLint, TypeScript, Vitest, WebUI build, binary build, process/browser smoke, `git diff --check`. `.github/workflows/verify.yml` runs the same gate on Windows/macOS/Linux; a CI definition alone is not hosted evidence.
 - Toolchain/cache failures are environment issues, not permission to skip gates. Use a disposable Cargo cache when global cache contents are incomplete; never repair global user caches silently. `tools/verify.mjs` supports both native and JS pnpm launchers.
 

@@ -16,6 +16,40 @@ than silently substituting a different model. This does not remove review gates.
 
 ## Activation gate
 
+E5i checkpoint (2026-10-08): Sol/medium Rust agent owns only new
+`preview_integration_tests/browser/resolution.rs`, browser.rs registration and
+narrow test-only ResolutionState/constants/handler constructor/snapshot visibility
+and immutable SEARCH_UUID detail-identity variation in existing resolution.rs.
+Preserve E5c defaults and all existing assertions. Sol/medium Node agent owns only
+tests/preview-native-browser-smoke.mjs, preserving E5f/g/h/defaults/EOF/registration.
+Main owns planning/spec/evidence/review, independent browser repeats/visual QA,
+full gate and commits. Read E5i/E5c/E4d design, preview/WebUI, foundation/layout,
+state/OAuth, submission/history/management/runtime, jobs/results, catalog/search/
+resolver/mark/comparison contracts and research/mark-read.md. No production,
+dependency/API/schema/migration/capability/write/live account/keychain changes,
+recursive delegation or agent commits. Rust agent alone owns serial Cargo until
+handoff; Node runs static lint/typecheck/build only; main owns actual browser/full
+gate after handoff. Use existing Playwright test-file harness and generated AJV
+schemas, not a second runner or public fixture-control API.
+
+- [x] E5i: Native browser explicit search, fresh manual detail and immutable lineage.
+
+Main reviewed/integrated both Sol/medium handoffs and corrected one test-only
+assumption: WebUI preserves padded wire query; Core trims persisted/upstream input.
+No production behavior changed. Scoped CLI passed 48 tests/four ignored browser
+hosts; fmt/scoped Clippy and Node static checks passed. Main independently repeated
+the corrected full native driver twice and visually checked eight new screenshots.
+Full pnpm verify passed 307 Rust tests, four ignored hosts explicitly driven in
+smoke, two compile-fail doctests, 85 TS/UI tests, fmt/workspace Clippy, generated
+drift/boundaries/lint/typecheck/build and existing mock/actual CLI/auth/native
+browser smoke. Product YAML/evidence/decision/disabled-capability checks, task
+context validation and diff checks passed. New three-job Search/Manual lineage,
+fresh missing/conflicting identity, exact trace/secret boundaries, retained-history
+reopen/deletion and EOF evidence are in acceptance.md. No production/API/schema/
+dependency/migration/capability changes or live account/keychain access. Keep child
+and parent active; next native-browser slice is Running restart/migration, not
+another terminal-history-only proof.
+
 E5h checkpoint (2026-10-07): Sol/medium Rust agent owns only new
 `preview_integration_tests/browser/polling.rs`, browser.rs registration and narrow
 test-only visibility/constructor/snapshot/event-waiter/prepared-notification reuse

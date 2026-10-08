@@ -10,6 +10,7 @@ use std::{
 
 mod failure;
 mod polling;
+mod resolution;
 
 const HOST_PREFIX: &str = "E5F:";
 

@@ -3,8 +3,8 @@ use collector_core::preview_jobs::PreviewResolutionInput;
 
 pub(super) const POLL_ID: &str = "tt4444444";
 pub(super) const POLL_UUID: &str = "Movie4444444";
-const SEARCH_ID: &str = "tt5555555";
-const SEARCH_UUID: &str = "Movie5555555";
+pub(super) const SEARCH_ID: &str = "tt5555555";
+pub(super) const SEARCH_UUID: &str = "Movie5555555";
 const NATIVE_ID: &str = "tt6666666";
 const NATIVE_UUID: &str = "Movie6666666";
 const LIMITED_ID: &str = "tt7777777";
@@ -566,9 +566,24 @@ async fn run_polling_cancel() {
     upstream_server.await.unwrap();
 }
 
-struct ResolutionState {
+pub(super) struct ResolutionState {
     base: String,
     requests: Mutex<Vec<SeenRequest>>,
+    search_detail_conflicts: bool,
+}
+
+impl ResolutionState {
+    pub(super) fn new(base: String, search_detail_conflicts: bool) -> Self {
+        Self {
+            base,
+            requests: Mutex::new(Vec::new()),
+            search_detail_conflicts,
+        }
+    }
+
+    pub(super) fn requests(&self) -> Vec<SeenRequest> {
+        self.requests.lock().unwrap().clone()
+    }
 }
 
 fn resolution_item(base: &str, uuid: &str, imdb: Option<&str>) -> Value {
@@ -586,7 +601,7 @@ fn resolution_item(base: &str, uuid: &str, imdb: Option<&str>) -> Value {
     })
 }
 
-async fn resolution_upstream(
+pub(super) async fn resolution_upstream(
     State(state): State<Arc<ResolutionState>>,
     request: Request<Body>,
 ) -> Response {
@@ -627,7 +642,8 @@ async fn resolution_upstream(
         .into_response();
     }
     if path == format!("/api/movie/{SEARCH_UUID}") {
-        return Json(resolution_item(&state.base, SEARCH_UUID, None)).into_response();
+        let imdb = state.search_detail_conflicts.then_some("tt9999999");
+        return Json(resolution_item(&state.base, SEARCH_UUID, imdb)).into_response();
     }
     if path == format!("/api/movie/{MANUAL_CONFLICT_UUID}") {
         return Json(resolution_item(
@@ -688,10 +704,7 @@ async fn run_resolution_choices() {
     let temp = tempfile::tempdir().unwrap();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}", listener.local_addr().unwrap());
-    let state = Arc::new(ResolutionState {
-        base: base.clone(),
-        requests: Mutex::new(Vec::new()),
-    });
+    let state = Arc::new(ResolutionState::new(base.clone(), false));
     let app = Router::new()
         .fallback(resolution_upstream)
         .with_state(state.clone());

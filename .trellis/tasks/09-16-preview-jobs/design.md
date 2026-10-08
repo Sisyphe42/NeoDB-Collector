@@ -3,6 +3,69 @@
 Status: approved for implementation by user continuation on 2026-09-18.
 Product scope is already approved in the parent and `prd.md`.
 
+## E5i: Native browser explicit Search/Manual acceptance (2026-10-08)
+
+Add ignored `browser/resolution.rs::browser_native_resolution_host` and extend
+the existing Node driver, preserving E5f/g/h and all three EOF probes. Reuse E5c
+ResolutionState/handler with narrow test-only constructor/snapshot visibility and
+a fixture-local immutable boolean: SEARCH_UUID fresh detail has no IMDb claim by
+default, or contradictory tt9999999 in the conflict case. Existing E5c defaults
+and its separate MANUAL_CONFLICT_UUID behavior stay unchanged; no copied upstream,
+Core composer, generic fixture RPC, production hook or new dependency.
+
+Two fresh cases run in order: manual_missing_id and manual_conflict_id. Each uses
+one BOM/Unicode rating-8 observation for SEARCH_ID and three distinct immutable
+jobs, all saved disabled v1 despite v2: raw Native -> Unsupported; explicit Search
+query "Exact candidate" -> exact-ID singleton SearchCandidates (review only);
+explicit compact Manual selection of SEARCH_UUID -> fresh detail. Missing identity
+may compare with Manual provenance/rating8 Known8 skipped already_equal; fresh
+contradictory identity remains NeedsReview item_identity_conflict, zero mark or
+NeoDB-secret reads. Candidate metadata never grants matching authority.
+
+Use actual built WebUI/shared generated client/session/CSRF/Core HTTP/runtime/
+SQLite/production NeoDbClient, synthetic loopback upstream/fake secrets/clock.
+No intercepted Core replies. UI performs real query and candidate staging using
+keyboard controls, then separately clicks generate-new-preview. Stage only for
+the confirmed retained File/job/profile lineage. Wire choices are exact sparse
+ordinal0/sourceID Search or Manual, original CSV bytes/BOM survive JSON decoding,
+and padded original query survives submission while Core stores/searches its
+trimmed value (do not add a separate WebUI normalization policy).
+Receipts/new IDs are validated. No singleton auto-selection, auto-upload,
+resume, cross-job mapping, inferred query or source/personal write.
+
+Bounded private E5F stdio protocol per case: ready(case,bootstrapUrl);
+native(jobId) inspects Completed Unsupported, Native input, one fetch/zero secrets,
+then native(case) ACK; search_staged(jobId) verifies the same original history and
+I/O, ACK staged(case,kind=search); searched(newJobId) verifies unchanged Native
+history plus candidate job/Search input and exact three requests/zero secrets,
+ACK searched(case); manual_staged(searchJobId) verifies both histories and I/O,
+ACK staged(case,kind=manual); retained(manualJobId) verifies all three full jobs/
+offset0+offset1 pages/normalized observations/Native-Search-Manual inputs, fingerprints,
+exact trace and unrelated state. Four requests/zero secret reads for conflict,
+five/one for missing identity; only the mark GET uses NeoDB Bearer. No Cookie/CLI
+Bearer/retry/refetch/search expansion/write; staging causes no mutation or
+upstream/secret I/O. Do not claim all local inspection GETs are staging I/O.
+
+Retained phase drains Core/runtime/storage, scans mandatory closed DB/optional
+WAL for E5a/E5c raw markers and plaintext tokens, then reopens the same origin
+without reseeding. Full history and inputs stay equal with no new upstream/secret
+work; ACK reopened(case). Browser reload preserves the original session but no
+File/profile/draft. Explicitly open all three known IDs, verify full DTO/pages
+equality and inspection-only resolution controls. Confirm deletion of all three
+jobs, applied=true and GET404; finish(manualJobId) verifies job/observation/result
+removal only and preserved endpoint/both profiles/paired hash+metadata/auth/secrets,
+drains/scans/joins all owners then done(case). Finally all_done. New independent
+ready->EOF must naturally fail nonzero, no signal/force termination, Core unreachable.
+
+Capture key-free candidate/manual desktop/mobile screenshots, inspect identity
+claims/provenance/review reason, no horizontal overflow/browser storage/page errors.
+Schemas and awaited real allHeaders verify Origin/CSRF/no Authorization; only
+bootstrap, one raw import, two explicit JSON imports and three confirmed DELETEs.
+No production/API/schema/migration/capability changes or live-account/keychain
+acceptance. This is local Windows synthetic browser Search/Manual plus terminal
+reopen, not Running restart/migration, partial-row cancellation or shipped-process
+proof. Keep child/parent active, connector IDs empty and writes/schedules disabled.
+
 ## E5h: Native browser pending polling/cancellation (2026-10-07)
 
 Extend the existing named native browser harness with a test-only ignored

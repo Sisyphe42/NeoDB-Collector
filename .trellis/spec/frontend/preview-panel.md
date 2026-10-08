@@ -60,7 +60,9 @@ generated contracts package; WebUI does not add a dependency or duplicate schema
   selection, saved cross-job mapping, activation or synchronization control.
 - Unsupported/SearchCandidates rows allow explicit query staging: original at
   most 512 UTF-8 bytes, nonblank and control-free; Core still owns Unsupported-only
-  fallback. Reuse TextEncoder for bytes and standard Unicode `\p{Cc}` for controls
+  fallback. The structured request preserves the original query; Core validates
+  and trims it for persistence and upstream search. Reuse TextEncoder for bytes
+  and standard Unicode `\p{Cc}` for controls
   (including C1) rather than an ASCII-only control list. Returned candidate/
   NeedsReview items can be explicitly staged using
   only generated `{uuid, mediaType, model}` choice/reference validation. Malformed
@@ -245,6 +247,28 @@ than spending its poll interval taking screenshots. Cancelled desktop/mobile
 screenshots, empty browser storage, no overflow/page errors remain required.
 This one-row cancellation case proves empty retained history, not partial-row
 cancellation, Search/Manual or Running restart/migration acceptance.
+
+`preview_integration_tests/browser/resolution.rs::browser_native_resolution_host`
+adds native-browser E5i Search/Manual lineage acceptance. Two fresh cases each
+require three distinct jobs: raw Unsupported, explicit query submission yielding
+an exact-ID singleton candidate (still review-only), and explicit compact Manual
+submission that re-reads detail. Missing expected-scheme identity may compare with
+manual provenance; fresh contradictory identity stays NeedsReview with no mark/
+NeoDB-secret read. Candidate identity claims must never substitute for fresh detail.
+
+Keyboard staging alone sends no mutation or upstream/secret work; generating a
+new preview is a separate explicit action with exact CSV/BOM/ordinal/source/ref/
+saved-version JSON. Reconciliation GETs are not evidence of staging mutations.
+Wait for the new job's exact heading before checking terminal status: the previous
+job's Completed render is not proof that a new submission finished. Compare full
+ordered field decisions, including disabled rules, rather than only the rating.
+Assert prior jobs/pages/inputs unchanged, full history across same-origin reopen,
+reload with no File/profile/draft, and explicit known-ID inspection with no staging
+authority. Confirm deletion of all lineage jobs while preserving config/auth/
+secrets. Require actual schemas/security headers, candidate/manual desktop/mobile
+evidence, public/closed DB-WAL redaction and an independent natural-exit EOF probe.
+Preserve E5f/g/h/default/EOF assertions; this is not Running restart/migration,
+saved cross-job mappings, production activation or live-platform acceptance.
 
 ## 7. Wrong vs Correct
 

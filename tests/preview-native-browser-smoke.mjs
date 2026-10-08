@@ -10,6 +10,7 @@ import { chromium } from '@playwright/test';
 const HOST_TEST = 'client::preview_integration_tests::browser::browser_native_preview_host';
 const FAILURE_HOST_TEST = 'client::preview_integration_tests::browser::failure::browser_native_failure_host';
 const POLLING_HOST_TEST = 'client::preview_integration_tests::browser::polling::browser_native_polling_host';
+const RESOLUTION_HOST_TEST = 'client::preview_integration_tests::browser::resolution::browser_native_resolution_host';
 const HOST_PREFIX = 'E5F:';
 const PROCESS_TIMEOUT_MS = 180_000;
 const PHASE_TIMEOUT_MS = 30_000;
@@ -36,6 +37,8 @@ const FAILURE_CSV = '\uFEFFConst,Your Rating,Title Type,Title,Raw Column\r\n'
   + 'tt2222222,7,movie,Fault,DISCARDED_RAW_FAILURE_E5B\r\n';
 const POLLING_CSV = '\uFEFFConst,Your Rating,Title Type,Title,Raw Column\r\n'
   + 'tt4444444,8,movie,Polling,DISCARDED_RAW_RESOLUTION_E5C\r\n';
+const RESOLUTION_CSV = '\uFEFFConst,Your Rating,Title Type,Title,Raw Column\r\n'
+  + 'tt5555555,8,movie,中文候选,DISCARDED_RAW_RESOLUTION_E5C\r\n';
 const FAILURE_CASES = [
   'fetch_422',
   'fetch_429',
@@ -45,6 +48,7 @@ const FAILURE_CASES = [
   'mark_hang',
 ];
 const POLLING_CASES = ['poll_complete', 'poll_cancel'];
+const RESOLUTION_CASES = ['manual_missing_id', 'manual_conflict_id'];
 
 const ajv = new Ajv2020({ strict: true });
 for (const format of ['uint32', 'int64', 'double']) ajv.addFormat(format, true);
@@ -54,6 +58,8 @@ const validators = Object.fromEntries(await Promise.all([
   'PreviewResultPage',
   'PreviewMutationResult',
   'MappingProfile',
+  'PreviewImdbResolutionRequest',
+  'PreviewResolutionChoice',
 ].map(async name => [name, ajv.compile(JSON.parse(await readFile(
   new URL(`../contracts/json-schema/${name}.json`, import.meta.url), 'utf8',
 )))])));
@@ -1206,12 +1212,463 @@ async function runPollingPath(browser, executable) {
   }
 }
 
+function assertResolutionItemBase(item, job) {
+  assertFailureOutcomeItem(item, job, 0, 'tt5555555');
+}
+
+function assertResolutionCatalogItem(item, job, externalIds) {
+  assert.deepEqual(item, {
+    uuid: 'Movie5555555',
+    canonicalUrl: `${job.baseUrl}/movie/Movie5555555`,
+    detailUrl: `${job.baseUrl}/api/movie/Movie5555555`,
+    mediaType: 'movie',
+    model: 'Movie',
+    parentUuid: null,
+    externalIds,
+  });
+}
+
+function assertResolutionPage(resultPage, job, offset, outcome) {
+  validate('PreviewResultPage', resultPage);
+  assertPublic(resultPage);
+  assert.deepEqual({
+    jobId: resultPage.jobId,
+    attempt: resultPage.attempt,
+    offset: resultPage.offset,
+    limit: resultPage.limit,
+    historical: resultPage.historical,
+    executable: resultPage.executable,
+  }, {
+    jobId: job.id,
+    attempt: 1,
+    offset,
+    limit: 2,
+    historical: true,
+    executable: false,
+  });
+  if (offset === 1) {
+    assert.deepEqual(resultPage.items, []);
+    return;
+  }
+  assert.equal(resultPage.items.length, 1);
+  const item = resultPage.items[0];
+  assertResolutionItemBase(item, job);
+  if (outcome === 'native') {
+    assert.deepEqual(item.outcome, { kind: 'unsupported' });
+    return;
+  }
+  if (outcome === 'search') {
+    assert.equal(item.outcome.kind, 'search_candidates');
+    assert.equal(item.outcome.moreAvailable, false);
+    assert.equal(item.outcome.candidates.length, 1);
+    const candidate = item.outcome.candidates[0];
+    assert.equal(candidate.title, 'Exact review candidate');
+    assertResolutionCatalogItem(candidate.item, job, [{ scheme: 'imdb:title', value: 'tt5555555' }]);
+    return;
+  }
+  if (outcome === 'manual_missing_id') {
+    assert.equal(item.outcome.kind, 'compared');
+    assert.equal(item.outcome.provenance, 'manual');
+    assert.equal(item.outcome.observedAt, 1_800_000_000);
+    assertResolutionCatalogItem(item.outcome.item, job, []);
+    assert.equal(item.outcome.comparison.profileId, 'imdb_ratings');
+    assert.equal(item.outcome.comparison.profileVersion, 1);
+    assert.deepEqual(item.outcome.comparison.fields, [
+      {
+        ruleId: 'rating',
+        field: 'rating_grade',
+        suggestion: 8,
+        sink: { kind: 'known', value: 8 },
+        status: 'skipped',
+        reason: 'already_equal',
+      },
+      {
+        ruleId: 'rating_implies_complete',
+        field: 'shelf_type',
+        suggestion: null,
+        sink: { kind: 'known', value: 'complete' },
+        status: 'skipped',
+        reason: 'rule_disabled',
+      },
+    ]);
+    return;
+  }
+  assert.equal(outcome, 'manual_conflict_id');
+  assert.equal(item.outcome.kind, 'needs_review');
+  assert.equal(item.outcome.reason, 'item_identity_conflict');
+  assertResolutionCatalogItem(item.outcome.item, job, [{ scheme: 'imdb:title', value: 'tt9999999' }]);
+  assert.equal(item.outcome.comparison, undefined);
+}
+
+async function readResolutionHistory(page, panel, jobId, expectedOutcome) {
+  const statusResponse = await clickForResponse(
+    page,
+    panel.getByRole('button', { name: '读取状态', exact: true }),
+    url => url.pathname === `/api/v1/previews/${jobId}`,
+  );
+  const job = await responseJson(statusResponse, 'PreviewJobView');
+  assert.equal(job.id, jobId);
+  assertFailureJob(job, 'completed', 1);
+  const firstPage = await readPollingPage(page, panel, jobId, 0);
+  assertResolutionPage(firstPage, job, 0, expectedOutcome);
+  const ordinalOnePage = await readPollingPage(page, panel, jobId, 1);
+  assertResolutionPage(ordinalOnePage, job, 1, expectedOutcome);
+  return { job, firstPage, ordinalOnePage };
+}
+
+async function openResolutionHistory(page, panel, expected) {
+  await panel.getByLabel('已有任务 ID', { exact: true }).fill(expected.job.id);
+  const response = await clickForResponse(
+    page,
+    panel.getByRole('button', { name: '打开任务', exact: true }),
+    url => url.pathname === `/api/v1/previews/${expected.job.id}`,
+  );
+  assert.deepEqual(await responseJson(response, 'PreviewJobView'), expected.job);
+  assert.deepEqual(await readPollingPage(page, panel, expected.job.id, 0), expected.firstPage);
+  assert.deepEqual(await readPollingPage(page, panel, expected.job.id, 1), expected.ordinalOnePage);
+  assert.equal(await panel.getByLabel('解析选择草稿').count(), 0);
+  assert.equal(await panel.getByRole('button', { name: /暂存记录 0/ }).count(), 0);
+  assert.equal(await panel.getByLabel('记录 0 的搜索词', { exact: true }).count(), 0);
+  assert.equal(await panel.getByRole('button', { name: '按选择生成新预览', exact: true }).count(), 0);
+}
+
+async function deleteResolutionHistory(page, panel, expected) {
+  await panel.getByLabel('已有任务 ID', { exact: true }).fill(expected.job.id);
+  const openResponse = await clickForResponse(
+    page,
+    panel.getByRole('button', { name: '打开任务', exact: true }),
+    url => url.pathname === `/api/v1/previews/${expected.job.id}`,
+  );
+  assert.deepEqual(await responseJson(openResponse, 'PreviewJobView'), expected.job);
+  page.once('dialog', dialog => dialog.accept());
+  const deleteResponse = await clickForResponse(
+    page,
+    panel.getByRole('button', { name: '删除运行历史', exact: true }),
+    (url, method) => method === 'DELETE' && url.pathname === `/api/v1/previews/${expected.job.id}`,
+  );
+  assert.deepEqual(await responseJson(deleteResponse, 'PreviewMutationResult'), { applied: true });
+  await panel.getByText('服务器确认运行历史已删除；公共目录条目不受影响。', { exact: true }).waitFor();
+  const missing = await page.evaluate(async id => {
+    const response = await fetch(`/api/v1/previews/${encodeURIComponent(id)}`);
+    return { status: response.status, body: await response.json() };
+  }, expected.job.id);
+  assert.equal(missing.status, 404);
+  assert.equal(missing.body.code, 'preview_job_not_found');
+  assertPublic(missing.body);
+}
+
+async function runResolutionCase(browser, host, resolutionCase, bootstrapKeys) {
+  let context;
+  let bootstrapKey;
+  try {
+    const ready = await host.receive('ready');
+    assert.equal(ready.case, resolutionCase);
+    assert.equal(typeof ready.bootstrapUrl, 'string');
+    const bootstrapUrl = new URL(ready.bootstrapUrl);
+    const origin = bootstrapUrl.origin;
+    bootstrapKey = new URLSearchParams(bootstrapUrl.hash.slice(1)).get('key');
+    assert(bootstrapKey);
+    bootstrapKeys.push(bootstrapKey);
+
+    context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const page = await context.newPage();
+    const pageErrors = [];
+    const requests = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
+    page.on('request', request => {
+      const record = coreRequestRecord(request, origin);
+      if (record) requests.push(record);
+    });
+
+    await page.goto(bootstrapUrl.href);
+    await page.getByRole('heading', { name: '本地服务已连接' }).waitFor();
+    await page.getByText('已授权', { exact: true }).waitFor();
+    assert.equal(new URL(page.url()).hash, '');
+    assert.equal(await page.evaluate(() => document.cookie), '');
+    const cookies = await context.cookies(origin);
+    assert(cookies.some(cookie => cookie.name === 'collector_session'
+      && cookie.httpOnly && cookie.sameSite === 'Strict'));
+    await page.getByText(/alice · http:\/\/127\.0\.0\.1:/).waitFor();
+
+    const panel = page.getByRole('region', { name: '历史预览' });
+    await panel.getByLabel('保存的配置 ID', { exact: true }).fill('imdb_ratings');
+    await panel.getByLabel('保存的配置版本', { exact: true }).fill('1');
+    await panel.getByLabel('CSV 文件（UTF-8，最大 10 MiB）').setInputFiles({
+      name: `ratings-${resolutionCase}.csv`, mimeType: 'text/csv', buffer: Buffer.from(RESOLUTION_CSV),
+    });
+    const rawResponse = await clickForResponse(
+      page,
+      panel.getByRole('button', { name: '提交只读预览', exact: true }),
+      (url, method) => method === 'POST' && url.pathname === '/api/v1/imports/imdb/ratings',
+    );
+    assert.equal(rawResponse.status(), 202);
+    const rawReceipt = await responseJson(rawResponse, 'PreviewImportAccepted');
+    assert.deepEqual({
+      observations: rawReceipt.observationCount,
+      skippedRows: rawReceipt.skippedRowCount,
+      skippedColumns: rawReceipt.skippedColumnCount,
+      duplicates: rawReceipt.duplicateRowCount,
+      attempt: rawReceipt.preview.attempt,
+      executable: rawReceipt.preview.executable,
+    }, {
+      observations: 1, skippedRows: 0, skippedColumns: 1, duplicates: 0,
+      attempt: 1, executable: false,
+    });
+    const nativeJobId = rawReceipt.preview.jobId;
+    assert.equal(rawResponse.request().postData(), RESOLUTION_CSV);
+    await panel.getByRole('heading', { name: `任务 ${nativeJobId}`, exact: true }).waitFor();
+    await panel.getByText('completed', { exact: true }).waitFor({ timeout: 12_000 });
+    const nativeHistory = await readResolutionHistory(page, panel, nativeJobId, 'native');
+    host.send({ phase: 'native', jobId: nativeJobId });
+    const native = await host.receive('native');
+    assert.equal(native.case, resolutionCase);
+
+    await panel.getByLabel('起始记录序号').fill('0');
+    await panel.getByLabel('单页数量').fill('2');
+    const visibleNativePage = await clickForResponse(
+      page,
+      panel.getByRole('button', { name: '读取该尝试的一页结果', exact: true }),
+      url => url.pathname === `/api/v1/previews/${nativeJobId}/results`
+        && url.searchParams.get('offset') === '0',
+    );
+    assert.deepEqual(await responseJson(visibleNativePage, 'PreviewResultPage'), nativeHistory.firstPage);
+    const query = panel.getByLabel('记录 0 的搜索词', { exact: true });
+    await query.fill('  Exact candidate  ');
+    const mutationsBeforeSearchStage = requests.filter(request => ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)).length;
+    const stageSearch = panel.getByRole('button', { name: '暂存记录 0 的搜索', exact: true });
+    await stageSearch.focus();
+    assert(await stageSearch.evaluate(element => element === document.activeElement));
+    await stageSearch.press('Enter');
+    const draft = panel.getByLabel('解析选择草稿', { exact: true });
+    await draft.getByText('Exact candidate', { exact: false }).waitFor();
+    assert.equal(requests.filter(request => ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)).length,
+      mutationsBeforeSearchStage, 'search staging dispatched a mutation');
+    host.send({ phase: 'search_staged', jobId: nativeJobId });
+    const searchStaged = await host.receive('staged');
+    assert.equal(searchStaged.case, resolutionCase);
+    assert.equal(searchStaged.kind, 'search');
+
+    const searchResponse = await clickForResponse(
+      page,
+      panel.getByRole('button', { name: '按选择生成新预览', exact: true }),
+      (url, method) => method === 'POST' && url.pathname === '/api/v1/imports/imdb/ratings',
+    );
+    assert.equal(searchResponse.status(), 202);
+    const searchRequest = searchResponse.request().postDataJSON();
+    validate('PreviewImdbResolutionRequest', searchRequest);
+    assert.deepEqual(searchRequest, {
+      csv: RESOLUTION_CSV,
+      resolutionInputs: [{
+        kind: 'search', ordinal: 0, sourceRecordId: 'tt5555555', query: '  Exact candidate  ',
+      }],
+    });
+    validate('PreviewResolutionChoice', searchRequest.resolutionInputs[0]);
+    const searchReceipt = await responseJson(searchResponse, 'PreviewImportAccepted');
+    assert.deepEqual({
+      observations: searchReceipt.observationCount,
+      skippedRows: searchReceipt.skippedRowCount,
+      skippedColumns: searchReceipt.skippedColumnCount,
+      duplicates: searchReceipt.duplicateRowCount,
+      attempt: searchReceipt.preview.attempt,
+      executable: searchReceipt.preview.executable,
+    }, {
+      observations: 1, skippedRows: 0, skippedColumns: 1, duplicates: 0,
+      attempt: 1, executable: false,
+    });
+    const searchJobId = searchReceipt.preview.jobId;
+    assert.notEqual(searchJobId, nativeJobId);
+    await panel.getByRole('heading', { name: `任务 ${searchJobId}`, exact: true }).waitFor();
+    await panel.getByText('completed', { exact: true }).waitFor({ timeout: 12_000 });
+    const searchHistory = await readResolutionHistory(page, panel, searchJobId, 'search');
+    const results = panel.getByRole('region', { name: '历史结果页' });
+    await panel.getByLabel('起始记录序号').fill('0');
+    const visibleSearchPage = await clickForResponse(
+      page,
+      panel.getByRole('button', { name: '读取该尝试的一页结果', exact: true }),
+      url => url.pathname === `/api/v1/previews/${searchJobId}/results`
+        && url.searchParams.get('offset') === '0',
+    );
+    assert.deepEqual(await responseJson(visibleSearchPage, 'PreviewResultPage'), searchHistory.firstPage);
+    await results.getByText('Exact review candidate', { exact: true }).waitFor();
+    await results.getByText(/结果：搜索候选 · 服务端未说明还有候选/).waitFor();
+    await draft.getByText('Exact candidate', { exact: false }).waitFor();
+    assert.equal(await draft.getByText('人工目录条目 Movie5555555', { exact: false }).count(), 0,
+      'singleton candidate was selected automatically');
+    host.send({ phase: 'searched', jobId: searchJobId });
+    const searched = await host.receive('searched');
+    assert.equal(searched.case, resolutionCase);
+
+    const mutationsBeforeManualStage = requests.filter(request => ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)).length;
+    const stageManual = panel.getByRole('button', { name: '暂存记录 0 的目录条目 Movie5555555', exact: true });
+    await stageManual.focus();
+    assert(await stageManual.evaluate(element => element === document.activeElement));
+    await stageManual.press('Enter');
+    await draft.getByText('人工目录条目 Movie5555555', { exact: false }).waitFor();
+    assert.equal(await draft.getByText('Exact candidate', { exact: false }).count(), 0);
+    assert.equal(requests.filter(request => ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)).length,
+      mutationsBeforeManualStage, 'manual staging dispatched a mutation');
+    host.send({ phase: 'manual_staged', jobId: searchJobId });
+    const manualStaged = await host.receive('staged');
+    assert.equal(manualStaged.case, resolutionCase);
+    assert.equal(manualStaged.kind, 'manual');
+
+    const visibleCandidateText = await page.locator('body').innerText();
+    for (const forbidden of [...FORBIDDEN_PUBLIC_VALUES, bootstrapKey]) assert(!visibleCandidateText.includes(forbidden));
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.screenshot({ path: `test-results/preview-native-resolution-${resolutionCase}-candidate-desktop.png`, fullPage: true });
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({ path: `test-results/preview-native-resolution-${resolutionCase}-candidate-mobile.png`, fullPage: true });
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.setViewportSize({ width: 1280, height: 900 });
+
+    const manualResponse = await clickForResponse(
+      page,
+      panel.getByRole('button', { name: '按选择生成新预览', exact: true }),
+      (url, method) => method === 'POST' && url.pathname === '/api/v1/imports/imdb/ratings',
+    );
+    assert.equal(manualResponse.status(), 202);
+    const manualRequest = manualResponse.request().postDataJSON();
+    validate('PreviewImdbResolutionRequest', manualRequest);
+    assert.deepEqual(manualRequest, {
+      csv: RESOLUTION_CSV,
+      resolutionInputs: [{
+        kind: 'manual',
+        ordinal: 0,
+        sourceRecordId: 'tt5555555',
+        item: { uuid: 'Movie5555555', mediaType: 'movie', model: 'Movie' },
+      }],
+    });
+    validate('PreviewResolutionChoice', manualRequest.resolutionInputs[0]);
+    const manualReceipt = await responseJson(manualResponse, 'PreviewImportAccepted');
+    assert.deepEqual({
+      observations: manualReceipt.observationCount,
+      skippedRows: manualReceipt.skippedRowCount,
+      skippedColumns: manualReceipt.skippedColumnCount,
+      duplicates: manualReceipt.duplicateRowCount,
+      attempt: manualReceipt.preview.attempt,
+      executable: manualReceipt.preview.executable,
+    }, {
+      observations: 1, skippedRows: 0, skippedColumns: 1, duplicates: 0,
+      attempt: 1, executable: false,
+    });
+    const manualJobId = manualReceipt.preview.jobId;
+    assert.notEqual(manualJobId, nativeJobId);
+    assert.notEqual(manualJobId, searchJobId);
+    await panel.getByRole('heading', { name: `任务 ${manualJobId}`, exact: true }).waitFor();
+    await panel.getByText('completed', { exact: true }).waitFor({ timeout: 12_000 });
+    const manualHistory = await readResolutionHistory(page, panel, manualJobId, resolutionCase);
+    await panel.getByLabel('起始记录序号').fill('0');
+    const visibleManualPage = await clickForResponse(
+      page,
+      panel.getByRole('button', { name: '读取该尝试的一页结果', exact: true }),
+      url => url.pathname === `/api/v1/previews/${manualJobId}/results`
+        && url.searchParams.get('offset') === '0',
+    );
+    assert.deepEqual(await responseJson(visibleManualPage, 'PreviewResultPage'), manualHistory.firstPage);
+    if (resolutionCase === 'manual_missing_id') {
+      await results.getByText(/结果：已比较 · 证据来源：人工 · 快照时间：/).waitFor();
+      await results.getByText('already_equal', { exact: true }).waitFor();
+      await results.getByText('无外部身份声明。', { exact: true }).waitFor();
+    } else {
+      await results.getByText(/结果：需要检查 · item_identity_conflict/).waitFor();
+      await results.getByText('tt9999999', { exact: true }).waitFor();
+    }
+    const visibleManualText = await page.locator('body').innerText();
+    for (const forbidden of [...FORBIDDEN_PUBLIC_VALUES, bootstrapKey]) assert(!visibleManualText.includes(forbidden));
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.screenshot({ path: `test-results/preview-native-resolution-${resolutionCase}-manual-desktop.png`, fullPage: true });
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({ path: `test-results/preview-native-resolution-${resolutionCase}-manual-mobile.png`, fullPage: true });
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    assert.equal(await page.evaluate(() => localStorage.length), 0);
+    assert.equal(await page.evaluate(() => sessionStorage.length), 0);
+    assert.equal(await page.getByText(/#key=/).count(), 0);
+
+    host.send({ phase: 'retained', jobId: manualJobId });
+    const reopened = await host.receive('reopened');
+    assert.equal(reopened.case, resolutionCase);
+    await page.reload();
+    await page.getByText('已授权', { exact: true }).waitFor();
+    assert.equal(new URL(page.url()).hash, '');
+    assert.equal(await panel.getByLabel('已有任务 ID', { exact: true }).inputValue(), '');
+    assert.equal(await panel.getByLabel('保存的配置 ID', { exact: true }).inputValue(), '');
+    assert.equal(await panel.getByLabel('保存的配置版本', { exact: true }).inputValue(), '');
+    assert.equal(await panel.getByLabel('CSV 文件（UTF-8，最大 10 MiB）').inputValue(), '');
+    assert.equal(await panel.getByLabel('解析选择草稿').count(), 0);
+    const histories = [nativeHistory, searchHistory, manualHistory];
+    for (const history of histories) await openResolutionHistory(page, panel, history);
+    for (const history of histories) await deleteResolutionHistory(page, panel, history);
+
+    const mutations = requests.filter(request => ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method));
+    assert.deepEqual(mutations.map(request => `${request.method} ${request.path}`), [
+      'POST /api/v1/session/bootstrap',
+      'POST /api/v1/imports/imdb/ratings?profileId=imdb_ratings&profileVersion=1',
+      'POST /api/v1/imports/imdb/ratings?profileId=imdb_ratings&profileVersion=1',
+      'POST /api/v1/imports/imdb/ratings?profileId=imdb_ratings&profileVersion=1',
+      `DELETE /api/v1/previews/${nativeJobId}`,
+      `DELETE /api/v1/previews/${searchJobId}`,
+      `DELETE /api/v1/previews/${manualJobId}`,
+    ]);
+    const headers = await Promise.all(requests.map(request => request.headers));
+    for (const value of headers) {
+      assert(value, 'browser request headers could not be read');
+      assert.equal(value.authorization, undefined);
+    }
+    const mutationHeaders = await Promise.all(mutations.map(request => request.headers));
+    assert.equal(mutationHeaders[0].origin, origin);
+    assert.equal(mutationHeaders[0]['x-csrf-token'], undefined);
+    for (const value of mutationHeaders.slice(1)) {
+      assert.equal(value.origin, origin);
+      assert(value['x-csrf-token']);
+      assert.equal(value['x-csrf-token'], mutationHeaders[1]['x-csrf-token']);
+    }
+    assert.match(mutationHeaders[1]['content-type'], /^text\/csv(?:;|$)/);
+    for (const value of mutationHeaders.slice(2, 4)) assert.match(value['content-type'], /^application\/json(?:;|$)/);
+    assert.equal(requests.filter(request => request.path.endsWith('/resume')
+      || request.path.endsWith('/cancel')).length, 0);
+    assert.deepEqual(pageErrors, []);
+
+    host.send({ phase: 'finish', jobId: manualJobId });
+    const done = await host.receive('done');
+    assert.equal(done.case, resolutionCase);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : `native resolution case ${resolutionCase} failed`;
+    const safe = bootstrapKeys.reduce((value, key) => value.replaceAll(key, '[redacted]'), message);
+    // eslint-disable-next-line preserve-caught-error
+    throw new Error(safe.replace(/#key=[^\s"']+/g, '#key=[redacted]'));
+  } finally {
+    await context?.close();
+  }
+}
+
+async function runResolutionPath(browser, executable) {
+  const host = startHost(executable, RESOLUTION_HOST_TEST);
+  const bootstrapKeys = [];
+  try {
+    for (const resolutionCase of RESOLUTION_CASES) {
+      await runResolutionCase(browser, host, resolutionCase, bootstrapKeys);
+    }
+    await host.receive('all_done');
+    const result = await waitForExit(host.child, host.exit);
+    assert.equal(result.error, undefined, 'native resolution host process failed to start');
+    assert.equal(result.forced, false, 'native resolution host exceeded its natural exit bound');
+    assert.equal(result.signal, null, 'native resolution host terminated by signal');
+    assert.equal(result.code, 0, 'native resolution host did not exit successfully');
+  } catch (error) {
+    if (host.child.exitCode === null && host.child.signalCode === null) await host.closeInputAndDrain();
+    throw error;
+  }
+}
+
 async function runEofProbe(executable, testName = HOST_TEST) {
   const host = startHost(executable, testName);
   try {
     const ready = await host.receive('ready');
     if (testName === FAILURE_HOST_TEST) assert.equal(ready.case, FAILURE_CASES[0]);
     if (testName === POLLING_HOST_TEST) assert.equal(ready.case, POLLING_CASES[0]);
+    if (testName === RESOLUTION_HOST_TEST) assert.equal(ready.case, RESOLUTION_CASES[0]);
     const origin = new URL(ready.bootstrapUrl).origin;
     const result = await host.closeInputAndDrain();
     assert.equal(result.error, undefined, 'EOF probe host process failed to start');
@@ -1241,7 +1698,9 @@ export async function runPreviewNativeBrowserSmoke(existingBrowser) {
     await runEofProbe(executable, FAILURE_HOST_TEST);
     await runPollingPath(browser, executable);
     await runEofProbe(executable, POLLING_HOST_TEST);
-    console.log('Actual native browser/Core/SQLite/NeoDB-adapter preview acceptance passed, including failure and polling retention.');
+    await runResolutionPath(browser, executable);
+    await runEofProbe(executable, RESOLUTION_HOST_TEST);
+    console.log('Actual native browser/Core/SQLite/NeoDB-adapter preview acceptance passed, including failure, polling, and explicit resolution retention.');
   } finally {
     if (!existingBrowser) await browser.close();
   }

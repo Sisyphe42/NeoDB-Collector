@@ -906,3 +906,76 @@ Verified three-job native Search/Manual lineage, fresh missing/conflicting ident
 - Next bounded slice: native browser Running restart/migration acceptance;
   terminal-history reopen is not interrupted/resume proof.
 - Keep connector IDs empty and writes/scheduling disabled pending full acceptance.
+
+
+## Session 20: Native browser restart and fresh resume acceptance
+
+**Date**: 2026-10-08
+**Task**: Native browser restart and fresh resume acceptance
+**Branch**: `master`
+
+### Summary
+
+Verified current-schema native browser Running interruption, preserved partial history, explicit fresh attempt2 resume, changed comparisons, terminal reopen and job-only deletion. Final scoped repeats, two full default browser repeats and full gate passed; capabilities remain disabled.
+
+### Main Changes
+
+- Two Sol/medium agents owned Rust host and Node driver; main planned, reviewed,
+  integrated, independently validated and committed the coherent checkpoint.
+- Reuse concrete E5d RestartState/upstream and existing browser composition;
+  shared helper defaults and existing CLI/migration assertions stay unchanged.
+- Actual Running attempt1 retains complete ordinal0 comparison and exact empty
+  ordinal1 page. Drain before upstream release; observe responded-or-dropped
+  handler lifecycle, not remote rollback or successful delivery.
+- Production Storage::open independently proves still-Running metadata/full
+  partial evidence before recovery, always closing the pool before error return.
+- Same-origin later-time reopen yields Interrupted1 without reseeding/re-pairing,
+  retaining original session, normalized observations/Native inputs and pages.
+- Explicit resume202 attempt2 atomically clears old results; empty fresh pages
+  and stale attempt409 are inspected before release. All original ordinals are
+  refetched with changed marks, later snapshots and original fingerprints/v1.
+- Full public/stored catalog identity, metadata/provenance and ordered rating/
+  disabled-shelf decisions are preserved through terminal reopen.
+- Confirmed deletion/404 removes job history only, retaining endpoint, both
+  profiles, paired hash/all metadata/auth and secret values. Exact ten GETs/
+  three NeoDB-secret reads/zero writes; no upstream Cookie/CLI Bearer/retries.
+- Test-only wrong remount revision and whole-trace stale-GET count corrected.
+  Independent repeats exposed header-capture lifetime despite single passes.
+- Stop the document on about:blank, settle strict captured headers while the
+  Page remains alive, then close. No dropped records/fallback/sleep/timer change.
+  Phase/method/pathname diagnostics omit queries/headers; optional restartOnly
+  filter speeds diagnosis without replacing full default acceptance.
+- New protocol gate errors return into Core-drain/release/join cleanup; preserve
+  serving errors and add independent natural-exit EOF/closed-port evidence.
+- Trellis specs/task evidence record executable checks and verification lessons.
+  No production/API/schema/dependency/new migration/capability changes.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `675b769` | test: verify native browser restart and fresh resume |
+
+### Testing
+
+- Scoped CLI: 48 passed, five ignored browser hosts; fmt/scoped Clippy and Node
+  syntax/scoped lint/typecheck/build checks passed.
+- Final revision: three scoped restart/EOF runs, two independent full default
+  native-browser runs and visual checks of four desktop/mobile screenshots.
+- pnpm verify passed: 307 Rust tests, five ignored hosts explicitly driven in
+  smoke, two compile-fail doctests, 85 TS/UI tests, fmt/workspace Clippy,
+  generated drift/boundaries/lint/typecheck/build, CLI/auth/mock/native smoke.
+- Product YAML/34 evidence IDs/11 references/eight paths/23 unique decisions and
+  disabled capabilities, task context validation and diff checks passed.
+- Production/dependency/product files unchanged; no fixture/Cargo/Rust processes
+  remain. Synthetic local Windows evidence is not legacy-browser migration,
+  shipped-process restart, native keychain, live account or hosted three-OS CI.
+
+### Status
+
+[OK] **E5j checkpoint complete; child and parent remain active and unarchived.**
+
+### Next Steps
+
+- Next bounded slice: genuine populated legacy-schema browser migration.
+- Keep connector IDs empty and writes/scheduling disabled pending full acceptance.

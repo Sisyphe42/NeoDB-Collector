@@ -136,6 +136,20 @@ SQLite uses `{data_dir}/collector.db`; `0001_baseline.sql` establishes SQLx's mi
   full terminal-history reopen and deletion of all lineage jobs with retained
   auth/config/secrets, closed DB-WAL redaction and natural-exit EOF. No alternate
   Core composer, fake catalog ports, production control route or generic test RPC.
+  `src/client/preview_integration_tests/browser/restart.rs` reuses E5d's concrete
+  held-fetch lifecycle for current-schema browser Running -> startup Interrupted
+  -> explicit attempt2 fresh resume. Drain old ownership and observe the actual
+  held handler before reopening at later wall time on the same origin. Prove
+  pre-recovery Running persistence, preserved partial history/normalized inputs,
+  startup/inspection zero I/O and atomic old-result removal before fresh release.
+  Validate later changed comparisons for all original ordinals, obsolete-attempt
+  rejection, fixed expiry/revision, original session/auth/config/secrets and exact
+  GET/credential traces. Terminal reopen/delete/closed DB-WAL scans/natural EOF
+  remain separate gates. Preserve existing helper default clocks and CLI/migration
+  scenarios; this does not prove shipped-process or legacy browser migration.
+  Protocol-owned gate waits must return errors into owner cleanup, not panic past
+  it. Close a pre-recovery Storage pool before propagating inspection errors;
+  drain Core before releasing held upstream work, then join the upstream owner.
 - `pnpm verify` is the root full gate: Rust format/clippy/tests, non-mutating contract drift check, import boundaries, ESLint, TypeScript, Vitest, WebUI build, binary build, process/browser smoke, `git diff --check`. `.github/workflows/verify.yml` runs the same gate on Windows/macOS/Linux; a CI definition alone is not hosted evidence.
 - Toolchain/cache failures are environment issues, not permission to skip gates. Use a disposable Cargo cache when global cache contents are incomplete; never repair global user caches silently. `tools/verify.mjs` supports both native and JS pnpm launchers.
 

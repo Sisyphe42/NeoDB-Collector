@@ -1,11 +1,11 @@
 use super::*;
 use crate::client::preview::PreviewFailure;
 
-const RESTART_RAW_MARKER: &str = "DISCARDED_RAW_RESTART_E5D";
-const RESTART_UPSTREAM_MARKER: &str = "DISCARDED_UPSTREAM_RESTART_E5D";
-const LATER: i64 = NOW + 60;
+pub(super) const RESTART_RAW_MARKER: &str = "DISCARDED_RAW_RESTART_E5D";
+pub(super) const RESTART_UPSTREAM_MARKER: &str = "DISCARDED_UPSTREAM_RESTART_E5D";
+pub(super) const LATER: i64 = NOW + 60;
 
-struct RestartState {
+pub(super) struct RestartState {
     base: String,
     requests: Mutex<Vec<SeenRequest>>,
     fetches: AtomicUsize,
@@ -57,7 +57,39 @@ impl Drop for InitialHandlerGuard {
 }
 
 impl RestartState {
-    async fn wait_for(flag: &AtomicBool, notify: &Notify, message: &str) {
+    pub(super) fn new(base: String) -> Self {
+        Self {
+            base,
+            requests: Mutex::new(Vec::new()),
+            fetches: AtomicUsize::new(0),
+            changed: AtomicBool::new(false),
+            initial_entered: AtomicBool::new(false),
+            initial_released: AtomicBool::new(false),
+            initial_completed: AtomicBool::new(false),
+            initial_responded: AtomicBool::new(false),
+            fresh_entered: AtomicBool::new(false),
+            fresh_released: AtomicBool::new(false),
+            initial_entered_notify: Notify::new(),
+            initial_released_notify: Notify::new(),
+            initial_completed_notify: Notify::new(),
+            fresh_entered_notify: Notify::new(),
+            fresh_released_notify: Notify::new(),
+        }
+    }
+
+    pub(super) fn requests(&self) -> Vec<SeenRequest> {
+        self.requests.lock().unwrap().clone()
+    }
+
+    pub(super) fn set_changed(&self) {
+        self.changed.store(true, Ordering::SeqCst);
+    }
+
+    async fn try_wait_for(
+        flag: &AtomicBool,
+        notify: &Notify,
+        message: &'static str,
+    ) -> Result<(), &'static str> {
         tokio::time::timeout(Duration::from_secs(3), async {
             loop {
                 let notified = notify.notified();
@@ -68,10 +100,16 @@ impl RestartState {
             }
         })
         .await
-        .expect(message);
+        .map_err(|_| message)
     }
 
-    async fn wait_for_initial(&self) {
+    async fn wait_for(flag: &AtomicBool, notify: &Notify, message: &'static str) {
+        Self::try_wait_for(flag, notify, message)
+            .await
+            .expect(message);
+    }
+
+    pub(super) async fn wait_for_initial(&self) {
         Self::wait_for(
             &self.initial_entered,
             &self.initial_entered_notify,
@@ -80,12 +118,22 @@ impl RestartState {
         .await;
     }
 
-    fn release_initial(&self) {
+    pub(super) async fn try_wait_for_initial(&self) -> Result<(), String> {
+        Self::try_wait_for(
+            &self.initial_entered,
+            &self.initial_entered_notify,
+            "the attempt-1 second fetch must arrive",
+        )
+        .await
+        .map_err(str::to_owned)
+    }
+
+    pub(super) fn release_initial(&self) {
         self.initial_released.store(true, Ordering::SeqCst);
         self.initial_released_notify.notify_waiters();
     }
 
-    async fn wait_for_initial_completion(&self) -> bool {
+    pub(super) async fn wait_for_initial_completion(&self) -> bool {
         Self::wait_for(
             &self.initial_completed,
             &self.initial_completed_notify,
@@ -95,7 +143,18 @@ impl RestartState {
         self.initial_responded.load(Ordering::SeqCst)
     }
 
-    async fn wait_for_fresh(&self) {
+    pub(super) async fn try_wait_for_initial_completion(&self) -> Result<bool, String> {
+        Self::try_wait_for(
+            &self.initial_completed,
+            &self.initial_completed_notify,
+            "the held attempt-1 handler must respond or be dropped",
+        )
+        .await
+        .map_err(str::to_owned)?;
+        Ok(self.initial_responded.load(Ordering::SeqCst))
+    }
+
+    pub(super) async fn wait_for_fresh(&self) {
         Self::wait_for(
             &self.fresh_entered,
             &self.fresh_entered_notify,
@@ -104,7 +163,17 @@ impl RestartState {
         .await;
     }
 
-    fn release_fresh(&self) {
+    pub(super) async fn try_wait_for_fresh(&self) -> Result<(), String> {
+        Self::try_wait_for(
+            &self.fresh_entered,
+            &self.fresh_entered_notify,
+            "the fresh attempt-2 fetch must arrive",
+        )
+        .await
+        .map_err(str::to_owned)
+    }
+
+    pub(super) fn release_fresh(&self) {
         self.fresh_released.store(true, Ordering::SeqCst);
         self.fresh_released_notify.notify_waiters();
     }
@@ -120,7 +189,7 @@ impl RestartState {
     }
 }
 
-async fn restart_upstream(
+pub(super) async fn restart_upstream(
     State(state): State<Arc<RestartState>>,
     request: Request<Body>,
 ) -> Response {
@@ -296,23 +365,7 @@ pub(super) async fn run_restart_resume_delete(prior_schema: Option<super::migrat
     let temp = tempfile::tempdir().unwrap();
     let upstream_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let upstream_base = format!("http://{}", upstream_listener.local_addr().unwrap());
-    let state = Arc::new(RestartState {
-        base: upstream_base.clone(),
-        requests: Mutex::new(Vec::new()),
-        fetches: AtomicUsize::new(0),
-        changed: AtomicBool::new(false),
-        initial_entered: AtomicBool::new(false),
-        initial_released: AtomicBool::new(false),
-        initial_completed: AtomicBool::new(false),
-        initial_responded: AtomicBool::new(false),
-        fresh_entered: AtomicBool::new(false),
-        fresh_released: AtomicBool::new(false),
-        initial_entered_notify: Notify::new(),
-        initial_released_notify: Notify::new(),
-        initial_completed_notify: Notify::new(),
-        fresh_entered_notify: Notify::new(),
-        fresh_released_notify: Notify::new(),
-    });
+    let state = Arc::new(RestartState::new(upstream_base.clone()));
     let upstream_app = Router::new()
         .fallback(restart_upstream)
         .with_state(state.clone());
@@ -526,7 +579,7 @@ pub(super) async fn run_restart_resume_delete(prior_schema: Option<super::migrat
     let report = fixture.shutdown().await;
     state.release_initial();
     let _responded_or_dropped = state.wait_for_initial_completion().await;
-    assert_eq!(state.requests.lock().unwrap().len(), 4);
+    assert_eq!(state.requests().len(), 4);
     assert_restart_database_closed(&temp, &cli_token);
     let migration_proof = match prior_schema {
         Some(prior_schema) => {
@@ -556,7 +609,7 @@ pub(super) async fn run_restart_resume_delete(prior_schema: Option<super::migrat
     assert_restart_database_closed(&temp, &cli_token);
 
     let before_reopen = (
-        state.requests.lock().unwrap().len(),
+        state.requests().len(),
         secrets.neodb_reads.load(Ordering::SeqCst),
     );
     assert_eq!(before_reopen, (4, 1));
@@ -573,7 +626,7 @@ pub(super) async fn run_restart_resume_delete(prior_schema: Option<super::migrat
     assert_eq!(
         before_reopen,
         (
-            state.requests.lock().unwrap().len(),
+            state.requests().len(),
             secrets.neodb_reads.load(Ordering::SeqCst),
         ),
         "startup recovery must not touch upstream or the NeoDB credential"
@@ -670,14 +723,14 @@ pub(super) async fn run_restart_resume_delete(prior_schema: Option<super::migrat
     assert_redacted(&interrupted, &cli_token);
     assert_eq!(
         (
-            state.requests.lock().unwrap().len(),
+            state.requests().len(),
             secrets.neodb_reads.load(Ordering::SeqCst),
         ),
         (4, 1),
         "authenticated recovery inspection must not trigger remote work"
     );
 
-    state.changed.store(true, Ordering::SeqCst);
+    state.set_changed();
     let resumed = fixture
         .client
         .resume(&accepted.preview.job_id, 1)
@@ -832,7 +885,7 @@ pub(super) async fn run_restart_resume_delete(prior_schema: Option<super::migrat
         format!("/api/movie/{}", UUIDS[1]),
         format!("/api/me/shelf/item/{}", UUIDS[1]),
     ];
-    let requests = state.requests.lock().unwrap().clone();
+    let requests = state.requests();
     assert_eq!(
         requests
             .iter()
@@ -869,7 +922,7 @@ pub(super) async fn run_restart_resume_delete(prior_schema: Option<super::migrat
     assert_eq!(secrets.probe_sets.load(Ordering::SeqCst), 1);
     assert_eq!(secrets.probe_deletes.load(Ordering::SeqCst), 1);
 
-    let remote_before_delete = state.requests.lock().unwrap().len();
+    let remote_before_delete = state.requests().len();
     let reads_before_delete = secrets.neodb_reads.load(Ordering::SeqCst);
     assert!(
         fixture
@@ -914,7 +967,7 @@ pub(super) async fn run_restart_resume_delete(prior_schema: Option<super::migrat
             .unwrap()
             .is_empty()
     );
-    assert_eq!(state.requests.lock().unwrap().len(), remote_before_delete);
+    assert_eq!(state.requests().len(), remote_before_delete);
     assert_eq!(
         secrets.neodb_reads.load(Ordering::SeqCst),
         reads_before_delete
@@ -956,10 +1009,7 @@ pub(super) async fn run_restart_resume_delete(prior_schema: Option<super::migrat
     assert_access_record_eq(&original_access, &final_access);
 
     fixture.shutdown().await;
-    assert_eq!(
-        state.requests.lock().unwrap().as_slice(),
-        requests.as_slice()
-    );
+    assert_eq!(state.requests().as_slice(), requests.as_slice());
     assert_eq!(secret_snapshot(&secrets), original_secrets);
     assert_eq!(secrets.neodb_reads.load(Ordering::SeqCst), 3);
     assert_eq!(secrets.neodb_writes.load(Ordering::SeqCst), 0);

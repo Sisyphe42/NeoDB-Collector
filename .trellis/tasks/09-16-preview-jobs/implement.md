@@ -16,6 +16,39 @@ than silently substituting a different model. This does not remove review gates.
 
 ## Activation gate
 
+E5j checkpoint (2026-10-08): Sol/medium Rust agent owns only new browser/restart.rs,
+browser.rs registration/narrow clock-param reopen helper preserving NOW defaults,
+and existing restart.rs narrow test-only constants/RestartState/handler constructor/
+snapshot/change/gate visibility. Preserve all E5d/e behavior. Sol/medium Node agent
+owns only tests/preview-native-browser-smoke.mjs; preserve E5f-i/default/four EOF
+assertions and smoke registration. Main owns planning/spec/evidence/review, two
+independent actual driver repeats/visual QA/full gate/commits. Read E5j/E5d design,
+preview/WebUI, foundation/layout, auth/OAuth, submission/history/management/runtime/
+runner/records/jobs/results/catalog/resolver/mark/comparison contracts and mark-read
+research. No production/API/schema/dependency/new migration/capability/write/live
+account/keychain changes, recursive delegation or agent commits. Rust alone owns
+serial Cargo until handoff; Node static syntax/lint/typecheck/build only; main owns
+actual browser/full verify. Use approved existing Playwright test-file harness and
+generated AJV schemas. Current schema restart only; legacy browser migration next.
+
+- [x] E5j: Native browser Running interruption, explicit fresh resume and deletion.
+
+Main reviewed both Sol/medium handoffs and corrected test-only remount-version,
+action-delta counting and Page/header-capture lifetime assumptions. Strict headers
+remain mandatory; stop the document on about:blank before closing its Page. Final
+revision passed three scoped restart/EOF runs, then two independent full default
+driver runs. Main visually checked four Interrupted/Completed desktop/mobile
+screenshots. Scoped CLI 48 passed/five ignored, fmt/scoped Clippy and Node static
+syntax/lint/typecheck/build checks passed. Full pnpm verify passed 307 Rust tests,
+five ignored browser hosts explicitly driven by smoke, two compile-fail doctests,
+85 TS/UI tests, fmt/workspace Clippy, generated drift, dependency boundaries,
+lint/typecheck/build and mock/actual CLI/auth/native browser smoke. Product YAML,
+evidence/decisions/spec links/disabled capabilities, task context and diff checks
+passed; production/dependency/product/API/schema files remain unchanged. No
+fixture/Cargo/Rust processes remain after the final gate. Keep child/parent active;
+next bounded slice is genuine populated legacy-schema browser migration. Local
+synthetic composition is not shipped-process/live-account/keychain/three-OS proof.
+
 E5i checkpoint (2026-10-08): Sol/medium Rust agent owns only new
 `preview_integration_tests/browser/resolution.rs`, browser.rs registration and
 narrow test-only ResolutionState/constants/handler constructor/snapshot visibility

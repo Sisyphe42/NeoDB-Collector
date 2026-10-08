@@ -3,6 +3,116 @@
 Status: approved for implementation by user continuation on 2026-09-18.
 Product scope is already approved in the parent and `prd.md`.
 
+## E5j: Native browser Running restart/resume acceptance (2026-10-08)
+
+Add ignored `browser/restart.rs::browser_native_restart_host`, extending the
+existing Node driver and preserving E5f-i/default/four EOF assertions. Reuse E5d's
+concrete RestartState/handler with narrow test-only constructor/snapshot/change/
+gate visibility, keeping existing CLI and migration scenarios unchanged. Current
+schema only: genuine populated v5/v6 browser migration is a later bounded slice.
+No copied Core composition/upstream, new dependency or production control route.
+
+Use actual built WebUI/generated client/session/CSRF/Core/runtime/SQLite and
+production NeoDbClient, synthetic upstream/fake secrets/clock. Two-row BOM/Unicode
+CSV: IDS0 rating8/title First and IDS1 rating7/title 中文重启; raw column marker
+DISCARDED_RAW_RESTART_E5D. Saved disabled v1 remains selected despite changed v2.
+Commit row0 then hold attempt1's second fetch. Browser must inspect actual Running
+attempt1, one committed ordinal0 and exact empty ordinal1 page (limit1), never
+infer completion. Close only the page, preserving BrowserContext/session, before
+instructing owner drain; avoid screenshot delays against the real ten-second
+transport deadline. No timer overrides or arbitrary settlement sleeps.
+
+Private bounded E5F protocol: ready(case=current_schema,bootstrapUrl);
+native(jobId) -> host observes second-fetch gate/full partial history/inputs,
+ACK pending(case); browser reads Running/partial pages, closes page, sends
+restart(jobId). Host drains Core/runtime/storage before releasing/observing the
+actual held handler's responded-or-dropped lifecycle, asserts four GETs/one secret
+read/no late detail, mandatory closed DB/optional WAL redaction. Before recovery
+open production Storage and prove still Running/partial, then close. Reopen same
+origin without reseeding/re-pairing at NOW+60: startup Interrupted attempt1, fixed
+creation/expiry/binding/v1, exact original partial pages/observations/Native inputs,
+zero new upstream/secret work. Set fixture marks changed before ACK restarted(case).
+
+New page in original context loads clean origin with original session, no File/
+profile/draft/bootstrap/upload/auto-resume. Explicit known-ID open inspects
+Interrupted and exact old pages, screenshots desktop/mobile; inspected(jobId) ->
+host asserts no I/O, ACK inspected(case). Explicit displayed-attempt resume sends
+one POST {expectedAttempt:1}, receives generated 202 attempt2. Hold fresh first
+fetch; browser reads Running attempt2/exact empty ordinal0/1 pages and an explicit
+session GET attempt1 ->409 preview_attempt_changed. resumed(jobId) -> host verifies
+atomic old-result removal, original observations/Native inputs/fixed metadata and
+five GETs/one read, then releases fresh gate and ACK continuing(case).
+
+Browser waits authoritative Completed attempt2, reads ordinal0/1/2 limit1 pages.
+All original records freshly fetched/detailed/marked: snapshots/commits NOW+60,
+automatic provenance, original fingerprints/v1 and full ordered field decisions;
+rating suggestions8/7 vs Known5/4 both need review, disabled shelf rule retained.
+Capture completed desktop/mobile evidence. retained(jobId) -> host checks full
+public/stored outcomes/inputs, exact ten GETs/three secret reads, drains/scans and
+reopens same origin at NOW+60 without reseeding; full terminal equality and no I/O,
+ACK reopened(case). Browser reload/open/read equality, explicit confirmed DELETE
+applied=true then GET404; finish(jobId) -> host job-only removal/auth/config/secret
+preservation, all owners drained/scanned/joined, done(case) then all_done.
+
+Only mark GETs carry NeoDB Bearer, zero Cookie/CLI Bearer/retry/search/write/secret
+writes. Preserve endpoint/both disabled profiles/paired hash+metadata/auth/secrets;
+original browser session remains usable. Validate generated schemas/real allHeaders,
+exact raw body and mutation set bootstrap/import/resume/delete, no automatic
+mutations, public/closed DB-WAL redaction, empty browser storage/overflow/page errors.
+New independent ready->EOF naturally exits nonzero without signal/forced kill and
+leaves Core unreachable; release both gates even on failure before upstream join.
+Local Windows restarted test composition is not shipped-process restart, legacy
+browser migration, live-account/native-keychain or hosted three-OS evidence.
+Keep child/parent active and connector IDs/writes/scheduling disabled.
+
+### E5j driver verification analysis
+
+#### 1. Root cause category
+
+E (implicit assumptions) and D (integration coverage): a remounted revision form
+was incorrectly assumed to default to v1; a stale-read counter incorrectly included
+earlier legitimate requests with the same URL. An independent run after a full
+pass also exposed an unreadable `allHeaders()` promise at the final trace check.
+Page teardown and inspection-aborting UI actions are plausible lifecycle edges;
+the original failure did not identify its request, so do not claim one confirmed
+abort site. `PreviewPanel.tsx` explicitly aborts old inspection on these actions.
+The first quiescence-only full run passed but its independent repeat failed on a
+job-status GET: late request events can still arrive during `page.close()` after
+the barrier. Installed Playwright's `rawRequestHeaders` races Page closure. Keep
+the Page alive while navigating to `about:blank` to stop its document's polling,
+settle the captured headers, and only then close before owner restart.
+
+#### 2. Why earlier corrections were insufficient
+
+Blank-revision and request-delta fixes corrected distinct deterministic assertions,
+not header-capture lifetime. One full pass alone did not establish repeatability.
+Static lint/type checking cannot validate browser request lifecycle timing.
+
+#### 3. Prevention mechanisms
+
+| Priority | Mechanism | Action |
+|---|---|---|
+| P0 | Contract assertions | Remount ID/version/File stay blank; count explicit stale GET in its action delta |
+| P0 | Capture ownership | Stop the document on about:blank before closing the Page; settle captured headers before abort edges, retain listener and strict checks |
+| P1 | Diagnostics and verification | Identify stage/method/pathname only; require independent actual driver repeats and the full gate |
+
+#### 4. Systematic expansion
+
+Older cases share `coreRequestRecord` but their assertions and timing remain
+unchanged. Keep synchronization local to E5j rather than changing production
+polling or silently exempting cancelled requests. Owned gate errors and independent
+Storage inspection also must reach cleanup instead of bypassing it with a panic.
+An optional test-helper restart-only filter speeds diagnosis without another
+runner; its default keeps all existing cases and EOF probes. Filtered runs are
+not substitutes for the required two independent full default runs and full gate.
+
+#### 5. Knowledge capture
+
+The owning frontend/backend specs now record capture ordering, strict diagnostics
+and drain/close ordering. This repository has no `src/templates/markdown/spec/`
+tree to synchronize; do not create a parallel template copy. Actual verification
+results belong in `implement.md` and `acceptance.md`, not inferred from this plan.
+
 ## E5i: Native browser explicit Search/Manual acceptance (2026-10-08)
 
 Add ignored `browser/resolution.rs::browser_native_resolution_host` and extend

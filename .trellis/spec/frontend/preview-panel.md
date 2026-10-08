@@ -270,6 +270,38 @@ evidence, public/closed DB-WAL redaction and an independent natural-exit EOF pro
 Preserve E5f/g/h/default/EOF assertions; this is not Running restart/migration,
 saved cross-job mappings, production activation or live-platform acceptance.
 
+`preview_integration_tests/browser/restart.rs::browser_native_restart_host` drives
+E5j current-schema Running recovery with concrete E5d upstream gates. Inspect
+partial attempt1 before owner drain; close the page but retain its BrowserContext
+and original session. Reopen at later fake wall time on the exact same origin,
+without reseeding/re-pairing; startup must expose Interrupted and preserve partial
+history with no automatic upstream/secret work or resume. Explicit known-ID open
+is inspection-only and restores no File/profile/resolution authority.
+
+Explicit displayed-attempt resume must return generated attempt2 acceptance,
+clear old evidence atomically and reject attempt1 page reads with
+preview_attempt_changed. Count that explicit rejected GET in its immediate request
+delta: earlier legitimate attempt1 page reads share its URL and remain in the
+trace. A remounted form's profile ID and version are both blank, not implicit v1.
+While the fresh first fetch is held, inspect actual
+Running attempt2 and empty pages; then release and require fresh changed-mark
+comparisons for every original ordinal, fixed expiry/v1/fingerprints and later
+snapshot times. Capture Interrupted/Completed desktop/mobile evidence only outside
+the unchanged ten-second held transport windows. Confirm terminal-history reopen
+equality and job-only deletion preserving original session/config/auth/secrets.
+Keep exact mutation/header/schema/redaction/EOF/ownership checks and E5f-i paths.
+For the E5j driver, await captured `allHeaders()` promises to bounded quiescence
+before actions that abort inspection and before close/reload; keep the listener
+attached and still reject unreadable headers. A pre-close barrier alone does not
+stop late request events: navigate to `about:blank` while the Page is alive, settle
+headers, then close before the owner restart. Use stage + method + pathname in
+diagnostics, never header values or secret-bearing URLs. Do not replace actual
+security headers with `headers()`, ignore failed records, sleep or change timers.
+The test helper's optional `restartOnly` filter is for scoped diagnosis only;
+default cases/EOF probes and full acceptance requirements remain unchanged.
+This is restarted synthetic composition, not shipped-process or legacy-schema
+browser migration/live-account/native-keychain/hosted three-OS proof.
+
 ## 7. Wrong vs Correct
 
 Wrong: infer completed from `items.length === 0`, auto-resume on remount, or

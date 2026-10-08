@@ -11,6 +11,7 @@ const HOST_TEST = 'client::preview_integration_tests::browser::browser_native_pr
 const FAILURE_HOST_TEST = 'client::preview_integration_tests::browser::failure::browser_native_failure_host';
 const POLLING_HOST_TEST = 'client::preview_integration_tests::browser::polling::browser_native_polling_host';
 const RESOLUTION_HOST_TEST = 'client::preview_integration_tests::browser::resolution::browser_native_resolution_host';
+const RESTART_HOST_TEST = 'client::preview_integration_tests::browser::restart::browser_native_restart_host';
 const HOST_PREFIX = 'E5F:';
 const PROCESS_TIMEOUT_MS = 180_000;
 const PHASE_TIMEOUT_MS = 30_000;
@@ -25,6 +26,8 @@ const FORBIDDEN_PUBLIC_VALUES = [
   'DISCARDED_UPSTREAM_FAILURE_E5B',
   'DISCARDED_RAW_RESOLUTION_E5C',
   'DISCARDED_UPSTREAM_RESOLUTION_E5C',
+  'DISCARDED_RAW_RESTART_E5D',
+  'DISCARDED_UPSTREAM_RESTART_E5D',
 ];
 const CSV = '\uFEFFConst,Your Rating,Title Type,Title,Raw Column\r\n'
   + 'tt1111111,8,movie,Equal,DISCARDED_RAW_COLUMN_E5A\r\n'
@@ -39,6 +42,9 @@ const POLLING_CSV = '\uFEFFConst,Your Rating,Title Type,Title,Raw Column\r\n'
   + 'tt4444444,8,movie,Polling,DISCARDED_RAW_RESOLUTION_E5C\r\n';
 const RESOLUTION_CSV = '\uFEFFConst,Your Rating,Title Type,Title,Raw Column\r\n'
   + 'tt5555555,8,movie,中文候选,DISCARDED_RAW_RESOLUTION_E5C\r\n';
+const RESTART_CSV = '\uFEFFConst,Your Rating,Title Type,Title,Raw Column\r\n'
+  + 'tt1111111,8,movie,First,DISCARDED_RAW_RESTART_E5D\r\n'
+  + 'tt2222222,7,movie,中文重启,DISCARDED_RAW_RESTART_E5D\r\n';
 const FAILURE_CASES = [
   'fetch_422',
   'fetch_429',
@@ -54,12 +60,14 @@ const ajv = new Ajv2020({ strict: true });
 for (const format of ['uint32', 'int64', 'double']) ajv.addFormat(format, true);
 const validators = Object.fromEntries(await Promise.all([
   'PreviewImportAccepted',
+  'PreviewAccepted',
   'PreviewJobView',
   'PreviewResultPage',
   'PreviewMutationResult',
   'MappingProfile',
   'PreviewImdbResolutionRequest',
   'PreviewResolutionChoice',
+  'ApiError',
 ].map(async name => [name, ajv.compile(JSON.parse(await readFile(
   new URL(`../contracts/json-schema/${name}.json`, import.meta.url), 'utf8',
 )))])));
@@ -219,10 +227,10 @@ async function responseJson(response, schema) {
   return value;
 }
 
-function assertComparedResultItem(item, job, spec) {
+function assertComparedResultItem(item, job, spec, attempt = 1, committedAt = 1_800_000_000) {
   assert.equal(item.ordinal, spec.ordinal);
-  assert.equal(item.attempt, 1);
-  assert.equal(item.committedAt, 1_800_000_000);
+  assert.equal(item.attempt, attempt);
+  assert.equal(item.committedAt, committedAt);
   assert.equal(item.sourceConnectorId, 'imdb:ratings_csv');
   assert.equal(item.sourceRecordId, spec.sourceId);
   assert.match(item.sourceFingerprint, /^imdb:ratings_csv:[0-9a-f]{64}$/);
@@ -234,7 +242,7 @@ function assertComparedResultItem(item, job, spec) {
   assert.equal(item.executable, false);
   assert.equal(item.outcome.kind, 'compared');
   assert.equal(item.outcome.provenance, 'automatic');
-  assert.equal(item.outcome.observedAt, 1_800_000_000);
+  assert.equal(item.outcome.observedAt, committedAt);
   assert.equal(item.outcome.item.uuid, spec.uuid);
   assert.equal(item.outcome.item.canonicalUrl, `${job.baseUrl}/movie/${spec.uuid}`);
   assert.equal(item.outcome.item.detailUrl, `${job.baseUrl}/api/movie/${spec.uuid}`);
@@ -1662,6 +1670,461 @@ async function runResolutionPath(browser, executable) {
   }
 }
 
+function assertRestartJob(job, jobId, baseUrl, status, attempt, updatedAt) {
+  validate('PreviewJobView', job);
+  assertPublic(job);
+  assert.deepEqual(job, {
+    id: jobId,
+    status,
+    attempt,
+    createdAt: 1_800_000_000,
+    updatedAt,
+    expiresAt: 1_802_592_000,
+    observationCount: 2,
+    profileId: 'imdb_ratings',
+    profileVersion: 1,
+    baseUrl,
+    account: 'alice',
+    bindingState: 'current',
+    historical: true,
+    executable: false,
+  });
+}
+
+function assertRestartPage(resultPage, job, offset, expected, options = {}) {
+  const { attempt = 1, committedAt = 1_800_000_000, fingerprints = [] } = options;
+  validate('PreviewResultPage', resultPage);
+  assertPublic(resultPage);
+  assert.deepEqual({
+    jobId: resultPage.jobId,
+    attempt: resultPage.attempt,
+    offset: resultPage.offset,
+    limit: resultPage.limit,
+    historical: resultPage.historical,
+    executable: resultPage.executable,
+  }, {
+    jobId: job.id,
+    attempt,
+    offset,
+    limit: 1,
+    historical: true,
+    executable: false,
+  });
+  if (!expected) {
+    assert.deepEqual(resultPage.items, []);
+    return;
+  }
+  assert.equal(resultPage.items.length, 1);
+  const item = resultPage.items[0];
+  assertComparedResultItem(item, job, expected, attempt, committedAt);
+  if (fingerprints[expected.ordinal]) assert.equal(item.sourceFingerprint, fingerprints[expected.ordinal]);
+  assert.deepEqual(item.outcome.comparison.fields, [
+    {
+      ruleId: 'rating',
+      field: 'rating_grade',
+      suggestion: expected.rating,
+      sink: expected.sink,
+      status: expected.status,
+      reason: expected.reason,
+    },
+    {
+      ruleId: 'rating_implies_complete',
+      field: 'shelf_type',
+      suggestion: null,
+      sink: { kind: 'known', value: 'complete' },
+      status: 'skipped',
+      reason: 'rule_disabled',
+    },
+  ]);
+}
+
+async function readRestartPage(page, panel, jobId, offset, requests, stage) {
+  await panel.getByLabel('起始记录序号').fill(String(offset));
+  await panel.getByLabel('单页数量').fill('1');
+  await awaitRestartRequestHeaderQuiescence(
+    requests,
+    `before ${stage} result-page action at offset ${offset}`,
+  );
+  const response = await clickForResponse(
+    page,
+    panel.getByRole('button', { name: '读取该尝试的一页结果', exact: true }),
+    url => url.pathname === `/api/v1/previews/${jobId}/results`
+      && url.searchParams.get('offset') === String(offset)
+      && url.searchParams.get('limit') === '1',
+  );
+  return responseJson(response, 'PreviewResultPage');
+}
+
+function restartRequestLabel(request) {
+  return `${request.method} ${request.path.split('?', 1)[0]}`;
+}
+
+async function awaitRestartRequestHeaderQuiescence(requests, stage) {
+  let captured = 0;
+  for (let pass = 0; pass < 8; pass += 1) {
+    const end = requests.length;
+    const records = requests.slice(captured, end);
+    const headers = await Promise.all(records.map(request => request.headers));
+    for (let index = 0; index < headers.length; index += 1) {
+      assert(headers[index],
+        `browser request headers could not be read ${stage} for ${restartRequestLabel(records[index])}`);
+    }
+    captured = end;
+    if (requests.length === captured) return;
+  }
+  assert.fail(`browser request headers did not reach bounded quiescence ${stage}`);
+}
+
+async function runRestartPath(browser, executable) {
+  const host = startHost(executable, RESTART_HOST_TEST);
+  let context;
+  let bootstrapKey;
+  try {
+    const ready = await host.receive('ready');
+    assert.equal(ready.case, 'current_schema');
+    assert.equal(typeof ready.bootstrapUrl, 'string');
+    const bootstrapUrl = new URL(ready.bootstrapUrl);
+    const origin = bootstrapUrl.origin;
+    bootstrapKey = new URLSearchParams(bootstrapUrl.hash.slice(1)).get('key');
+    assert(bootstrapKey);
+
+    context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const pageErrors = [];
+    const requests = [];
+    const registerPage = page => {
+      page.on('pageerror', error => pageErrors.push(error.message));
+      page.on('request', request => {
+        const record = coreRequestRecord(request, origin);
+        if (record) requests.push(record);
+      });
+    };
+
+    let page = await context.newPage();
+    registerPage(page);
+    await page.goto(bootstrapUrl.href);
+    await page.getByRole('heading', { name: '本地服务已连接' }).waitFor();
+    await page.getByText('已授权', { exact: true }).waitFor();
+    assert.equal(new URL(page.url()).hash, '');
+    assert.equal(await page.evaluate(() => document.cookie), '');
+    const originalCookie = (await context.cookies(origin)).find(cookie => cookie.name === 'collector_session');
+    assert(originalCookie?.httpOnly && originalCookie.sameSite === 'Strict');
+    await page.getByText(/alice · http:\/\/127\.0\.0\.1:/).waitFor();
+
+    let panel = page.getByRole('region', { name: '历史预览' });
+    await panel.getByLabel('保存的配置 ID', { exact: true }).fill('imdb_ratings');
+    await panel.getByLabel('保存的配置版本', { exact: true }).fill('1');
+    await panel.getByLabel('CSV 文件（UTF-8，最大 10 MiB）').setInputFiles({
+      name: 'ratings-restart.csv', mimeType: 'text/csv', buffer: Buffer.from(RESTART_CSV),
+    });
+    const uploadResponse = await clickForResponse(
+      page,
+      panel.getByRole('button', { name: '提交只读预览', exact: true }),
+      (url, method) => method === 'POST' && url.pathname === '/api/v1/imports/imdb/ratings',
+    );
+    assert.equal(uploadResponse.status(), 202);
+    assert(uploadResponse.request().postDataBuffer()?.equals(Buffer.from(RESTART_CSV)),
+      'restart upload did not preserve the exact BOM CSV body');
+    const receipt = await responseJson(uploadResponse, 'PreviewImportAccepted');
+    assert.deepEqual({
+      observations: receipt.observationCount,
+      skippedRows: receipt.skippedRowCount,
+      skippedColumns: receipt.skippedColumnCount,
+      duplicates: receipt.duplicateRowCount,
+      attempt: receipt.preview.attempt,
+      executable: receipt.preview.executable,
+    }, {
+      observations: 2, skippedRows: 0, skippedColumns: 1, duplicates: 0,
+      attempt: 1, executable: false,
+    });
+    const jobId = receipt.preview.jobId;
+    await panel.getByRole('heading', { name: `任务 ${jobId}`, exact: true }).waitFor();
+    await panel.getByText('running', { exact: true }).waitFor();
+
+    host.send({ phase: 'native', jobId });
+    const pending = await host.receive('pending');
+    assert.equal(pending.case, 'current_schema');
+    await awaitRestartRequestHeaderQuiescence(requests, 'before initial Running status refresh');
+    const runningResponse = await clickForResponse(
+      page,
+      panel.getByRole('button', { name: '读取状态', exact: true }),
+      url => url.pathname === `/api/v1/previews/${jobId}`,
+    );
+    const runningJob = await responseJson(runningResponse, 'PreviewJobView');
+    assertRestartJob(runningJob, jobId, runningJob.baseUrl, 'running', 1, 1_800_000_000);
+    const initialFirstPage = await readRestartPage(
+      page, panel, jobId, 0, requests, 'initial Running',
+    );
+    const initialSpec = {
+      ordinal: 0, sourceId: 'tt1111111', uuid: 'Movie1111111', rating: 8,
+      sink: { kind: 'known', value: 8 }, status: 'skipped', reason: 'already_equal',
+    };
+    assertRestartPage(initialFirstPage, runningJob, 0, initialSpec);
+    const fingerprints = [initialFirstPage.items[0].sourceFingerprint];
+    const initialSecondPage = await readRestartPage(
+      page, panel, jobId, 1, requests, 'initial Running',
+    );
+    assertRestartPage(initialSecondPage, runningJob, 1);
+    assert.equal(requests.filter(request => request.path.endsWith('/resume')).length, 0);
+
+    await awaitRestartRequestHeaderQuiescence(requests, 'before initial Running navigation teardown');
+    await page.goto('about:blank');
+    assert.equal(page.url(), 'about:blank');
+    await awaitRestartRequestHeaderQuiescence(requests, 'after initial Running navigation teardown');
+    await page.close();
+    host.send({ phase: 'restart', jobId });
+    const restarted = await host.receive('restarted');
+    assert.equal(restarted.case, 'current_schema');
+
+    page = await context.newPage();
+    registerPage(page);
+    await page.goto(origin);
+    await page.getByRole('heading', { name: '本地服务已连接' }).waitFor();
+    await page.getByText('已授权', { exact: true }).waitFor();
+    assert.equal(new URL(page.url()).origin, origin);
+    assert.equal(new URL(page.url()).hash, '');
+    assert.equal(await page.evaluate(() => document.cookie), '');
+    const reopenedCookie = (await context.cookies(origin)).find(cookie => cookie.name === 'collector_session');
+    assert.deepEqual(reopenedCookie, originalCookie);
+    panel = page.getByRole('region', { name: '历史预览' });
+    assert.equal(await panel.getByLabel('已有任务 ID', { exact: true }).inputValue(), '');
+    assert.equal(await panel.getByLabel('保存的配置 ID', { exact: true }).inputValue(), '');
+    assert.equal(await panel.getByLabel('保存的配置版本', { exact: true }).inputValue(), '');
+    assert.equal(await panel.getByLabel('CSV 文件（UTF-8，最大 10 MiB）').inputValue(), '');
+    assert.equal(await panel.getByLabel('解析选择草稿').count(), 0);
+    assert.equal(requests.filter(request => request.method === 'POST'
+      && request.path.startsWith('/api/v1/imports/imdb/ratings?')).length, 1);
+    assert.equal(requests.filter(request => request.path.endsWith('/resume')).length, 0);
+
+    await panel.getByLabel('已有任务 ID', { exact: true }).fill(jobId);
+    const interruptedResponse = await clickForResponse(
+      page,
+      panel.getByRole('button', { name: '打开任务', exact: true }),
+      url => url.pathname === `/api/v1/previews/${jobId}`,
+    );
+    const interruptedJob = await responseJson(interruptedResponse, 'PreviewJobView');
+    assertRestartJob(interruptedJob, jobId, runningJob.baseUrl, 'interrupted', 1, 1_800_000_060);
+    assert(await panel.getByRole('button', { name: '显式恢复尝试 1', exact: true }).isEnabled());
+    const interruptedFirstPage = await readRestartPage(
+      page, panel, jobId, 0, requests, 'Interrupted',
+    );
+    assert.deepEqual(interruptedFirstPage, initialFirstPage);
+    const interruptedSecondPage = await readRestartPage(
+      page, panel, jobId, 1, requests, 'Interrupted',
+    );
+    assert.deepEqual(interruptedSecondPage, initialSecondPage);
+    assert.deepEqual(
+      await readRestartPage(page, panel, jobId, 0, requests, 'Interrupted repeat'),
+      interruptedFirstPage,
+    );
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.screenshot({ path: 'test-results/preview-native-restart-interrupted-desktop.png', fullPage: true });
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({ path: 'test-results/preview-native-restart-interrupted-mobile.png', fullPage: true });
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.setViewportSize({ width: 1280, height: 900 });
+
+    host.send({ phase: 'inspected', jobId });
+    const inspected = await host.receive('inspected');
+    assert.equal(inspected.case, 'current_schema');
+    await awaitRestartRequestHeaderQuiescence(requests, 'before explicit resume');
+    const resumeResponse = await clickForResponse(
+      page,
+      panel.getByRole('button', { name: '显式恢复尝试 1', exact: true }),
+      (url, method) => method === 'POST' && url.pathname === `/api/v1/previews/${jobId}/resume`,
+    );
+    assert.equal(resumeResponse.status(), 202);
+    assert.deepEqual(resumeResponse.request().postDataJSON(), { expectedAttempt: 1 });
+    assert.deepEqual(await responseJson(resumeResponse, 'PreviewAccepted'), {
+      jobId, attempt: 2, executable: false,
+    });
+    await panel.getByText('已接收恢复请求：尝试 2。状态仍以服务器读取结果为准。', { exact: true }).waitFor();
+    await panel.getByText('running', { exact: true }).waitFor({ timeout: 10_000 });
+    await awaitRestartRequestHeaderQuiescence(requests, 'before resumed Running status refresh');
+    const resumedResponse = await clickForResponse(
+      page,
+      panel.getByRole('button', { name: '读取状态', exact: true }),
+      url => url.pathname === `/api/v1/previews/${jobId}`,
+    );
+    const resumedJob = await responseJson(resumedResponse, 'PreviewJobView');
+    assertRestartJob(resumedJob, jobId, runningJob.baseUrl, 'running', 2, 1_800_000_060);
+    const freshEmptyZero = await readRestartPage(
+      page, panel, jobId, 0, requests, 'resumed Running',
+    );
+    assertRestartPage(freshEmptyZero, resumedJob, 0, undefined, { attempt: 2 });
+    const freshEmptyOne = await readRestartPage(
+      page, panel, jobId, 1, requests, 'resumed Running',
+    );
+    assertRestartPage(freshEmptyOne, resumedJob, 1, undefined, { attempt: 2 });
+    const obsoletePath = `/api/v1/previews/${encodeURIComponent(jobId)}/results?attempt=1&offset=0&limit=1`;
+    const obsoleteRequestStart = requests.length;
+    const obsoleteResponse = await page.evaluate(async path => {
+      const response = await fetch(path);
+      return { status: response.status, body: await response.json() };
+    }, obsoletePath);
+    assert.equal(obsoleteResponse.status, 409);
+    const obsoleteError = obsoleteResponse.body;
+    validate('ApiError', obsoleteError);
+    assertPublic(obsoleteError);
+    assert.equal(obsoleteError.code, 'preview_attempt_changed');
+    const obsoleteRequests = requests.slice(obsoleteRequestStart).filter(request => (
+      request.method === 'GET' && request.path === obsoletePath
+    ));
+    assert.equal(obsoleteRequests.length, 1);
+    const obsoleteHeaders = await obsoleteRequests[0].headers;
+    assert(obsoleteHeaders,
+      `browser request headers could not be read during explicit obsolete attempt read for ${restartRequestLabel(obsoleteRequests[0])}`);
+    assert.equal(obsoleteHeaders.authorization, undefined);
+    assert.equal(obsoleteHeaders['x-csrf-token'], undefined);
+
+    host.send({ phase: 'resumed', jobId });
+    const continuing = await host.receive('continuing');
+    assert.equal(continuing.case, 'current_schema');
+    await panel.getByText('completed', { exact: true }).waitFor({ timeout: 12_000 });
+    await awaitRestartRequestHeaderQuiescence(requests, 'before Completed status refresh');
+    const completedResponse = await clickForResponse(
+      page,
+      panel.getByRole('button', { name: '读取状态', exact: true }),
+      url => url.pathname === `/api/v1/previews/${jobId}`,
+    );
+    const completedJob = await responseJson(completedResponse, 'PreviewJobView');
+    assertRestartJob(completedJob, jobId, runningJob.baseUrl, 'completed', 2, 1_800_000_060);
+    const freshSpecs = [
+      {
+        ordinal: 0, sourceId: 'tt1111111', uuid: 'Movie1111111', rating: 8,
+        sink: { kind: 'known', value: 5 }, status: 'needs_review', reason: 'sink_conflict_needs_review',
+      },
+      {
+        ordinal: 1, sourceId: 'tt2222222', uuid: 'Movie2222222', rating: 7,
+        sink: { kind: 'known', value: 4 }, status: 'needs_review', reason: 'sink_conflict_needs_review',
+      },
+    ];
+    const completedPages = [];
+    for (let offset = 0; offset < 3; offset += 1) {
+      const resultPage = await readRestartPage(
+        page, panel, jobId, offset, requests, 'Completed',
+      );
+      assertRestartPage(resultPage, completedJob, offset, freshSpecs[offset], {
+        attempt: 2, committedAt: 1_800_000_060, fingerprints,
+      });
+      completedPages.push(resultPage);
+      if (offset < 2) fingerprints[offset] = resultPage.items[0].sourceFingerprint;
+    }
+    assert.equal(fingerprints.length, 2);
+    assert.deepEqual(
+      await readRestartPage(page, panel, jobId, 0, requests, 'Completed repeat'),
+      completedPages[0],
+    );
+    for (const text of ['Known · 5', 'sink_conflict_needs_review', 'rule_disabled', '自动', '来源指纹']) {
+      assert(await panel.getByText(text, { exact: false }).count());
+    }
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.screenshot({ path: 'test-results/preview-native-restart-completed-desktop.png', fullPage: true });
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({ path: 'test-results/preview-native-restart-completed-mobile.png', fullPage: true });
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.setViewportSize({ width: 1280, height: 900 });
+
+    host.send({ phase: 'retained', jobId });
+    const reopened = await host.receive('reopened');
+    assert.equal(reopened.case, 'current_schema');
+    await awaitRestartRequestHeaderQuiescence(requests, 'before terminal page reload');
+    await page.reload();
+    await page.getByText('已授权', { exact: true }).waitFor();
+    assert.equal(new URL(page.url()).origin, origin);
+    assert.equal(new URL(page.url()).hash, '');
+    assert.deepEqual((await context.cookies(origin)).find(cookie => cookie.name === 'collector_session'), originalCookie);
+    assert.equal(await panel.getByLabel('已有任务 ID', { exact: true }).inputValue(), '');
+    assert.equal(await panel.getByLabel('保存的配置 ID', { exact: true }).inputValue(), '');
+    assert.equal(await panel.getByLabel('保存的配置版本', { exact: true }).inputValue(), '');
+    assert.equal(await panel.getByLabel('CSV 文件（UTF-8，最大 10 MiB）').inputValue(), '');
+    assert.equal(await panel.getByLabel('解析选择草稿').count(), 0);
+    await panel.getByLabel('已有任务 ID', { exact: true }).fill(jobId);
+    const terminalResponse = await clickForResponse(
+      page,
+      panel.getByRole('button', { name: '打开任务', exact: true }),
+      url => url.pathname === `/api/v1/previews/${jobId}`,
+    );
+    assert.deepEqual(await responseJson(terminalResponse, 'PreviewJobView'), completedJob);
+    for (let offset = 0; offset < 3; offset += 1) {
+      assert.deepEqual(
+        await readRestartPage(page, panel, jobId, offset, requests, 'terminal reopened Completed'),
+        completedPages[offset],
+      );
+    }
+
+    await awaitRestartRequestHeaderQuiescence(requests, 'before explicit delete');
+    page.once('dialog', dialog => dialog.accept());
+    const deleteResponse = await clickForResponse(
+      page,
+      panel.getByRole('button', { name: '删除运行历史', exact: true }),
+      (url, method) => method === 'DELETE' && url.pathname === `/api/v1/previews/${jobId}`,
+    );
+    assert.deepEqual(await responseJson(deleteResponse, 'PreviewMutationResult'), { applied: true });
+    const missing = await page.evaluate(async id => {
+      const response = await fetch(`/api/v1/previews/${encodeURIComponent(id)}`);
+      return { status: response.status, body: await response.json() };
+    }, jobId);
+    assert.equal(missing.status, 404);
+    validate('ApiError', missing.body);
+    assert.equal(missing.body.code, 'preview_job_not_found');
+    assertPublic(missing.body);
+
+    const visibleText = await page.locator('body').innerText();
+    for (const forbidden of [...FORBIDDEN_PUBLIC_VALUES, bootstrapKey]) assert(!visibleText.includes(forbidden));
+    assert.equal(await page.evaluate(() => localStorage.length), 0);
+    assert.equal(await page.evaluate(() => sessionStorage.length), 0);
+    assert.equal(await page.getByText(/#key=/).count(), 0);
+    assert.equal(await page.getByLabel('一次性链接 · 10 分钟内有效').count(), 0);
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+
+    const mutations = requests.filter(request => ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method));
+    assert.deepEqual(mutations.map(request => `${request.method} ${request.path}`), [
+      'POST /api/v1/session/bootstrap',
+      'POST /api/v1/imports/imdb/ratings?profileId=imdb_ratings&profileVersion=1',
+      `POST /api/v1/previews/${jobId}/resume`,
+      `DELETE /api/v1/previews/${jobId}`,
+    ]);
+    assert.equal(requests.filter(request => request.path.endsWith('/cancel')).length, 0);
+    assert.equal(requests.filter(request => request.path.includes('resolution')).length, 0);
+    const headers = await Promise.all(requests.map(request => request.headers));
+    for (let index = 0; index < headers.length; index += 1) {
+      const value = headers[index];
+      assert(value,
+        `browser request headers could not be read during final trace for ${restartRequestLabel(requests[index])}`);
+      assert.equal(value.authorization, undefined);
+    }
+    const mutationHeaders = await Promise.all(mutations.map(request => request.headers));
+    assert.equal(mutationHeaders[0].origin, origin);
+    assert.equal(mutationHeaders[0]['x-csrf-token'], undefined);
+    for (const value of mutationHeaders.slice(1)) {
+      assert.equal(value.origin, origin);
+      assert(value['x-csrf-token']);
+      assert.equal(value['x-csrf-token'], mutationHeaders[1]['x-csrf-token']);
+    }
+    assert.deepEqual(pageErrors, []);
+
+    host.send({ phase: 'finish', jobId });
+    const done = await host.receive('done');
+    assert.equal(done.case, 'current_schema');
+    await host.receive('all_done');
+    const result = await waitForExit(host.child, host.exit);
+    assert.equal(result.error, undefined, 'native restart host process failed to start');
+    assert.equal(result.forced, false, 'native restart host exceeded its natural exit bound');
+    assert.equal(result.signal, null, 'native restart host terminated by signal');
+    assert.equal(result.code, 0, 'native restart host did not exit successfully');
+  } catch (error) {
+    if (host.child.exitCode === null && host.child.signalCode === null) await host.closeInputAndDrain();
+    const message = error instanceof Error ? error.message : 'native restart browser smoke failed';
+    const safe = bootstrapKey ? message.replaceAll(bootstrapKey, '[redacted]') : message;
+    // eslint-disable-next-line preserve-caught-error
+    throw new Error(safe.replace(/#key=[^\s"']+/g, '#key=[redacted]'));
+  } finally {
+    await context?.close();
+  }
+}
+
 async function runEofProbe(executable, testName = HOST_TEST) {
   const host = startHost(executable, testName);
   try {
@@ -1669,6 +2132,7 @@ async function runEofProbe(executable, testName = HOST_TEST) {
     if (testName === FAILURE_HOST_TEST) assert.equal(ready.case, FAILURE_CASES[0]);
     if (testName === POLLING_HOST_TEST) assert.equal(ready.case, POLLING_CASES[0]);
     if (testName === RESOLUTION_HOST_TEST) assert.equal(ready.case, RESOLUTION_CASES[0]);
+    if (testName === RESTART_HOST_TEST) assert.equal(ready.case, 'current_schema');
     const origin = new URL(ready.bootstrapUrl).origin;
     const result = await host.closeInputAndDrain();
     assert.equal(result.error, undefined, 'EOF probe host process failed to start');
@@ -1687,11 +2151,17 @@ async function runEofProbe(executable, testName = HOST_TEST) {
   }
 }
 
-export async function runPreviewNativeBrowserSmoke(existingBrowser) {
+export async function runPreviewNativeBrowserSmoke(existingBrowser, { restartOnly = false } = {}) {
   await mkdir(new URL('../test-results/', import.meta.url), { recursive: true });
   const executable = await cargoTestExecutable();
   const browser = existingBrowser ?? await chromium.launch();
   try {
+    if (restartOnly) {
+      await runRestartPath(browser, executable);
+      await runEofProbe(executable, RESTART_HOST_TEST);
+      console.log('Actual native browser/Core/SQLite/NeoDB-adapter restart retention acceptance passed.');
+      return;
+    }
     await runHappyPath(browser, executable);
     await runEofProbe(executable);
     await runFailurePath(browser, executable);
@@ -1700,7 +2170,9 @@ export async function runPreviewNativeBrowserSmoke(existingBrowser) {
     await runEofProbe(executable, POLLING_HOST_TEST);
     await runResolutionPath(browser, executable);
     await runEofProbe(executable, RESOLUTION_HOST_TEST);
-    console.log('Actual native browser/Core/SQLite/NeoDB-adapter preview acceptance passed, including failure, polling, and explicit resolution retention.');
+    await runRestartPath(browser, executable);
+    await runEofProbe(executable, RESTART_HOST_TEST);
+    console.log('Actual native browser/Core/SQLite/NeoDB-adapter preview acceptance passed, including failure, polling, explicit resolution, and restart retention.');
   } finally {
     if (!existingBrowser) await browser.close();
   }

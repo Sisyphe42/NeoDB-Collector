@@ -11,6 +11,7 @@ use std::{
 mod failure;
 mod polling;
 mod resolution;
+mod restart;
 
 const HOST_PREFIX: &str = "E5F:";
 
@@ -144,10 +145,22 @@ async fn reopen_fixture(
     report: super::super::PairReport,
     cli_token: String,
 ) -> Result<CoreFixture, String> {
+    reopen_fixture_at(temp, address, assets, secrets, report, cli_token, NOW).await
+}
+
+async fn reopen_fixture_at(
+    temp: &tempfile::TempDir,
+    address: std::net::SocketAddr,
+    assets: PathBuf,
+    secrets: Arc<FixtureSecrets>,
+    report: super::super::PairReport,
+    cli_token: String,
+    now: i64,
+) -> Result<CoreFixture, String> {
     let listener = tokio::net::TcpListener::bind(address)
         .await
         .map_err(|_| "same-origin core listener rebind failed")?;
-    let clock: Arc<dyn Clock> = Arc::new(FixedClock(NOW));
+    let clock: Arc<dyn Clock> = Arc::new(FixedClock(now));
     Ok(CoreFixture::reopen_with_assets(
         temp,
         secrets,

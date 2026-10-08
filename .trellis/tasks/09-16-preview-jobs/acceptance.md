@@ -21,8 +21,80 @@ credential-store verification is implied. Local Windows checks are not three-OS 
   validates preview responses and browser actions against schema-validated mocks;
   its preview evidence stays client-only. `tests/smoke.mjs` runs real host/auth
   boundaries and separately registers E5f's native browser-to-adapter helper.
-  E5a-i below distinguish actual adapter, client, terminal-history reopen and
+  E5a-j below distinguish actual adapter, client, terminal-history reopen and
   interrupted/resume evidence; one client's acceptance is not another's proof.
+
+## E5j native browser Running restart/fresh resume evidence (2026-10-08)
+
+The existing driver explicitly runs the ignored
+`preview_integration_tests/browser/restart.rs::browser_native_restart_host`.
+Current-schema-only case reuses E5d's concrete held-fetch upstream and existing
+browser composition: built WebUI/generated client/session/CSRF/Core HTTP/runtime/
+SQLite/production NeoDbClient, with synthetic upstream, clock and secrets.
+Existing happy/fault/polling/cancellation/resolution paths and four EOF probes
+remain unchanged; the additional restart host has its own independent EOF probe.
+
+Two-row BOM/Unicode CSV binds original normalized observations and Native inputs
+to immutable disabled v1 despite changed v2. Actual Running attempt1 retains
+ordinal0's complete equal comparison and an exact empty ordinal1 page. Stop the
+document on about:blank, settle header capture and close only the Page, retaining
+the context/session. Owner drains before releasing the held second fetch and
+observes its actual responded-or-dropped lifecycle, not remote rollback/delivery.
+Closed DB/optional WAL scans exclude raw markers and tokens. Independent
+production Storage::open proves still-Running metadata and full stored partial
+evidence before runtime recovery; the pool closes even when inspection fails.
+
+Reopen at NOW+60 on the same origin without reseeding/re-pairing: Interrupted
+attempt1, exact old partial pages/observations/Native inputs, fixed expiry/account/
+v1 and no automatic upstream/credential work. New Page uses the original cookie
+and clean origin, blank File/profile ID/version and no resolution draft. Explicit
+known-ID inspection preserves old evidence; empty pages never imply completion.
+
+One explicit resume POST {expectedAttempt:1} returns generated 202 attempt2.
+While fresh first fetch is held, Running2 has empty ordinal0/1 pages and old
+attempt1 GET returns schema-validated 409 preview_attempt_changed. Storage has
+atomically removed old results while retaining original inputs and metadata.
+After release, all original ordinals are freshly fetched/detailed/marked:
+rating suggestions8/7 vs Known5/4 both NeedsReview, complete ordered rating and
+disabled shelf decisions, later snapshot/commit time, original fingerprints/v1,
+automatic provenance and full public/stored catalog identity.
+
+Terminal drain/scan/same-origin reopen retains complete job/pages/observations
+without I/O. Browser reload/open reads exact history, confirmed DELETE returns
+applied=true then generated GET404. Only job/observations/results disappear;
+endpoint, both disabled profiles, paired hash/all metadata/auth and secret values
+remain unchanged. Exact trace is ten GETs/three NeoDB-secret reads/zero writes;
+only personal mark GETs have NeoDB Bearer, no upstream Cookie/CLI Bearer/retry/
+search. Inspection/reopen/deletion/shutdown add no upstream or credential work.
+
+Generated schemas, exact CSV body, bootstrap/import/resume/delete mutation set,
+real headers/Origin/CSRF/no Authorization, empty browser storage, overflow/page
+errors and Interrupted/Completed desktop/mobile screenshots are checked. EOF
+requires natural nonzero exit without signal/forced kill and an unreachable Core
+port. Every owner is drained/joined, gate errors return into cleanup rather than
+panic past it, and upstream serving errors are retained.
+
+Actual runs exposed two mistaken test assumptions (implicit remount v1 and a
+stale-GET counter including earlier legitimate pages), then a request-header
+lifetime race. A pre-close header barrier alone passed once but failed on repeat;
+phase diagnostics and installed Playwright Page-scope behavior motivated stopping
+the document before closing the Page. Strict header barriers/checks remain; no
+fallback, dropped records, arbitrary sleep or timer change. Optional restartOnly
+filter permits scoped diagnosis, never replaces full default acceptance.
+
+Scoped CLI tests passed 48 tests/five ignored; fmt/scoped Clippy and Node static
+syntax/lint/typecheck/build checks passed. The final revision passed three scoped
+restart/EOF runs and two independent full default driver runs. Main visually
+checked four new screenshots. Final pnpm verify passed 307 Rust tests, five ignored
+hosts explicitly driven in smoke, two compile-fail doctests, 85 TS/UI tests,
+fmt/workspace Clippy, generated drift, dependency boundaries, lint/typecheck/build
+and mock/actual CLI/auth/native browser smoke. Product YAML/34 evidence IDs/11
+references/eight spec paths/23 unique decisions/disabled capabilities, task context
+validation and diff checks passed; no fixture/Cargo/Rust processes remain.
+No production/API/schema/dependency/new migration/capability changes, personal/
+source writes, live-account or native-keychain access. Local Windows restarted
+synthetic composition is not legacy-browser migration, shipped-process restart
+or hosted three-OS CI proof. Keep child/parent active and connector IDs empty.
 
 ## E5i native browser Search/Manual lineage evidence (2026-10-08)
 

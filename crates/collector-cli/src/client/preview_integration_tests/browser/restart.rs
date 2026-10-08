@@ -1,6 +1,9 @@
 //! Ignored native-browser host for Running interruption and explicit fresh resume.
 use super::*;
 use crate::client::preview::PreviewFailure;
+use crate::client::preview_integration_tests::migration::{
+    PriorSchema, try_check_upgraded_fixture, try_downgrade_closed_fixture,
+};
 use crate::client::preview_integration_tests::restart::{
     LATER, RESTART_RAW_MARKER, RESTART_UPSTREAM_MARKER, RestartState, restart_upstream,
 };
@@ -742,7 +745,16 @@ async fn inspect_completed(
     Ok(public)
 }
 
-async fn run_case(reader: &ProtocolReader, assets: &std::path::Path) -> Result<(), String> {
+async fn run_case(
+    reader: &ProtocolReader,
+    assets: &std::path::Path,
+    prior: Option<PriorSchema>,
+) -> Result<(), String> {
+    let case = match prior {
+        None => CASE,
+        Some(PriorSchema::V5) => "populated_v5",
+        Some(PriorSchema::V6) => "populated_v6",
+    };
     let temp = tempfile::tempdir().map_err(|_| "restart temporary data directory failed")?;
     let (server, upstream_base) = RestartServer::start().await?;
     let state = server.state.clone();
@@ -753,7 +765,7 @@ async fn run_case(reader: &ProtocolReader, assets: &std::path::Path) -> Result<(
         fixture = Some(initial);
         let baseline = retained_state(fixture.as_ref().unwrap()).await?;
         let initial_secrets = secret_values(&fixture.as_ref().unwrap().secrets);
-        send(json!({"phase":"ready", "case":CASE, "bootstrapUrl":bootstrap_url}))?;
+        send(json!({"phase":"ready", "case":case, "bootstrapUrl":bootstrap_url}))?;
 
         let native = reader.receive("native")?;
         let id = job_id(&native)?;
@@ -770,7 +782,7 @@ async fn run_case(reader: &ProtocolReader, assets: &std::path::Path) -> Result<(
                 "restart initial partial state changed credentials or configuration".into(),
             );
         }
-        send(json!({"phase":"pending", "case":CASE}))?;
+        send(json!({"phase":"pending", "case":case}))?;
 
         let restart = reader.receive("restart")?;
         if job_id(&restart)? != id {
@@ -799,12 +811,24 @@ async fn run_case(reader: &ProtocolReader, assets: &std::path::Path) -> Result<(
             &[RESTART_RAW_MARKER, RESTART_UPSTREAM_MARKER],
         )?;
 
+        // Genuine prior-schema construction happens only after all old owners
+        // drain and the closed DB/WAL scan, before any current repository opens.
+        let legacy_proof = match prior {
+            Some(prior) => Some(try_downgrade_closed_fixture(&temp, prior).await?),
+            None => None,
+        };
         let closed = Storage::open(temp.path())
             .await
             .map_err(|error| error.code)?;
-        let original_first: PreviewResultPage =
-            serde_json::from_value(partial_history[1].clone()).unwrap();
         let pre_recovery_result = async {
+            // Production open migrates first. Prove exact data/schema/ledger
+            // preservation before repositories or startup recovery touch it.
+            if let Some(proof) = &legacy_proof {
+                try_check_upgraded_fixture(&temp, proof).await?;
+            }
+            let original_first: PreviewResultPage =
+                serde_json::from_value(partial_history[1].clone())
+                    .map_err(|_| "restart original partial page was invalid")?;
             let pre_recovery = PreviewJobRepository::load(&closed, id.clone())
                 .await
                 .map_err(|error| error.code)?
@@ -859,7 +883,7 @@ async fn run_case(reader: &ProtocolReader, assets: &std::path::Path) -> Result<(
             return Err("restart recovery performed I/O or changed retained state".into());
         }
         state.set_changed();
-        send(json!({"phase":"restarted", "case":CASE}))?;
+        send(json!({"phase":"restarted", "case":case}))?;
 
         let inspected = reader.receive("inspected")?;
         if job_id(&inspected)? != id {
@@ -880,7 +904,7 @@ async fn run_case(reader: &ProtocolReader, assets: &std::path::Path) -> Result<(
         {
             return Err("restart browser inspection triggered remote or credential I/O".into());
         }
-        send(json!({"phase":"inspected", "case":CASE}))?;
+        send(json!({"phase":"inspected", "case":case}))?;
 
         let resumed = reader.receive("resumed")?;
         if job_id(&resumed)? != id {
@@ -897,7 +921,7 @@ async fn run_case(reader: &ProtocolReader, assets: &std::path::Path) -> Result<(
             return Err("restart held fresh attempt changed inputs or retained state".into());
         }
         state.release_fresh();
-        send(json!({"phase":"continuing", "case":CASE}))?;
+        send(json!({"phase":"continuing", "case":case}))?;
 
         let retained = reader.receive("retained")?;
         if job_id(&retained)? != id {
@@ -953,7 +977,7 @@ async fn run_case(reader: &ProtocolReader, assets: &std::path::Path) -> Result<(
         {
             return Err("restart terminal reopen changed history or performed I/O".into());
         }
-        send(json!({"phase":"reopened", "case":CASE}))?;
+        send(json!({"phase":"reopened", "case":case}))?;
 
         let finish = reader.receive("finish")?;
         if job_id(&finish)? != id {
@@ -1039,16 +1063,18 @@ async fn run_case(reader: &ProtocolReader, assets: &std::path::Path) -> Result<(
     };
     let server_result = server.shutdown().await;
     result.map(|_| ()).and(post).and(server_result)?;
-    send(json!({"phase":"done", "case":CASE}))
+    send(json!({"phase":"done", "case":case}))
 }
 
-async fn run_restart_host() -> Result<(), String> {
+async fn run_restart_host(cases: &[Option<PriorSchema>]) -> Result<(), String> {
     let assets = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../apps/webui/dist")
         .canonicalize()
         .map_err(|_| "built WebUI assets were not found")?;
     let reader = ProtocolReader::start();
-    run_case(&reader, &assets).await?;
+    for prior in cases {
+        run_case(&reader, &assets, *prior).await?;
+    }
     send(json!({"phase":"all_done"}))
 }
 
@@ -1060,7 +1086,23 @@ fn browser_native_restart_host() {
         .enable_all()
         .build()
         .unwrap();
-    if let Err(error) = runtime.block_on(run_restart_host()) {
+    if let Err(error) = runtime.block_on(run_restart_host(&[None])) {
         panic!("E5j browser restart host failed: {error}");
+    }
+}
+
+#[test]
+#[ignore = "driven explicitly by tests/preview-native-browser-smoke.mjs after WebUI build"]
+fn browser_native_migration_host() {
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(4)
+        .enable_all()
+        .build()
+        .unwrap();
+    if let Err(error) = runtime.block_on(run_restart_host(&[
+        Some(PriorSchema::V5),
+        Some(PriorSchema::V6),
+    ])) {
+        panic!("E5k browser migration host failed: {error}");
     }
 }

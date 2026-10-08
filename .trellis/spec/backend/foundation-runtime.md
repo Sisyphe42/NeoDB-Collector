@@ -150,6 +150,18 @@ SQLite uses `{data_dir}/collector.db`; `0001_baseline.sql` establishes SQLx's mi
   Protocol-owned gate waits must return errors into owner cleanup, not panic past
   it. Close a pre-recovery Storage pool before propagating inspection errors;
   drain Core before releasing held upstream work, then join the upstream owner.
+  `browser/restart.rs::browser_native_migration_host` extends that same browser
+  chain with fresh populated_v5 and populated_v6 Native-only cases. Reuse the
+  shared legacy proof engine; remove actual later columns/triggers as well as
+  ledger entries only after old owners close. Production Storage::open upgrades
+  before current repositories; compare complete operational rows, committed
+  schema/indices/FKs and retained ledger/checksums before runtime recovery.
+  Fallible proof helpers close fixture and canonical-schema SQLx pools before
+  propagating static errors; CLI wrappers retain the same exact proof checks.
+  Both cases continue original-session interruption/fresh resume/history/delete
+  and need explicit browser smoke plus an independent natural-exit EOF probe.
+  This is synthetic Native browser migration, not v6 Search/manual-history,
+  shipped-process/native-keychain/live-account or hosted three-OS evidence.
 - `pnpm verify` is the root full gate: Rust format/clippy/tests, non-mutating contract drift check, import boundaries, ESLint, TypeScript, Vitest, WebUI build, binary build, process/browser smoke, `git diff --check`. `.github/workflows/verify.yml` runs the same gate on Windows/macOS/Linux; a CI definition alone is not hosted evidence.
 - Toolchain/cache failures are environment issues, not permission to skip gates. Use a disposable Cargo cache when global cache contents are incomplete; never repair global user caches silently. `tools/verify.mjs` supports both native and JS pnpm launchers.
 

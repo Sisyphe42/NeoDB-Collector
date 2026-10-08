@@ -7,7 +7,8 @@ Dependencies: preview-auth and preview-mapping are completed and archived.
 
 The main agent owns planning, boundaries, acceptance and checkpoint commits.
 Delegate bounded local/mechanical implementation to `gpt-5.6-luna` / `max`, and
-cross-module or authentication work to `gpt-5.6-sol` / `medium`. Supply the active
+cross-module or authentication work to `gpt-6.1-sol` / `medium` (user update,
+2026-10-09; historical checkpoint model names remain unchanged). Supply the active
 task path and exact scope/specs explicitly, split file ownership and prohibit
 recursive delegation. Secret-value and manual-resolution checkpoints use Sol.
 Sub-agents report evidence and do not commit; the main agent reviews the integrated
@@ -15,6 +16,40 @@ diff and verification results. Model availability failures must be reported rath
 than silently substituting a different model. This does not remove review gates.
 
 ## Activation gate
+
+E5k checkpoint (2026-10-09): Sol 6.1/medium Rust agent owns only existing test
+browser/restart.rs and migration.rs: parameterize the E5j chain for populated
+v5/v6, register a separate ignored migration host, and expose fallible shared
+legacy proof helpers that always close SQLx pools before propagating errors.
+Existing CLI helper wrappers/assertions and current-schema host stay intact.
+Sol 6.1/medium Node agent owns only tests/preview-native-browser-smoke.mjs: reuse
+the restart chain for both legacy cases and add the host/EOF to default smoke.
+Main owns design/spec/evidence, integrated review, repeat browser verification,
+visual QA/full gate/commits. No production/dependency/API/new migration/capability/
+write/live account/keychain changes, recursive delegation or agent commits.
+Read E5k/E5j/E5e design, applicable preview/runtime/storage/auth/layout/WebUI
+contracts and mark-read research. Rust alone owns serial Cargo until handoff;
+Node static checks/build only; main owns actual browser runs and full verify.
+
+- [x] E5k: Genuine populated v5/v6 migration through native browser restart/resume/delete.
+
+Main reviewed both Sol 6.1/medium implementations; shared legacy proof checks
+retain their strength, and current-schema/default/older EOF paths remain intact.
+Scoped CLI 50 passed/six ignored, fmt/scoped Clippy and Node static syntax/lint/
+typecheck/build passed. Main independently passed three migrationOnly browser/EOF
+runs, then two full default driver runs, and visually checked eight new v5/v6
+Interrupted/Completed desktop/mobile screenshots. Invalid combined diagnostic
+filters reject before Cargo/browser startup. Full pnpm verify passed 309 Rust
+tests, two compile-fail doctests, 85 TS/UI tests, six ignored browser hosts
+explicitly driven in smoke, fmt/workspace Clippy, generated drift, boundaries,
+lint/typecheck/build and mock/actual CLI/auth/native browser smoke. Product YAML
+34 evidence IDs/11 references/eight paths/23 unique decisions/disabled capability
+checks, task context validation and diff checks passed. No production/dependency/
+product/API/new migration/capability changes or leftover fixture/Cargo/Rust owners.
+Keep child/parent active: next is the remaining PRD acceptance/evidence-gap audit,
+not implicit capability activation. Native-only synthetic browser migration does
+not establish v6 Search/manual legacy history, shipped-process, live-account,
+native-keychain or hosted three-OS acceptance.
 
 E5j checkpoint (2026-10-08): Sol/medium Rust agent owns only new browser/restart.rs,
 browser.rs registration/narrow clock-param reopen helper preserving NOW defaults,

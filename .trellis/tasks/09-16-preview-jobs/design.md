@@ -3,6 +3,54 @@
 Status: approved for implementation by user continuation on 2026-09-18.
 Product scope is already approved in the parent and `prd.md`.
 
+## E5k: Populated legacy-schema native browser acceptance (2026-10-09)
+
+Reuse the complete E5j Running restart/resume/delete chain without changing its
+current_schema case. Add browser/restart.rs::browser_native_migration_host with
+two fresh ordered cases populated_v5 and populated_v6. Parameterize test-only
+case selection rather than copying Core composition, upstream or browser logic.
+All E5j schema/header/partial-history/fresh-comparison/auth/retention/trace/cleanup
+assertions remain mandatory, as do E5f-j/default probes. Use existing Playwright
+harness and generated AJV schemas; no new dependencies or public fixture API.
+
+After the browser observes Running attempt1 with one committed row and closes
+its Page safely, drain old Core/runtime/storage, release and observe the held
+handler, and scan the closed DB/WAL. Before opening any current repository,
+reuse E5e's genuine prior-schema builder: remove later triggers/columns and ledger
+entries with foreign keys enabled. Compare canonical committed prior structures
+(DDL, columns, indices, FKs), all populated operational rows, successful original
+migration identities/checksums and retained full ledger history. Do not merely
+alter the ledger or label a current-schema database v5/v6.
+
+Production Storage::open must upgrade first. Prove v7 structure, preserved full
+operational data/ledger prefix, foreign-key integrity and NULL newly added inputs
+before runtime recovery can change Running metadata. Independently inspect exact
+Running/partial evidence through current repositories only after upgrade; close
+and scan. Then E5j same-origin later-time startup must produce Interrupted with
+the original session and no reseeding/upstream/secret work. Explicit resume clears
+old results, increments attempt, freshly processes both original Native rows with
+changed marks and retains v1/fixed expiry/fingerprints. Terminal reopen and explicit
+job-only deletion preserve unrelated profiles/account/auth/secrets.
+
+Shared migration proof routines need fallible forms with static sanitized errors
+and explicit pool closure before error propagation, including in-memory canonical
+schema pools. Preserve existing CLI panic wrappers and their proof strength. Do
+not let a proof assertion bypass browser owner/gate/upstream cleanup. Keep failure
+ownership Result-based; no generic panic-catching fixture framework.
+
+Node reuses the restart path with host/case selection, distinct v5/v6 screenshot
+names (Interrupted/Completed desktop/mobile), exact complete protocol phases and
+an independent ready-to-EOF natural nonzero exit/Core-unreachable probe. Optional
+migrationOnly is diagnostic-only; default smoke still drives every old/new case
+and EOF probe. Invalid simultaneous diagnostic filters fail rather than silently
+skipping coverage. Main repeats scoped/full browser runs, visually checks eight
+new screenshots, and runs full pnpm verify plus YAML/context/diff checks.
+
+This is Native-only synthetic local browser migration evidence, not v6 Search/
+Manual legacy-history preservation (covered separately in Storage), shipped
+process/live account/native keychain/hosted three-OS proof. No production behavior,
+new migration/dependency/API/capability/write changes. Keep child and parent active.
+
 ## E5j: Native browser Running restart/resume acceptance (2026-10-08)
 
 Add ignored `browser/restart.rs::browser_native_restart_host`, extending the

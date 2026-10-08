@@ -302,6 +302,18 @@ default cases/EOF probes and full acceptance requirements remain unchanged.
 This is restarted synthetic composition, not shipped-process or legacy-schema
 browser migration/live-account/native-keychain/hosted three-OS proof.
 
+The separate `browser/restart.rs::browser_native_migration_host` reuses the full
+restart driver for populated_v5 and populated_v6. Each case requires all E5j
+partial/Interrupted/fresh attempt2/history/delete assertions, original same-origin
+session retention and real header/schema/redaction checks; backend proof verifies
+genuine prior structures and production Storage::open upgrade before recovery.
+Capture separately named Interrupted/Completed desktop/mobile images for each
+schema. Default smoke includes both cases and the new independent EOF probe,
+without replacing any earlier case/probe. `migrationOnly` and `restartOnly` are
+mutually exclusive scoped diagnostic filters, not full acceptance. Native-only
+legacy fixtures do not prove v6 Search/manual-history preservation, real accounts,
+native secrets, shipped-process migration or hosted cross-platform execution.
+
 ## 7. Wrong vs Correct
 
 Wrong: infer completed from `items.length === 0`, auto-resume on remount, or

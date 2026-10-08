@@ -12,6 +12,7 @@ const FAILURE_HOST_TEST = 'client::preview_integration_tests::browser::failure::
 const POLLING_HOST_TEST = 'client::preview_integration_tests::browser::polling::browser_native_polling_host';
 const RESOLUTION_HOST_TEST = 'client::preview_integration_tests::browser::resolution::browser_native_resolution_host';
 const RESTART_HOST_TEST = 'client::preview_integration_tests::browser::restart::browser_native_restart_host';
+const MIGRATION_HOST_TEST = 'client::preview_integration_tests::browser::restart::browser_native_migration_host';
 const HOST_PREFIX = 'E5F:';
 const PROCESS_TIMEOUT_MS = 180_000;
 const PHASE_TIMEOUT_MS = 30_000;
@@ -55,6 +56,8 @@ const FAILURE_CASES = [
 ];
 const POLLING_CASES = ['poll_complete', 'poll_cancel'];
 const RESOLUTION_CASES = ['manual_missing_id', 'manual_conflict_id'];
+const RESTART_CASES = ['current_schema'];
+const MIGRATION_CASES = ['populated_v5', 'populated_v6'];
 
 const ajv = new Ajv2020({ strict: true });
 for (const format of ['uint32', 'int64', 'double']) ajv.addFormat(format, true);
@@ -1775,13 +1778,14 @@ async function awaitRestartRequestHeaderQuiescence(requests, stage) {
   assert.fail(`browser request headers did not reach bounded quiescence ${stage}`);
 }
 
-async function runRestartPath(browser, executable) {
-  const host = startHost(executable, RESTART_HOST_TEST);
+async function runRestartCase(browser, host, caseName) {
+  const screenshotPrefix = caseName === 'current_schema'
+    ? 'preview-native-restart' : `preview-native-migration-${caseName}`;
   let context;
   let bootstrapKey;
   try {
     const ready = await host.receive('ready');
-    assert.equal(ready.case, 'current_schema');
+    assert.equal(ready.case, caseName);
     assert.equal(typeof ready.bootstrapUrl, 'string');
     const bootstrapUrl = new URL(ready.bootstrapUrl);
     const origin = bootstrapUrl.origin;
@@ -1842,7 +1846,7 @@ async function runRestartPath(browser, executable) {
 
     host.send({ phase: 'native', jobId });
     const pending = await host.receive('pending');
-    assert.equal(pending.case, 'current_schema');
+    assert.equal(pending.case, caseName);
     await awaitRestartRequestHeaderQuiescence(requests, 'before initial Running status refresh');
     const runningResponse = await clickForResponse(
       page,
@@ -1873,7 +1877,7 @@ async function runRestartPath(browser, executable) {
     await page.close();
     host.send({ phase: 'restart', jobId });
     const restarted = await host.receive('restarted');
-    assert.equal(restarted.case, 'current_schema');
+    assert.equal(restarted.case, caseName);
 
     page = await context.newPage();
     registerPage(page);
@@ -1917,16 +1921,16 @@ async function runRestartPath(browser, executable) {
       interruptedFirstPage,
     );
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.screenshot({ path: 'test-results/preview-native-restart-interrupted-desktop.png', fullPage: true });
+    await page.screenshot({ path: `test-results/${screenshotPrefix}-interrupted-desktop.png`, fullPage: true });
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.screenshot({ path: 'test-results/preview-native-restart-interrupted-mobile.png', fullPage: true });
+    await page.screenshot({ path: `test-results/${screenshotPrefix}-interrupted-mobile.png`, fullPage: true });
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await page.setViewportSize({ width: 1280, height: 900 });
 
     host.send({ phase: 'inspected', jobId });
     const inspected = await host.receive('inspected');
-    assert.equal(inspected.case, 'current_schema');
+    assert.equal(inspected.case, caseName);
     await awaitRestartRequestHeaderQuiescence(requests, 'before explicit resume');
     const resumeResponse = await clickForResponse(
       page,
@@ -1979,7 +1983,7 @@ async function runRestartPath(browser, executable) {
 
     host.send({ phase: 'resumed', jobId });
     const continuing = await host.receive('continuing');
-    assert.equal(continuing.case, 'current_schema');
+    assert.equal(continuing.case, caseName);
     await panel.getByText('completed', { exact: true }).waitFor({ timeout: 12_000 });
     await awaitRestartRequestHeaderQuiescence(requests, 'before Completed status refresh');
     const completedResponse = await clickForResponse(
@@ -2019,16 +2023,16 @@ async function runRestartPath(browser, executable) {
       assert(await panel.getByText(text, { exact: false }).count());
     }
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.screenshot({ path: 'test-results/preview-native-restart-completed-desktop.png', fullPage: true });
+    await page.screenshot({ path: `test-results/${screenshotPrefix}-completed-desktop.png`, fullPage: true });
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.screenshot({ path: 'test-results/preview-native-restart-completed-mobile.png', fullPage: true });
+    await page.screenshot({ path: `test-results/${screenshotPrefix}-completed-mobile.png`, fullPage: true });
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await page.setViewportSize({ width: 1280, height: 900 });
 
     host.send({ phase: 'retained', jobId });
     const reopened = await host.receive('reopened');
-    assert.equal(reopened.case, 'current_schema');
+    assert.equal(reopened.case, caseName);
     await awaitRestartRequestHeaderQuiescence(requests, 'before terminal page reload');
     await page.reload();
     await page.getByText('已授权', { exact: true }).waitFor();
@@ -2107,13 +2111,7 @@ async function runRestartPath(browser, executable) {
 
     host.send({ phase: 'finish', jobId });
     const done = await host.receive('done');
-    assert.equal(done.case, 'current_schema');
-    await host.receive('all_done');
-    const result = await waitForExit(host.child, host.exit);
-    assert.equal(result.error, undefined, 'native restart host process failed to start');
-    assert.equal(result.forced, false, 'native restart host exceeded its natural exit bound');
-    assert.equal(result.signal, null, 'native restart host terminated by signal');
-    assert.equal(result.code, 0, 'native restart host did not exit successfully');
+    assert.equal(done.case, caseName);
   } catch (error) {
     if (host.child.exitCode === null && host.child.signalCode === null) await host.closeInputAndDrain();
     const message = error instanceof Error ? error.message : 'native restart browser smoke failed';
@@ -2125,6 +2123,21 @@ async function runRestartPath(browser, executable) {
   }
 }
 
+async function runRestartPath(browser, executable, testName = RESTART_HOST_TEST, cases = RESTART_CASES) {
+  const host = startHost(executable, testName);
+  try {
+    for (const caseName of cases) await runRestartCase(browser, host, caseName);
+    await host.receive('all_done');
+    const result = await waitForExit(host.child, host.exit);
+    assert.equal(result.error, undefined, 'native restart host process failed to start');
+    assert.equal(result.forced, false, 'native restart host exceeded its natural exit bound');
+    assert.equal(result.signal, null, 'native restart host terminated by signal');
+    assert.equal(result.code, 0, 'native restart host did not exit successfully');
+  } finally {
+    if (host.child.exitCode === null && host.child.signalCode === null) await host.closeInputAndDrain();
+  }
+}
+
 async function runEofProbe(executable, testName = HOST_TEST) {
   const host = startHost(executable, testName);
   try {
@@ -2132,7 +2145,8 @@ async function runEofProbe(executable, testName = HOST_TEST) {
     if (testName === FAILURE_HOST_TEST) assert.equal(ready.case, FAILURE_CASES[0]);
     if (testName === POLLING_HOST_TEST) assert.equal(ready.case, POLLING_CASES[0]);
     if (testName === RESOLUTION_HOST_TEST) assert.equal(ready.case, RESOLUTION_CASES[0]);
-    if (testName === RESTART_HOST_TEST) assert.equal(ready.case, 'current_schema');
+    if (testName === RESTART_HOST_TEST) assert.equal(ready.case, RESTART_CASES[0]);
+    if (testName === MIGRATION_HOST_TEST) assert.equal(ready.case, MIGRATION_CASES[0]);
     const origin = new URL(ready.bootstrapUrl).origin;
     const result = await host.closeInputAndDrain();
     assert.equal(result.error, undefined, 'EOF probe host process failed to start');
@@ -2151,11 +2165,20 @@ async function runEofProbe(executable, testName = HOST_TEST) {
   }
 }
 
-export async function runPreviewNativeBrowserSmoke(existingBrowser, { restartOnly = false } = {}) {
+export async function runPreviewNativeBrowserSmoke(existingBrowser, {
+  restartOnly = false, migrationOnly = false,
+} = {}) {
+  assert(!(restartOnly && migrationOnly), 'restartOnly and migrationOnly cannot be combined');
   await mkdir(new URL('../test-results/', import.meta.url), { recursive: true });
   const executable = await cargoTestExecutable();
   const browser = existingBrowser ?? await chromium.launch();
   try {
+    if (migrationOnly) {
+      await runRestartPath(browser, executable, MIGRATION_HOST_TEST, MIGRATION_CASES);
+      await runEofProbe(executable, MIGRATION_HOST_TEST);
+      console.log('Actual native browser/Core/SQLite/NeoDB-adapter populated v5/v6 migration acceptance passed.');
+      return;
+    }
     if (restartOnly) {
       await runRestartPath(browser, executable);
       await runEofProbe(executable, RESTART_HOST_TEST);
@@ -2172,7 +2195,9 @@ export async function runPreviewNativeBrowserSmoke(existingBrowser, { restartOnl
     await runEofProbe(executable, RESOLUTION_HOST_TEST);
     await runRestartPath(browser, executable);
     await runEofProbe(executable, RESTART_HOST_TEST);
-    console.log('Actual native browser/Core/SQLite/NeoDB-adapter preview acceptance passed, including failure, polling, explicit resolution, and restart retention.');
+    await runRestartPath(browser, executable, MIGRATION_HOST_TEST, MIGRATION_CASES);
+    await runEofProbe(executable, MIGRATION_HOST_TEST);
+    console.log('Actual native browser/Core/SQLite/NeoDB-adapter preview acceptance passed, including failure, polling, explicit resolution, restart retention, and populated v5/v6 migration.');
   } finally {
     if (!existingBrowser) await browser.close();
   }

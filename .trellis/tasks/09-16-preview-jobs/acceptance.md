@@ -21,8 +21,67 @@ credential-store verification is implied. Local Windows checks are not three-OS 
   validates preview responses and browser actions against schema-validated mocks;
   its preview evidence stays client-only. `tests/smoke.mjs` runs real host/auth
   boundaries and separately registers E5f's native browser-to-adapter helper.
-  E5a-j below distinguish actual adapter, client, terminal-history reopen and
+  E5a-k below distinguish actual adapter, client, terminal-history reopen and
   interrupted/resume evidence; one client's acceptance is not another's proof.
+
+## E5k populated legacy native-browser migration evidence (2026-10-09)
+
+The existing driver explicitly runs the separate ignored
+`browser/restart.rs::browser_native_migration_host`, ordered populated_v5 then
+populated_v6. Both fresh fixtures reuse the entire E5j browser/Core/runtime/
+SQLite/production NeoDbClient chain with synthetic upstream/clock/secrets; the
+current-schema scenario and all prior cases/EOF probes remain mandatory.
+
+Browser first observes actual Running attempt1 with ordinal0's complete equal
+comparison and empty ordinal1 page. After safe Page closure and old-owner drain,
+held-handler lifecycle observation and closed DB/WAL redaction scan, the shared
+E5e proof engine removes actual later triggers/columns and ledger entries. It
+compares committed prior DDL/columns/indices/FKs, all populated operational rows,
+successful migration identities/checksums and full retained ledger history.
+Production Storage::open upgrades before any current repository access. Before
+runtime recovery changes status, restored v7 structure/NULL new inputs/FK integrity/
+original rows/ledger identities and prefix are checked. The independent current
+repository inspection still sees exact Running partial evidence; Storage closes
+before any proof/inspection error propagates.
+
+Same-origin reopen at later time retains the original browser session without
+reseeding/re-pairing. Startup yields Interrupted1 with original partial evidence,
+observations/Native inputs/v1/account/fixed expiry and no upstream/secret I/O.
+Blank File/profile/revision and known-ID opening remain inspection-only. One
+explicit resume returns attempt2, atomically clears old results, rejects old page
+reads with preview_attempt_changed and freshly processes both original ordinals.
+Completed2 preserves identity/fingerprints/ordered decisions and later snapshot
+times: suggestions8/7 versus fresh Known5/4 require review. Terminal reopen/history
+equality and confirmed job-only deletion retain endpoint/profiles/auth/secrets.
+
+Each case asserts ten exact upstream GETs/three NeoDB-secret reads/zero writes;
+only mark GETs carry NeoDB Bearer, no Cookie/CLI Bearer/search/retry. Real headers,
+Origin/CSRF, exact raw body and bootstrap/import/resume/delete mutation set,
+generated schemas, public/closed DB-WAL redaction, empty browser storage and no
+overflow/page errors remain checked. Eight separately named v5/v6 Interrupted/
+Completed desktop/mobile screenshots were visually inspected. New migration-host
+EOF probe requires natural nonzero exit, no signal/forced kill and unreachable
+Core. Result-based migration helpers explicitly close file/canonical SQLx pools;
+CLI assertion wrappers preserve exact proof strength. Two bounded regressions
+reject unpopulated/malformed fixtures with static errors and remove the temporary
+directory after failure, checking Windows handle release.
+
+Scoped CLI passed 50 tests/six ignored hosts; fmt/scoped Clippy and Node syntax/
+ESLint/typecheck/build passed. Main independently passed three migrationOnly
+browser/EOF runs. Invalid simultaneous diagnostic filters reject before Cargo or
+browser startup. Two independent full default driver runs then passed. Final
+pnpm verify passed 309 Rust tests, two compile-fail doctests, 85 TS/UI tests,
+six ignored browser hosts explicitly driven by smoke, fmt/workspace Clippy,
+generated drift, dependency boundaries, lint/typecheck/build and mock/actual
+CLI/auth/native browser smoke. Product YAML/34 evidence IDs/11 references/eight
+spec paths/23 unique decisions/disabled capabilities, task context validation
+and diff checks passed. No fixture/Cargo/Rust processes remain after the gate.
+
+No production/dependency/API/new migration/capability/write changes. Product facts
+are unchanged; all fetches are synthetic, not live NeoDB. This is Native-only
+local browser migration evidence, not v6 Search/Manual legacy-history compatibility,
+shipped-process migration, live accounts/native credentials or hosted three-OS CI.
+Keep child/parent active and runnable connector IDs/writes/scheduling disabled.
 
 ## E5j native browser Running restart/fresh resume evidence (2026-10-08)
 

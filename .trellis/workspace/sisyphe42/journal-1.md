@@ -836,3 +836,73 @@ Verified actual native-browser 202 polling and explicit cancellation against syn
 - Next bounded slice: native browser explicit Search/Manual resolution, followed
   by Running restart/migration. Terminal reopen is not interrupted/resume proof.
 - Keep connector IDs empty and writes/scheduling disabled pending full acceptance.
+
+
+## Session 19: Native browser search and manual resolution acceptance
+
+**Date**: 2026-10-08
+**Task**: Native browser search and manual resolution acceptance
+**Branch**: `master`
+
+### Summary
+
+Verified three-job native Search/Manual lineage, fresh missing/conflicting identity, exact request and secret boundaries, terminal reopen and deletion. Two independent corrected browser repeats and full gate passed; capabilities remain disabled.
+
+### Main Changes
+
+- Two Sol/medium agents implemented separately owned Rust host and Node driver;
+  main planned/reviewed/integrated and committed the verified checkpoint.
+- Reuse concrete E5c ResolutionState/handler and existing browser composition;
+  only fixture-local fresh detail identity changes between two independent cases.
+- Each case preserves three distinct immutable jobs: raw Unsupported, explicit
+  Search singleton review-only candidate, then explicit compact Manual selection.
+- Keyboard staging is separate from new-job submission and performs no mutation/
+  upstream/secret work. Exact CSV/BOM/source/ordinal/saved v1 remain bound.
+- Original padded query is preserved on wire; Core trims persisted/upstream input.
+  First actual run exposed the wrong trimmed-wire test expectation; only the
+  assertion changed. Exact new-job headings avoid old Completed-render races.
+- Fresh missing identity permits manual comparison with complete field decisions;
+  fresh contradictory identity remains NeedsReview despite exact candidate ID.
+- Public/stored metadata, provenance, snapshot/profile/account/fingerprint and
+  normalized observations/resolution inputs remain exact across stage and reopen.
+- Missing-ID trace is five GETs/one NeoDB-secret read, conflict four/zero. Only
+  personal mark GET has NeoDB Bearer; no Cookie/CLI Bearer/retry/write. Secret
+  writes zero, no additional upstream/secret work on inspection/reopen/delete.
+- Drain/closed DB-WAL redaction before same-origin reopen and after three deletes;
+  retain full histories/original session without reseeding, then job-only deletion
+  preserving endpoint, both profiles, paired hash/metadata/auth and secret values.
+- Preserve happy/six-fault/poll/cancel/three EOF paths; additional independent
+  EOF proves natural nonzero exit and closed Core port, not forced termination.
+- Owning Trellis specs/task evidence updated; no production/API/schema/dependency/
+  migration/capability changes or live-account/native-keychain access.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3a38ea7` | test: verify native browser search and manual resolution |
+
+### Testing
+
+- Scoped CLI: 48 passed, four ignored browser hosts; fmt/scoped Clippy and Node
+  static syntax/lint/typecheck/build checks passed.
+- Main independently repeated the corrected full native driver twice; all eight
+  new desktop/mobile screenshots visually checked, no overflow/storage/page errors.
+- pnpm verify passed: 307 Rust tests, four ignored hosts explicitly driven in
+  smoke, two compile-fail doctests, 85 TS/UI tests, fmt/workspace Clippy, contracts/
+  boundaries/lint/typecheck/build and mock/actual CLI/auth/native browser smoke.
+- Product YAML/34 evidence IDs/11 references/eight spec paths, decisions and
+  disabled capabilities, task context validation and diff checks passed.
+- Dependency/product files unchanged; no fixture/Cargo/Rust processes remain.
+  Local Windows synthetic evidence is not hosted three-OS CI, shipped-process,
+  Running restart/migration, live-account or native-keychain proof.
+
+### Status
+
+[OK] **E5i checkpoint complete; child and parent remain active and unarchived.**
+
+### Next Steps
+
+- Next bounded slice: native browser Running restart/migration acceptance;
+  terminal-history reopen is not interrupted/resume proof.
+- Keep connector IDs empty and writes/scheduling disabled pending full acceptance.

@@ -1041,3 +1041,44 @@ E5k: genuine populated v5/v6 browser upgrade, restart, explicit fresh resume and
 
 - Audit remaining PRD acceptance and evidence gaps before capability activation.
 - Keep runnable connector IDs empty and writes/scheduling disabled.
+
+
+## Session 22: Accept and close IMDb read-only preview milestone
+
+**Date**: 2026-10-09
+**Task**: Accept and close IMDb read-only preview milestone
+**Branch**: `master`
+
+### Summary
+
+Completed synthetic preview acceptance audit, full verification, spec reconciliation and child/parent archival without enabling writes or connector advertising.
+
+### Main Changes
+
+- Root plus two read-only gpt-6.1-sol/medium agents audited all child/parent PRD criteria against current implementation and E5a-k evidence; no material synthetic-scope gap remained.
+- Reconciled canonical implementation facts and stale pending statements across owning specs; marked historical acceptance matrices as superseded without rewriting their evidence limits.
+- Accepted and archived preview-jobs (94db694) and the IMDb read-only-preview parent (11e78a1); all three child acceptances complete. Archive commits preserve task evidence, not delete it.
+- No production code, tests, API/schema, dependency or capability changed. Connector IDs remain empty; source/personal writes and scheduling remain disabled. No live API/accounts or OS credentials used.
+- Live-account/native-keychain/shipped-preview-process/hosted three-OS proof remains separate, not part of this approved synthetic milestone. New work needs its own reviewed task.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `dd7c1ad` | (see git log) |
+
+### Testing
+
+- Fresh pnpm verify passed: 309 Rust tests, two compile-fail doctests, 85 TS/UI tests and all six explicitly driven native browser hosts/default EOF probes.
+- Passed fmt/workspace Clippy, generated-contract drift, dependency boundaries, lint/typecheck, WebUI/CLI builds, mock and actual CLI/auth/browser smoke and git diff --check.
+- Passed YAML parsing, 34 evidence IDs/11 references/nine spec paths/23 unique decisions/129 Markdown link targets, both inline task-context validations and disabled-capability guards.
+- Implementation diff guard passed; no fixture/Cargo/Rust processes remained. Post-archive Git/Trellis state is clean with no active task; archived parent/child statuses are completed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Milestone complete; propose the next reviewed task separately. Do not implicitly activate connector advertising, writes or schedules.

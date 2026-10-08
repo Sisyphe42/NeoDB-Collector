@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 21
+- **Total Sessions**: 22
 - **Last Active**: 2026-10-09
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1043 | Active |
+| `journal-1.md` | ~1084 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 22 | 2026-10-09 | Accept and close IMDb read-only preview milestone | `dd7c1ad` | `master` |
 | 21 | 2026-10-09 | Native browser populated legacy migration acceptance | `40d43d6` | `master` |
 | 20 | 2026-10-08 | Native browser restart and fresh resume acceptance | `675b769` | `master` |
 | 19 | 2026-10-08 | Native browser search and manual resolution acceptance | `3a38ea7` | `master` |

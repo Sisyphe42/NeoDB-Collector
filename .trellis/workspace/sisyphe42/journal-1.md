@@ -979,3 +979,65 @@ Verified current-schema native browser Running interruption, preserved partial h
 
 - Next bounded slice: genuine populated legacy-schema browser migration.
 - Keep connector IDs empty and writes/scheduling disabled pending full acceptance.
+
+
+## Session 21: Native browser populated legacy migration acceptance
+
+**Date**: 2026-10-09
+**Task**: Native browser populated legacy migration acceptance
+**Branch**: `master`
+
+### Summary
+
+E5k: genuine populated v5/v6 browser upgrade, restart, explicit fresh resume and job-only deletion; Sol delegates updated to 6.1/medium. Three scoped and two full browser repeats, eight screenshot QA, and full pnpm verify passed. Child/parent remain active for remaining acceptance audit.
+
+### Main Changes
+
+- User-authorized remaining Sol delegation now uses gpt-6.1-sol/medium. Root
+  owned planning/review/full verification; two bounded agents owned Rust/Node.
+  Historical model records are unchanged; Luna/max remains available.
+- Separate ignored browser migration host reuses the complete current-schema
+  restart chain for fresh populated_v5 and populated_v6 cases. The shared E5e
+  proof checks real prior columns/triggers/DDL/indices/FKs, exact operational
+  rows and successful migration identities/checksums/full retained history.
+  Production Storage::open upgrades before current repositories and runtime
+  recovery; no new production migration or fixture-control API.
+- Result-based proof helpers close file/canonical pools before static errors;
+  existing CLI wrappers and all original exact checks stay intact. Two bounded
+  regressions reject unpopulated/malformed fixtures and verify handle release.
+- Browser retains original session/Interrupted partial evidence, explicitly
+  resumes attempt2 with fresh changed comparisons, then reopens/deletes job-only
+  history with auth/config/secrets preserved. Default cases/strict headers/EOF
+  remain intact; migrationOnly is diagnostic, not full acceptance.
+- Owning Trellis specs and task evidence record the implemented scope/boundaries.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `40d43d6` | test: verify native browser populated legacy migrations |
+
+### Testing
+
+- Scoped CLI: 50 passed/six ignored hosts; fmt/scoped Clippy, Node syntax/scoped
+  ESLint/typecheck/build and invalid-filter pre-start refusal checks passed.
+- Main passed three scoped migration/EOF runs and two independent full default
+  native-browser runs; visually checked eight v5/v6 desktop/mobile screenshots.
+- Full pnpm verify: 309 Rust tests, two compile-fail doctests, 85 TS/UI tests,
+  six ignored browser hosts explicitly driven by smoke; fmt/workspace Clippy,
+  generated drift/boundaries/lint/typecheck/build and CLI/auth/mock/native smoke.
+- Product YAML: 34 evidence IDs/11 references/eight paths/23 unique decisions,
+  disabled capabilities, task context validation and diff checks passed.
+- Production/dependency/product/API/schema files unchanged; no fixture/Cargo/
+  Rust processes remain. Synthetic local Native browser migration is not v6
+  Search/manual legacy history, shipped process, real account/native keychain
+  or hosted three-OS evidence.
+
+### Status
+
+[OK] **E5k checkpoint complete; child and parent remain active and unarchived.**
+
+### Next Steps
+
+- Audit remaining PRD acceptance and evidence gaps before capability activation.
+- Keep runnable connector IDs empty and writes/scheduling disabled.
